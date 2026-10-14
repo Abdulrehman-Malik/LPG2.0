@@ -93,40 +93,48 @@ Legend:
 - [x] Phase 6 functional scope implemented and released for SQA
 
 ## Phase 7 — Mobile App and Multi-Shop Customer Ordering
-**Requirements branch:** `feature/mobile-multishop-ordering-requirements`
-**Current status:** planning pack complete; implementation not started. Business decisions and legacy data mapping remain approval gates. Keep all work on the feature branch, never directly on `main`.
 
-- [x] Module 01 — Product scope and target architecture documented
-- [x] Module 02 — Business, shops, staff roles, permissions and scope requirements documented
-- [x] Module 03 — Customer mobile accounts and one-customer-to-one-shop assignment documented
-- [x] Module 04 — Order lifecycle and safe POS integration documented
-- [x] Module 05 — API contract and security requirements documented
-- [x] Module 06 — Flutter Android/iOS app requirements documented
-- [x] Module 07 — Database model and non-destructive legacy migration plan documented
-- [x] Module 08 — QA and release gates documented
-- [x] Module 09 — Dependency-ordered implementation plan and decision register documented
-- [x] Complete documentation-only development planning on the feature branch
-- [ ] Review/approve the mobile multi-shop decision register with the owner
-- [ ] Inspect current data in a safe non-production copy and produce customer-to-shop legacy mapping report
-- [ ] Finalize the remaining owner decisions listed in docs/mobile-multishop/09-implementation-plan-and-decision-register.md
-- [ ] Implement business-to-location model and shop-scoped authorization
-- [ ] Add verified customer-to-shop assignment and customer mobile-account linking
-- [ ] Add order tables, idempotency and status history
-- [ ] Add web Order Management screen
-- [ ] Add versioned mobile API and security tests
-- [ ] Build Flutter app for Android and iOS
-- [ ] Run two-shop isolation pilot and existing POS regression suite
-- [ ] Obtain explicit approval before merge/deployment
+**Implementation branch:** `feature/mobile-multishop-ordering`  
+**Planning branch:** `docs/mobile-multishop-final-plan`  
+**Main baseline:** `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`  
+**Current status:** WP-0 source inventory in progress; implementation branch created; `main` remains untouched.
 
-## Mobile / Multi-Shop Planning Gate
+### Confirmed product decisions
 
-- [x] Requirements and architecture modules 01–08 documented on `feature/mobile-multishop-ordering-requirements`.
-- [x] Module 09 implementation plan, decision register, dependency order, acceptance criteria and release gates documented.
-- [x] Documentation-only planning completed; no mobile/order application code or database schema was changed.
-- [ ] Owner reviews/approves the business decisions in `docs/mobile-multishop/09-implementation-plan-and-decision-register.md`.
-- [ ] Inspect current data in a safe non-production copy and prepare/review customer-to-shop mapping.
-- [ ] Explicit approval to begin implementation.
-- [ ] Until approval, do not modify application code, schema/migrations, production data, or `main`.
+- Support multiple independent businesses; each has a Head Office and its own shops.
+- Keep two separate Flutter apps: Customer App and Business/Staff App.
+- Every customer belongs to exactly one shop and links to one financial customer master.
+- No legacy customer-to-shop mapping/backfill is required for this initiative. If a populated deployment is later selected, its upgrade/mapping plan must be separately reviewed.
+- Keep the existing role/permission implementation and add server-side business/shop scope checks.
+- Keep centralized Configuration for Application, Head Office/Business and Shop scopes; preserve existing Shop Settings. Login & Session controls are application-owned.
+- English only for the initial release, with localization-ready strings.
+- Customer orders are not POS sales; existing validated services own financial/inventory posting.
+- Customer offline queue persists locally, but a shop receives an order only after cloud synchronization.
+
+### Work package status
+
+- [x] Requirements modules 01–10 and decision register documented.
+- [/] WP-0 — source inventory, framework/test review, existing Shop Settings inventory and technical decisions.
+- [ ] WP-1 — fresh-install business/shop/customer ownership schema and seed setup.
+- [ ] WP-2 — business/shop scope resolver and permission integration.
+- [ ] WP-3 — customer app identity, signup approval and account lifecycle.
+- [ ] WP-4 — order tables, state machine, status history and idempotency.
+- [ ] WP-5 — backend order services, web Order Management and centralized Configuration.
+- [ ] WP-6 — versioned API, authentication/session lifecycle and security tests.
+- [ ] WP-7 — separate Customer App.
+- [ ] WP-8 — separate Business/Staff App.
+- [ ] WP-9 — validated POS fulfilment and financial/inventory regression.
+- [ ] WP-10 — two-shop pilot, release validation and rollback plan.
+
+### Development safety gates
+
+- All work stays on `feature/mobile-multishop-ordering`; no direct commits to `main`.
+- No production database is queried or modified by this development workflow.
+- Preserve current POS, ledgers, receipts, deposits, cylinder custody, cash, inventory and custom-role behavior.
+- Do not report tests as PASS without execution evidence. The repository has a MySQL 8 CI smoke workflow, one small PHPUnit test set and Playwright runtime tests; WP-0 will define how these are run against the current commit.
+- Do not merge or deploy until all security, isolation, POS-regression and owner-acceptance gates pass.
+
+See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the detailed implementation plan](docs/mobile-multishop/09-implementation-plan-and-decision-register.md), and [centralized configuration requirements](docs/mobile-multishop/10-configuration-management.md).
 
 ## Workflow Gate
 
