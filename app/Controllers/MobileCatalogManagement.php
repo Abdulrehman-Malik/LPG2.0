@@ -85,6 +85,13 @@ class MobileCatalogManagement extends Controller
 
         $shop = $db->table('locations')->where('id', $shopId)->get()->getRowArray();
         $business = $db->table('businesses')->where('id', $businessId)->get()->getRowArray();
+        $editProduct = null;
+        $editId = (int) $this->request->getGet('edit');
+        if ($editId > 0 && $canManageBusinessCatalog) {
+            $editProduct = $db->table('business_catalog_products')
+                ->where(['id' => $editId, 'business_id' => $businessId])
+                ->get()->getRowArray();
+        }
 
         return view('mobile_catalog/index', [
             'title' => 'Customer Ordering Catalog',
@@ -97,6 +104,7 @@ class MobileCatalogManagement extends Controller
             'canViewBusinessCatalog' => $canViewBusinessCatalog,
             'canManageBusinessCatalog' => $canManageBusinessCatalog,
             'canManageShopAvailability' => $canManageShopAvailability,
+            'editProduct' => $editProduct,
         ]);
     }
 
