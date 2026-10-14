@@ -46,3 +46,14 @@
 - For changes affecting multiple screens, run QA coverage for **each impacted screen**, plus regression coverage for directly related workflows.
 - Do not report a screen-level fix as complete until the corresponding impacted-screen Runtime QA has passed.
 - Never rely on a previous QA result from an older commit when the current change could affect the tested screen; QA must validate the current commit.
+
+## Mandatory Page-by-Page Runtime QA Workflow — MUST FOLLOW
+
+- Follow `PAGE_TEST_WORKFLOW.md` after every page, route, UI, JavaScript, API, permission, or business-logic change.
+- Enumerate every impacted page and linked detail/history/ledger/report page, plus roles and business/shop scopes affected. Execute the browser flow on the current commit; do not rely on static review, route response, or CI alone.
+- Check navigation, authorization, page rendering, browser console/network, responsive layout, filters, forms, validation, persisted data, server logs, and downstream financial/inventory effects as applicable.
+- Test the relevant roles and attempt direct URL/write access to confirm server-side authorization and tenant/shop isolation.
+- For financial or inventory changes, capture before/after balances and reconcile source documents, detail lines, payments, cash, ledgers, physical cylinder status/gas weight, inventory movements, and audit trail. Include failed-post rollback and duplicate-submit/concurrency cases where relevant.
+- If a test fails, record evidence, fix the root cause, add regression coverage, and repeat the failed test plus all impacted-page/workflow regression against the new commit.
+- Record actual outcomes in `SQA.md`. Never mark PASS without runtime evidence. If browser/database execution is unavailable, mark BLOCKED or NOT EXECUTED and state why; do not claim the change is complete.
+- CI success is a separate gate and never substitutes for page-by-page browser/runtime QA.
