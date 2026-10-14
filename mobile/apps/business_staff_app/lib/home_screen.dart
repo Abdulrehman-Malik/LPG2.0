@@ -30,6 +30,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         (shops.isNotEmpty ? int.tryParse('${shops.first['id']}') : null) ??
         0;
     final shopId = _selectedShopId ?? currentId;
+    if (_selectedShopId == null && shopId > 0) _selectedShopId = shopId;
     if (shopId <= 0) throw StateError('No accessible shop is assigned to this staff account.');
     final orderRoot = await widget.client.getJson(
       'staff/orders',
@@ -179,7 +180,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                                       onChanged: submitting ? null : (checked) {
                                         setSheetState(() {
                                           if (checked == true) {
-                                            if (selected.length < (int.tryParse('${line['quantity_required'] ?? 0}') ?? 0)) selected.add(id);
+                                            if (selected.length < ((double.tryParse('${line['quantity_required'] ?? 0}') ?? 0).round())) selected.add(id);
                                           } else {
                                             selected.remove(id);
                                           }
