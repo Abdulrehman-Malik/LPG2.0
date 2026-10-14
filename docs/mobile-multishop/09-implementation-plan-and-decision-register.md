@@ -251,8 +251,10 @@ Exit criteria:
 
 Tasks:
 - Run fresh-install schema validation and migration upgrade against a copy of a representative existing database.
-- Run mapping review before enforcing ownership constraints.
-- Test one business with two shops, customers in both shops, shop-specific staff and a business owner.
+- Verify clean-install schema/seeds and customer/shop ownership constraints; do not include legacy customer mapping/backfill as a release prerequisite.
+- Test Admin/Manager-created accounts, customer signups awaiting approval, approval/rejection, password recovery and session revocation.
+- Test multiple businesses in the data model, a one-business/two-shop pilot, shop-specific staff and Head Office access.
+- Test product activation/deactivation, delivery/collection choice, price-change review, signup approval and language selection.
 - Test network timeout/retry, stock/rate changes, cancellation, rejection, unauthorized IDs, token expiry and duplicate fulfilment.
 - Build Android test package and iOS test build; production iOS signing requires macOS/Xcode and Apple release credentials.
 - Confirm environment-specific API URLs, TLS, secrets, backups, monitoring, support procedure and rollback/forward-repair procedure.
@@ -317,13 +319,14 @@ Planning is complete when:
 - The logical data model, API domains, authorization rules, state machine, POS boundary and migration approach are documented.
 - Every implementation work package has dependencies and exit criteria.
 - Business choices are visible in the decision register with recommended defaults.
-- A safe data-mapping report can be produced without changing application code or production data.
+- Fresh-install schema/seeds and account-linking rules are documented without legacy customer mapping/backfill.
+- Onboarding/approval, username/password API authentication, session revocation, product controls, price-change handling, delivery/collection and multilingual login are defined.
 - The owner approves decisions that affect customer behavior, data ownership, security or financial workflows.
 
-**This document does not mark business decisions as approved.** The next permitted step is decision review plus data discovery on a safe database copy. Implementation remains paused until that gate is explicitly cleared.
+**The owner-confirmed product and architecture decisions are recorded in the approved-hierarchy section and the corresponding decision-register rows.** The remaining initial language list/translation content and framework-specific session details must be finalized in the relevant work packages. Implementation remains paused until the owner explicitly approves the consolidated plan.
 
 
-## 5. Approved hierarchy and confirmed decisions (2026-10-14)
+## 7. Approved hierarchy and confirmed decisions (2026-10-14)
 
 The following decisions have been confirmed by the business owner and supersede any conflicting open questions elsewhere in this plan.
 
@@ -333,7 +336,12 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Shop roles:** Manager, Cashier, Operations Manager, and Shop Admin are supported shop-level roles. Their capabilities are permission-driven; role names alone are not authorization. Shop Admin has full access to data and administration within their own shop, including managing that shop's employees and settings, but cannot access other shops or businesses unless separately assigned and permitted.
 - **Customer ownership:** Each customer belongs to exactly one shop. A customer mobile account links to that existing customer record; it must not create a duplicate financial customer. The project starts with no existing business/customer transactional data to migrate, so no legacy customer-to-shop mapping or historical-data backfill is required. Fresh-install schema and seed setup must create the required structure.
 - **Mobile applications:** Build two separate Flutter applications for Android and iOS: (1) a Customer App for customers to place and track their own orders, and (2) a Business/Staff App for shop employees and Head Office users. They may share approved API contracts and reusable technical components, but must remain separate app experiences/packages with distinct authentication flows, navigation and permission boundaries. Staff/Head Office access is always server-authorized and scoped to the user's business and assigned shop(s). Do not combine customer and staff experiences into one mobile app.
-- **Authentication:** SMS/OTP is out of scope for the initial release. Implement secure non-SMS authentication appropriate to the approved deployment and threat model. Keep authentication extensible so SMS/OTP can be introduced later without redesigning customer ownership or authorization.
+- **Authentication:** Customer and staff accounts use username/password through the versioned API over TLS. Passwords are stored only as strong server-side hashes. Use short-lived access tokens and rotating, revocable refresh sessions; logout, password reset, account disablement and removal of signup approval revoke the applicable sessions. SMS/OTP is out of scope for MVP.
+- **Customer onboarding:** A permissioned Admin/Manager may create an app account linked to the customer's financial master. A customer may self-register, but the account remains pending until an authorized Admin/Manager approves or rejects it. Pending/rejected/inactive accounts cannot sign in to order or place orders. For MVP, recovery is Admin/Manager-mediated unless a verified self-service recovery channel is separately approved.
+- **Catalog and shop availability:** Head Office defines the business product catalog. Each shop may activate/deactivate products it is or is not currently selling. The server validates active shop products and existing effective-rate logic on each quote and order.
+- **Price integrity:** Cloud orders save a server-calculated price snapshot. Never reprice silently. If a queued offline order encounters a changed price/availability before synchronization, require customer review before creating the cloud order; if price differs before POS fulfilment, obtain customer reconfirmation or cancel/re-quote.
+- **Fulfilment:** Customers choose delivery or collection at checkout. Only shop-enabled methods are offered; delivery requires an address and any fee/condition must be shown before submission.
+- **Languages:** Both apps are multilingual and offer a language selector at login. Remember the choice on the device and, after sign-in, in the account preference. Agree on supported language list and translations before UI content freeze.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
 
@@ -357,17 +365,19 @@ Platform
 Future: Business B, Business C, etc., each with its own Head Office and shops.
 ```
 
-### Updated work-package order
+### Concise dependency order (the detailed WP-0 to WP-10 sections above are authoritative)
 
-1. **WP-0 — Baseline and technical inventory:** Confirm LPG2.0 schema, migrations, authorization services, POS posting services, tests, and deployment constraints. Documentation only until implementation approval.
-2. **WP-1 — Business/shop and permission design:** Finalize entities, Head Office membership, shop assignments, permission codes, standard-role defaults, custom-role preservation, and business/shop scope enforcement.
-3. **WP-2 — Fresh-install schema and seed design:** Define business, location/shop, employee assignment, customer-to-shop, customer mobile identity, and permissions. Since no legacy data exists, focus on clean install and repeatable seeds rather than backfill tooling.
-4. **WP-3 — Customer identity and authentication:** Specify secure initial non-SMS login, account linking, recovery, deactivation, and an extension point for future SMS/OTP.
-5. **WP-4 — Order model and state machine:** Define order records, shop/customer ownership, price/availability validation, status history, idempotency, and order-to-sale linkage.
-6. **WP-5 — Backend order services and browser Order Management:** Implement server-side authorization and shop-scoped workflows before mobile UI.
-7. **WP-6 — Versioned API:** Expose authenticated customer and staff operations with JSON errors, rate limiting, validation, and object-level scope checks.
-8. **WP-7 — Flutter app:** Build role-appropriate customer, shop staff, and Head Office views against the stable API.
-9. **WP-8 — Integration and release:** Regression-test existing POS transaction types, role/permission behavior, cross-shop/business isolation, migrations, and order/POS idempotency. Pilot before production rollout.
+1. **WP-0 — Baseline and technical inventory:** Confirm current source schema, migration conventions, permissions, POS posting services, test setup and deployment constraints.
+2. **WP-1 — Fresh-install schema and ownership:** Define business/shop/customer relationships, customer master linkage, fresh-install schema and repeatable seeds; no legacy mapping/backfill.
+3. **WP-2 — Business/shop authorization:** Finalize Head Office membership, staff shop assignments, permissions, standard-role defaults, custom-role preservation and scope enforcement.
+4. **WP-3 — Customer identity and onboarding:** Define username/password identity, Admin/Manager account creation, customer self-registration and approval, recovery and session revocation.
+5. **WP-4 — Order model and state machine:** Define order records, enabled catalog products, price snapshots, fulfilment method, status history, idempotency and order-to-sale linkage.
+6. **WP-5 — Backend services and web Order Management:** Implement server authorization, signup approval, product/shop switches and order workflows before mobile UI.
+7. **WP-6 — Versioned API:** Expose customer/staff operations with TLS, session lifecycle, JSON errors, validation, rate limits and scope checks.
+8. **WP-7 — Customer App:** Separate customer app with multilingual login, signup/approval states, catalog, delivery/collection, offline queue and order history.
+9. **WP-8 — Business/Staff App:** Separate staff/Head Office app with multilingual login, scoped shop selector, product controls and permitted order workflows.
+10. **WP-9 — POS fulfilment:** Reuse validated sales services; test idempotent order-to-sale linkage and financial/inventory regression.
+11. **WP-10 — Pilot and release:** Test multi-business boundaries, two-shop pilot, approval, product toggles, price changes, delivery/collection, languages, offline sync and rollback.
 
 ### Acceptance gates
 
@@ -383,11 +393,11 @@ Future: Business B, Business C, etc., each with its own Head Office and shops.
 - No production release until the owner approves implementation, test evidence, and deployment/rollback plan.
 
 
-## 7. Confirmed customer offline-order synchronization architecture (2026-10-14)
+## 8. Confirmed customer offline-order synchronization architecture (2026-10-14)
 
 This section records the owner's clarified requirement for the customer mobile app. It supersedes any interpretation that customer orders must be sent immediately or that the customer mobile app must connect directly to a shop's local database.
 
-### 7.1 Applications and responsibilities
+### 8.1 Applications and responsibilities
 
 - **Customer App (Android/iOS):** A dedicated customer-only app used to browse the assigned shop's approved orderable items, prepare and submit orders, and view order status. It keeps a durable local queue of orders that have not yet been accepted by the cloud.
 - **Business/Staff App (Android/iOS):** A separate app for shop staff and Head Office users. It exposes only the operational screens and actions authorized for the signed-in user and their permitted business/shop scope.
@@ -396,7 +406,7 @@ This section records the owner's clarified requirement for the customer mobile a
 - **Head Office:** Views orders across shops in its own business only where the signed-in user has the required permissions. It can see a customer's pending local-only order only after that order has synchronized to the cloud.
 - **Shop-local database:** Any existing or future local shop installation is separate from this customer-order flow. The customer app does not need direct connectivity to the shop's local database for an order to be submitted.
 
-### 7.2 Online and offline behavior
+### 8.2 Online and offline behavior
 
 **When internet is available**
 1. Customer reviews the order and submits it to the versioned cloud API.
@@ -414,7 +424,7 @@ This section records the owner's clarified requirement for the customer mobile a
 
 **Connectivity note:** A device's connectivity indicator alone does not prove the cloud API is reachable. The app must handle timeouts, DNS/TLS errors, server errors, app restarts, and intermittent connections without losing queued orders or creating duplicates.
 
-### 7.3 Queue and API requirements
+### 8.3 Queue and API requirements
 
 - Persist pending orders across app restarts and device reboots; do not rely only on in-memory state.
 - Use a stable idempotency key per intended order submission. Server-side uniqueness and transactional processing must prevent duplicate orders when requests are retried.
@@ -426,7 +436,7 @@ This section records the owner's clarified requirement for the customer mobile a
 - Cloud order status updates should refresh the customer app when online; status must not be fabricated or treated as live while disconnected.
 - Push notifications may be added later; they are not required for the first reliable order-sync release.
 
-### 7.4 Business and financial boundaries
+### 8.4 Business and financial boundaries
 
 - A locally queued order is only an unsubmitted customer intention. It is not visible to the shop until the cloud accepts it.
 - An order in the cloud is still an order, not a POS sale. Submission, synchronization, acceptance, rejection, and cancellation must not independently post sales, revenue, customer outstanding balance (OS), receipts, cash, deposits, cylinder custody, or inventory movement.
@@ -434,7 +444,7 @@ This section records the owner's clarified requirement for the customer mobile a
 - An order may be fulfilled only once. Use the unique order-to-sale link and idempotent fulfilment boundary documented in WP-4/WP-9.
 - The app must clearly distinguish local-only pending orders from cloud-submitted orders and shop-confirmed statuses.
 
-### 7.5 Additional acceptance tests
+### 8.5 Additional acceptance tests
 
 1. Customer submits online: one cloud order appears in only the customer's assigned shop queue.
 2. Customer submits offline: the order remains in local storage, a clear offline/pending message is shown, and no shop order is falsely reported as received.
@@ -449,7 +459,7 @@ This section records the owner's clarified requirement for the customer mobile a
 11. Logout/account change does not expose one customer's queued orders to another signed-in customer.
 12. Existing POS transaction-type and ledger/inventory regression suites continue to pass.
 
-### 7.6 Scope clarification
+### 8.6 Scope clarification
 
 The first release requires **offline queueing on the customer phone**, not full offline customer-to-shop communication. If the internet is down, the shop cannot receive the order until the phone can reach the cloud. Offline order acceptance, shop-to-phone local-network synchronization, or direct peer-to-peer sync are explicitly out of scope unless separately approved.
 
