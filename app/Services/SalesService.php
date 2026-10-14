@@ -119,7 +119,7 @@ class SalesService
                     }
                     if (!$this->db->transStatus()) throw new RuntimeException('Existing POS sale link could not be recovered.');
                     $this->db->transCommit();
-                } catch (\\Throwable $e) {
+                } catch (\Throwable $e) {
                     $this->db->transRollback();
                     throw $e;
                 }
