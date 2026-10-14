@@ -50,7 +50,7 @@ The existing web application continues to support POS and back-office workflows.
 
 ## Acceptance criteria
 
-- The same app package supports customer and staff experiences based on server-authorized account capabilities.
+- The Customer App and Business/Staff App are separately packaged and have distinct account/navigation boundaries.
 - Customers cannot change their assigned shop by modifying a request.
 - Owner views are limited to the owner's business; shop users are limited to assigned shop(s).
 - One submitted order is stored once even if the client retries after a network timeout.
