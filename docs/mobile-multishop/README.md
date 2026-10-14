@@ -76,7 +76,7 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 
 ## Decisions to validate before production implementation
 
-- OTP/SMS provider and account-recovery process.
+- Initial supported language list and translated UI content; the login-time language selector and localization support are confirmed.
 - Whether one staff user may be assigned to multiple shops.
 - Exact cancellation window and status transitions.
 - Delivery fee, service area and delivery-slot rules.
