@@ -69,7 +69,7 @@ class SalesService
             throw new RuntimeException('Customer price reconfirmation is required before fulfillment.');
         }
         if (abs((float) $order['delivery_fee'] - $deliveryFee) > 0.009) {
-            throw new RuntimeException('Delivery fee does not match the validated customer order.');
+            throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the saved delivery fee changed before posting.');
         }
         if (!empty($payload['customer_id']) && (int) $payload['customer_id'] !== (int) $order['customer_id']) {
             throw new RuntimeException('Sale customer does not match the customer order.');
