@@ -289,3 +289,56 @@ test('E2E-013 Customer Ledger receipt history shows POS source and payment detai
   await expect(posRow).toContainText(/POSTED/i);
   expect(pageErrors).toEqual([]);
 });
+
+
+test('E2E-020 Business and shop administration renders for System Administrator', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()); });
+
+  await login(page);
+  await page.goto('/business-management', { waitUntil: 'networkidle' });
+  await expect(page.locator('h4')).toContainText('Businesses & Shops');
+  await expect(page.locator('body')).toContainText('Shop locations');
+  await expect(page.locator('form[action*="business-management/business/save"]')).toHaveCount(1);
+  expect(pageErrors).toEqual([]);
+});
+
+test('E2E-021 Customer ordering catalog renders with separate business/shop controls', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()); });
+
+  await login(page);
+  await page.goto('/mobile-catalog', { waitUntil: 'networkidle' });
+  await expect(page.locator('h4')).toContainText('Customer Ordering Catalog');
+  await expect(page.locator('body')).toContainText('Shop availability');
+  await expect(page.locator('#product-sale-mode')).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test('E2E-022 Customer App account review page renders safely', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()); });
+
+  await login(page);
+  await page.goto('/customer-app-accounts', { waitUntil: 'networkidle' });
+  await expect(page.locator('h4')).toContainText('Customer App Accounts');
+  await expect(page.locator('body')).toContainText('Pending registration requests');
+  await expect(page.locator('body')).toContainText('Customer App accounts');
+  expect(pageErrors).toEqual([]);
+});
+
+test('E2E-023 Browser customer order queue renders without bypassing login or page permissions', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()); });
+
+  await login(page);
+  await page.goto('/customer-orders', { waitUntil: 'networkidle' });
+  await expect(page.locator('h4')).toContainText('Customer Orders');
+  await expect(page.locator('#order-status')).toBeVisible();
+  await expect(page.locator('body')).toContainText('No customer orders match this filter.');
+  expect(pageErrors).toEqual([]);
+});
