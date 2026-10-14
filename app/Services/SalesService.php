@@ -577,7 +577,7 @@ class SalesService
         $notes=trim((string)($payload['notes']??''))?:null;
         $lines=is_array($payload['lines']??null)?$payload['lines']:[];
         $payments=is_array($payload['payments']??null)?$payload['payments']:[];
-        $deposit=max(0,(float)($payload['security_deposit_amount']??0));
+        $deposit=(float)($payload['security_deposit_amount']??0);
         $custodyUnitIds=array_values(array_unique(array_map('intval',is_array($payload['custody_unit_ids']??null)?$payload['custody_unit_ids']:[])));
         $returnUnitIds=array_values(array_unique(array_map('intval',is_array($payload['return_unit_ids']??null)?$payload['return_unit_ids']:[])));
 
