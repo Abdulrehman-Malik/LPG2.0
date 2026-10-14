@@ -82,6 +82,32 @@ PREPARE lpg032_stmt FROM @lpg032_sql;
 EXECUTE lpg032_stmt;
 DEALLOCATE PREPARE lpg032_stmt;
 
+
+-- Customer codes are unique within a shop, not globally across the SaaS.
+SET @lpg032_customer_code_unique = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers'
+      AND COLUMN_NAME='code' AND NON_UNIQUE=0 AND INDEX_NAME <> 'PRIMARY'
+);
+SET @lpg032_sql = IF(
+    @lpg032_customer_code_unique > 0
+      AND (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers' AND INDEX_NAME='code') > 0,
+    'ALTER TABLE customers DROP INDEX code',
+    'SELECT 1'
+);
+PREPARE lpg032_stmt FROM @lpg032_sql;
+EXECUTE lpg032_stmt;
+DEALLOCATE PREPARE lpg032_stmt;
+
+SET @lpg032_sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers' AND INDEX_NAME='uq_customer_location_code')=0,
+    'ALTER TABLE customers ADD UNIQUE KEY uq_customer_location_code(location_id,code)',
+    'SELECT 1'
+);
+PREPARE lpg032_stmt FROM @lpg032_sql;
+EXECUTE lpg032_stmt;
+DEALLOCATE PREPARE lpg032_stmt;
+
 CREATE TABLE IF NOT EXISTS user_business_access (
     user_id BIGINT UNSIGNED NOT NULL,
     business_id BIGINT UNSIGNED NOT NULL,
