@@ -18,32 +18,33 @@ final class ShopScopeServiceTest extends CIUnitTestCase
         $this->testConnection = Database::connect('tests');
         $this->testConnection->initialize();
 
+        $prefix = $this->testConnection->getPrefix();
         foreach (['user_shop_access', 'user_business_access', 'users', 'locations', 'businesses'] as $table) {
-            $this->testConnection->query('DROP TABLE IF EXISTS ' . $table);
+            $this->testConnection->query('DROP TABLE IF EXISTS `' . $prefix . $table . '`');
         }
 
-        $this->testConnection->query('CREATE TABLE businesses (
+        $this->testConnection->query('CREATE TABLE `' . $prefix . 'businesses` (
             id INTEGER PRIMARY KEY,
             is_active INTEGER NOT NULL DEFAULT 1
         )');
-        $this->testConnection->query('CREATE TABLE locations (
+        $this->testConnection->query('CREATE TABLE `' . $prefix . 'locations` (
             id INTEGER PRIMARY KEY,
             business_id INTEGER NULL,
             is_active INTEGER NOT NULL DEFAULT 1
         )');
-        $this->testConnection->query('CREATE TABLE users (
+        $this->testConnection->query('CREATE TABLE `' . $prefix . 'users` (
             id INTEGER PRIMARY KEY,
             location_id INTEGER NULL,
             is_system_admin INTEGER NOT NULL DEFAULT 0,
             is_active INTEGER NOT NULL DEFAULT 1
         )');
-        $this->testConnection->query('CREATE TABLE user_business_access (
+        $this->testConnection->query('CREATE TABLE `' . $prefix . 'user_business_access` (
             user_id INTEGER NOT NULL,
             business_id INTEGER NOT NULL,
             is_default INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY(user_id, business_id)
         )');
-        $this->testConnection->query('CREATE TABLE user_shop_access (
+        $this->testConnection->query('CREATE TABLE `' . $prefix . 'user_shop_access` (
             user_id INTEGER NOT NULL,
             location_id INTEGER NOT NULL,
             is_default INTEGER NOT NULL DEFAULT 0,
@@ -84,7 +85,7 @@ final class ShopScopeServiceTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         foreach (['user_shop_access', 'user_business_access', 'users', 'locations', 'businesses'] as $table) {
-            $this->testConnection->query('DROP TABLE IF EXISTS ' . $table);
+            $this->testConnection->query('DROP TABLE IF EXISTS `' . $this->testConnection->getPrefix() . $table . '`');
         }
 
         parent::tearDown();
