@@ -64,6 +64,7 @@ The routes below reflect `app/Config/Routes.php` on `feature/mobile-multishop-or
 | POST | `/api/v1/staff/customers/{customerId}/app-account` | Create Customer App account linked to an existing customer master |
 | POST | `/api/v1/staff/customer-app-accounts/{accountId}/reset-password` | Admin/Manager-mediated password reset; revoke active sessions |
 | POST | `/api/v1/staff/customer-app-accounts/{accountId}/disable` | Disable account and revoke sessions |
+| POST | `/api/v1/staff/customer-app-accounts/{accountId}/enable` | Re-enable only when the linked financial customer is active; old sessions stay revoked |
 | GET | `/api/v1/staff/configuration/application` | Read client-safe application settings permitted to this identity |
 | GET | `/api/v1/staff/configuration/businesses/{businessId}` | Read permitted effective business settings |
 | GET | `/api/v1/staff/configuration/shops/{shopId}` | Read permitted effective shop settings |
