@@ -130,4 +130,35 @@
         </table>
     </div>
 </div>
+<script>
+(() => {
+    const mode = document.getElementById('product-sale-mode');
+    const minimum = document.getElementById('product-minimum');
+    const step = document.getElementById('product-step');
+    if (!mode || !minimum || !step) return;
+
+    const applyQuantityRules = (resetInvalidValues) => {
+        const gasMode = mode.value === 'sell_gas_only';
+        const floor = gasMode ? 0.1 : 1;
+        minimum.min = String(floor);
+        minimum.step = String(gasMode ? 0.1 : 1);
+        step.min = String(floor);
+        step.step = String(gasMode ? 0.1 : 1);
+
+        if (resetInvalidValues) {
+            const currentMin = Number(minimum.value);
+            const currentStep = Number(step.value);
+            if (!Number.isFinite(currentMin) || currentMin < floor || (!gasMode && !Number.isInteger(currentMin))) {
+                minimum.value = String(floor);
+            }
+            if (!Number.isFinite(currentStep) || currentStep < floor || (!gasMode && !Number.isInteger(currentStep))) {
+                step.value = String(floor);
+            }
+        }
+    };
+
+    mode.addEventListener('change', () => applyQuantityRules(true));
+    applyQuantityRules(false);
+})();
+</script>
 <?= $this->endSection() ?>
