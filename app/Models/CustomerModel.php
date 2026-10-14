@@ -5,11 +5,24 @@ class CustomerModel extends Model
 {
     protected $table='customers'; protected $primaryKey='id'; protected $returnType='array';
     protected $useTimestamps=true; protected $createdField='created_at'; protected $updatedField='updated_at';
-    protected $allowedFields=['code','name','phone','city','address','vehicle_no','credit_limit','allow_credit_sale','opening_balance','is_active'];
+    protected $allowedFields=['location_id','code','name','phone','city','address','vehicle_no','credit_limit','allow_credit_sale','opening_balance','is_active'];
+    public function findForLocation(int $customerId, int $locationId): ?array
+    {
+        if ($customerId <= 0 || $locationId <= 0) {
+            return null;
+        }
+
+        return $this->where(['id' => $customerId, 'location_id' => $locationId])->first();
+    }
+
     public function withLedgerTotals(int $customerId, ?int $locationId=null): ?array
     {
-        $customer=$this->find($customerId); if(!$customer) return null;
         $locationId=$locationId ?? (int)(session()->get('location_id') ?? 0);
+        if ($locationId <= 0) {
+            return null;
+        }
+        $customer=$this->findForLocation($customerId,$locationId);
+        if(!$customer) return null;
         $s=$this->db->table('sales')->selectSum('total_amount','total_purchased')->selectSum('credit_amount','total_credit')->selectSum('return_gas_ledger_amount','return_ledger')->selectSum('total_kg','total_kg')->where('customer_id',$customerId)->where('status','posted');
         if($locationId>0) $s->where('location_id',$locationId);
         $s=$s->get()->getRowArray();
@@ -24,5 +37,15 @@ class CustomerModel extends Model
         $customer['security_deposit_held']=(float)($d['deposit_held']??0)-(float)($d['deposit_refunded']??0);
         return $customer;
     }
-    public function activeDirectory(): array { return $this->where('is_active',1)->orderBy('name')->findAll(); }
+    public function activeDirectory(): array
+    {
+        $locationId = (int) (session()->get('location_id') ?? 0);
+        if ($locationId <= 0) {
+            return [];
+        }
+
+        return $this->where(['location_id' => $locationId, 'is_active' => 1])
+            ->orderBy('name')
+            ->findAll();
+    }
 }
