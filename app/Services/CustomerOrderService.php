@@ -294,6 +294,12 @@ class CustomerOrderService
             ->where('order_id', $orderId)
             ->orderBy('line_no')
             ->get()->getResultArray();
+        $order['status_history'] = $this->db->table('customer_order_status_history')
+            ->select('from_status,to_status,actor_type,reason,created_at')
+            ->where(['order_id' => $orderId, 'business_id' => (int) $order['business_id']])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()->getResultArray();
         return $order;
     }
 
@@ -360,10 +366,11 @@ class CustomerOrderService
                 ->where(['customer_app_account_id' => $accountId, 'idempotency_key' => $idempotencyKey])
                 ->get()->getRowArray();
             if ($existing) {
-                $this->db->transCommit();
                 if (!hash_equals((string) $existing['request_fingerprint'], $fingerprint)) {
+                    $this->db->transRollback();
                     throw new RuntimeException('IDEMPOTENCY_KEY_REUSED: this key was already used for a different order request.');
                 }
+                $this->db->transCommit();
                 return $this->orderById((int) $existing['id'], $accountId) ?? $existing;
             }
 
@@ -544,6 +551,9 @@ class CustomerOrderService
         foreach ($oldItems as $index => $old) {
             $new = $quote['items'][$index] ?? null;
             if (!$new || (int) $old['business_catalog_product_id'] !== (int) $new['product_id']
+                || (string) $old['sale_mode'] !== (string) $new['sale_mode']
+                || (string) $old['quantity_unit'] !== (string) $new['quantity_unit']
+                || abs((float) $old['quantity'] - (float) $new['quantity']) > 0.0001
                 || abs((float) $old['estimated_gas_kg'] - (float) $new['estimated_gas_kg']) > 0.0001
                 || abs((float) $old['gas_rate_snapshot'] - (float) $new['gas_rate_snapshot']) > 0.0001
                 || abs((float) $old['cylinder_rate_snapshot'] - (float) $new['cylinder_rate_snapshot']) > 0.0001
