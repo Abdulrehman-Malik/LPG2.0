@@ -602,3 +602,17 @@ Run separate cases for: partial gas-only sale; gas-only sale that empties a cyli
 - Sales have a unique (location_id, sale_no) key. Concurrent requests can still contend while calculating the next sequence; verify the losing request rolls back cleanly and receives a controlled retry/error rather than partial effects.
 - SalesService::void() writes reversal movements and restores physical cylinder state within a transaction. REV01/REV02 are required to validate real-world sequences, especially when a unit has had subsequent valid activity.
 - FIP01, INV01, CRL01, PRICE01, REV01 and REV02 remain **NOT EXECUTED** until test evidence is recorded. Do not report financial/inventory safety as passed based on source review alone.
+
+
+### CRL02 — Credit-limit mode is honored by the standard five-mode POS
+1. Run a standard five-mode POS credit sale with credit-limit mode set to `none`, first with customer credit limit 0 and then with a positive customer limit.
+2. Repeat with mode `customer` and a customer whose existing balance plus proposed credit exceeds the configured customer limit.
+3. Repeat with mode `shop` and a shop outstanding balance near the shop limit; test both one request and two concurrent requests for different customers.
+4. Check the posted sale, payment, customer ledger, and shop/customer outstanding totals after every allowed and rejected request.
+
+**Expected:** `none` with customer limit 0 does not accidentally reject an otherwise eligible credit sale; a positive customer limit remains enforced in `none` mode; `customer` mode enforces a positive customer limit; `shop` mode enforces the configured shop limit and serializes concurrent requests. Every rejected request leaves no partial posting.
+
+### Confirmed source-review finding and fix
+- The standard five-mode POS posting path previously enforced the customer's numeric credit limit unconditionally. This contradicted the existing configuration semantics: a zero customer limit is treated as unlimited, and the shop-level mode should validate total shop exposure instead.
+- Updated `SalesService::post()` to honor `credit_limit_validation_mode`, preserve the positive customer-limit behavior in `none` mode, and use the shop-scoped advisory lock plus shop outstanding calculation in `shop` mode.
+- This is a source-level fix only. CRL01/CRL02 remain **NOT EXECUTED** until the customer and shop-limit scenarios (including concurrent requests) pass against a disposable database.
