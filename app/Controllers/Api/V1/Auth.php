@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\V1;
 
 use App\Services\ApiSessionService;
+use App\Services\ConfigurationService;
 use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
 use Config\Database;
@@ -56,8 +57,9 @@ class Auth extends Controller
         if ($shopId <= 0 || $name === '' || !preg_match('/^[a-z0-9._-]{3,80}$/', $username)) {
             return $this->errorResponse(422, 'VALIDATION_FAILED', 'Select a shop, enter a customer name, and provide a username of 3–80 letters, numbers, dots, underscores or dashes.');
         }
-        if (strlen($password) < 10) {
-            return $this->errorResponse(422, 'VALIDATION_FAILED', 'Password must be at least 10 characters.');
+        $passwordMinLength = (int) (new ConfigurationService())->resolve('password_min_length')['value'];
+        if (strlen($password) < $passwordMinLength) {
+            return $this->errorResponse(422, 'VALIDATION_FAILED', 'Password must be at least ' . $passwordMinLength . ' characters.');
         }
 
         $db = Database::connect();
@@ -69,6 +71,12 @@ class Auth extends Controller
 
         if (!$shop) {
             return $this->errorResponse(422, 'INVALID_SHOP', 'The selected shop is not available for customer registration.');
+        }
+
+        $configuration = new ConfigurationService();
+        if (!(bool) $configuration->resolve('customer_ordering_feature_enabled', (int) $shop['business_id'], $shopId)['value']
+            || !(bool) $configuration->resolve('customer_self_registration_enabled', (int) $shop['business_id'], $shopId)['value']) {
+            return $this->errorResponse(403, 'SELF_REGISTRATION_DISABLED', 'Customer self-registration is currently disabled for this shop.');
         }
 
         $db->transBegin();
@@ -290,8 +298,9 @@ class Auth extends Controller
         $input = $this->payload();
         $currentPassword = (string) ($input['current_password'] ?? '');
         $newPassword = (string) ($input['new_password'] ?? '');
-        if ($currentPassword === '' || strlen($newPassword) < 10) {
-            return $this->errorResponse(422, 'VALIDATION_FAILED', 'Current password is required and the new password must be at least 10 characters.');
+        $passwordMinLength = (int) (new ConfigurationService())->resolve('password_min_length')['value'];
+        if ($currentPassword === '' || strlen($newPassword) < $passwordMinLength) {
+            return $this->errorResponse(422, 'VALIDATION_FAILED', 'Current password is required and the new password must be at least ' . $passwordMinLength . ' characters.');
         }
         if (hash_equals($currentPassword, $newPassword)) {
             return $this->errorResponse(422, 'PASSWORD_UNCHANGED', 'Choose a new password different from the current password.');
