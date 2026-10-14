@@ -7,6 +7,11 @@ async function login(page) {
   await page.locator('input[name="password"], #password').first().fill('admin123');
   await page.locator('button[type="submit"], input[type="submit"]').first().click();
   await page.waitForLoadState('networkidle');
+
+  if (!/\/dashboard(?:[/?#]|$)/.test(page.url())) {
+    const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 2000);
+    throw new Error('QA login did not reach dashboard. URL=' + page.url() + '\\nPage text:\\n' + bodyText);
+  }
   await expect(page).toHaveURL(/\/dashboard/);
 }
 test.describe.configure({ mode: 'serial' });
