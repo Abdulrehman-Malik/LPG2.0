@@ -2,11 +2,11 @@
 
 **Plan version:** 1.1  
 **Prepared:** 2026-10-14  
-**Status:** Owner decisions incorporated; documentation consistency pass in progress; implementation deliberately not started.  
+**Status:** Owner decisions retained; implementation is active on `feature/mobile-multishop-ordering`. WP-0–WP-6 and the POS fulfilment integration have code present, including browser administration; runtime security/financial regression and WP-10 pilot remain open. Flutter apps WP-7/WP-8 remain out of scope for this web/backend-only task.  
 **Target branch:** `docs/mobile-multishop-final-plan` for this documentation-only update; implementation branch to be created after planning approval  
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14)
 
-This document is the execution plan for the mobile app and multi-shop ordering feature. It consolidates the module requirements into dependency-ordered work packages, defines their entry/exit criteria, and records the confirmed business decisions and remaining implementation gates. It authorizes planning only; it does not authorize code, schema, data, or configuration changes.
+This document is the execution plan for the mobile app and multi-shop ordering feature. It consolidates the module requirements into dependency-ordered work packages, defines their entry/exit criteria, and records the confirmed business decisions and remaining implementation gates. The original version of this plan was planning-only. Subsequent user approval authorized feature-branch implementation; this document is now the implementation and verification plan. No production database has been queried or changed.
 
 ## 1. Project outcome
 
@@ -355,7 +355,7 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Fulfilment:** Customers choose delivery or collection at checkout. Both choices are supported; delivery requires an address and any fee/condition must be shown before submission.
 - **Languages:** English is the only UI language in the initial release. Keep UI strings localization-ready for future languages. Add a login-time language selector when a second language is introduced.
 - **Centralized configuration:** Keep a single permission-aware Configuration area with Application, Head Office/Business and Shop scopes. Existing Shop Settings must be inventoried and preserved. Effective value follows Shop → Business → Application only when that setting explicitly permits override.
-- **Login & Session settings:** Provide an Application-level group for authorized System Administrators. Verify the proposed token/session lifetimes in WP-0. Business/Shop users cannot extend platform security limits, disable required token protections or access secrets. Changes are validated and audited.
+- **Login & Session settings:** Provide an Application-level group for authorized System Administrators. Token/session lifetime defaults and guardrails are implemented in application settings and enforced by `ApiSessionService`. Runtime expiry, rotation, reuse detection, revocation and scope-change scenarios still need test evidence. Business/Shop users cannot extend platform security limits, disable required token protections or access secrets. Changes are validated and audited.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
 
