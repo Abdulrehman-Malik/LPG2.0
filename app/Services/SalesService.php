@@ -20,6 +20,7 @@ class SalesService
     protected array $inventoryLocks = [];
     protected array $creditLocks = [];
     protected ?int $currentLocationId = null;
+    protected bool $orderFulfillmentContext = false;
 
     public function __construct()
     {
@@ -44,6 +45,26 @@ class SalesService
         )->getRowArray();
         $next=((int)($row['max_seq']??0))+1;
         return $prefix.str_pad((string)$next,5,'0',STR_PAD_LEFT);
+    }
+
+    /**
+     * Internal service entry point for validated customer-order fulfillment.
+     * Delivery fees are accepted only through this path, never from a normal POS request.
+     */
+    public function postForCustomerOrder(array $payload,int $userId,int $locationId,int $orderId,float $deliveryFee): array
+    {
+        if ($orderId <= 0 || $deliveryFee < 0) {
+            throw new RuntimeException('Invalid customer-order fulfillment context.');
+        }
+        $previous = $this->orderFulfillmentContext;
+        $this->orderFulfillmentContext = true;
+        $payload['order_id'] = $orderId;
+        $payload['delivery_fee_amount'] = round($deliveryFee, 2);
+        try {
+            return $this->post($payload, $userId, $locationId);
+        } finally {
+            $this->orderFulfillmentContext = $previous;
+        }
     }
 
     public function post(array $payload,int $userId,int $locationId): array
@@ -180,8 +201,9 @@ class SalesService
         }
 
         $discount=max(0,(float)($payload['discount_amount']??0));
-        $deliveryFee=max(0,(float)($payload['delivery_fee_amount']??0));
-        if($deliveryFee>0 && empty($payload['order_id'])) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
+        $deliveryFee=(float)($payload['delivery_fee_amount']??0);
+        if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
+        if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
         if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
         $total=round($subtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
         foreach($payments as $p){
@@ -290,8 +312,9 @@ class SalesService
 
             $preparedSubtotal=array_sum(array_map(static fn($r)=>(float)$r['line_total'],$prepared));
             $discount=max(0,(float)($payload['discount_amount']??0));if($discount>$preparedSubtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-            $deliveryFee=max(0,(float)($payload['delivery_fee_amount']??0));
-            if($deliveryFee>0 && empty($payload['order_id'])) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
+            $deliveryFee=(float)($payload['delivery_fee_amount']??0);
+            if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
+            if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
             $total=round($preparedSubtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
             foreach($payments as $p){
                 $mode=(string)$p['payment_mode'];$amount=(float)$p['amount'];$paymentTotal+=$amount;
