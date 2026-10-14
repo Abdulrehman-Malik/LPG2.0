@@ -82,7 +82,7 @@ class Sales extends Controller
     public function customerBalance(int $id)
     {
         if($r=$this->guard()) return $r;
-        $customer=(new CustomerModel())->find($id);
+        $customer=(new CustomerModel())->findForLocation($id,(int)session()->get('location_id'));
         if(!$customer || (int)($customer['is_active']??0)!==1) {
             return $this->response->setStatusCode(404)->setJSON(['error'=>'Customer not found.']);
         }
