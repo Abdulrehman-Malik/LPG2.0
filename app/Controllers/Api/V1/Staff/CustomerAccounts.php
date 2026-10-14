@@ -205,7 +205,7 @@ class CustomerAccounts extends Controller
             $db->transRollback();
             log_message('error', 'Customer signup approval failed: {message}', ['message' => $e->getMessage()]);
             return $this->response->setStatusCode(422)->setJSON([
-                'error' => ['code' => 'APPROVAL_FAILED', 'message' => $e->getMessage()],
+                'error' => ['code' => 'APPROVAL_FAILED', 'message' => 'Signup approval failed. Verify the customer selection, shop scope and account uniqueness.'],
             ]);
         }
     }
@@ -355,7 +355,7 @@ class CustomerAccounts extends Controller
             $db->transRollback();
             log_message('error', 'Customer app account creation failed: {message}', ['message' => $e->getMessage()]);
             return $this->response->setStatusCode(422)->setJSON([
-                'error' => ['code' => 'ACCOUNT_CREATION_FAILED', 'message' => $e->getMessage()],
+                'error' => ['code' => 'ACCOUNT_CREATION_FAILED', 'message' => 'Customer App account could not be created. Verify the customer is eligible and the username is available.'],
             ]);
         }
     }
