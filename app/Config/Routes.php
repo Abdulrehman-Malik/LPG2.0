@@ -61,6 +61,14 @@ $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
     $routes->post('business-management/business/save','BusinessManagement::saveBusiness');
     $routes->post('business-management/shop/save','BusinessManagement::saveShop');
     $routes->post('business-management/staff-access/save','BusinessManagement::saveStaffAccess');
+    $routes->get('customer-app-accounts','CustomerAppAccounts::index');
+    $routes->post('customer-app-accounts/signup/(:num)/approve','CustomerAppAccounts::approve/$1');
+    $routes->post('customer-app-accounts/signup/(:num)/reject','CustomerAppAccounts::reject/$1');
+    $routes->post('customer-app-accounts/customer/(:num)/create','CustomerAppAccounts::createAccount/$1');
+    $routes->post('customer-app-accounts/(:num)/disable','CustomerAppAccounts::disable/$1');
+    $routes->get('mobile-catalog','MobileCatalogManagement::index');
+    $routes->post('mobile-catalog/product/save','MobileCatalogManagement::saveProduct');
+    $routes->post('mobile-catalog/product/(:num)/availability','MobileCatalogManagement::toggleAvailability/$1');
     $routes->get('customer-orders','OrderManagement::index');
     $routes->get('customer-orders/(:num)','OrderManagement::show/$1');
     $routes->post('customer-orders/(:num)/status','OrderManagement::updateStatus/$1');
