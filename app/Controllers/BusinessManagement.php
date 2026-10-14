@@ -18,6 +18,12 @@ class BusinessManagement extends Controller
 
     public function index()
     {
+        if (!PermissionService::allows('APPLICATION_SETTINGS_VIEW')
+            && !PermissionService::allows('APPLICATION_SETTINGS_MANAGE')
+            && !PermissionService::allows('SHOP_ACCESS_MANAGE')) {
+            return $this->response->setStatusCode(403)->setBody('You do not have permission to view business and shop administration.');
+        }
+
         $userId = (int) (session()->get('user_id') ?? 0);
         $scope = new ShopScopeService();
         $canManageAccess = PermissionService::allows('SHOP_ACCESS_MANAGE');
