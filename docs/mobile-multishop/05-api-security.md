@@ -9,40 +9,68 @@
 - Never expose SQL errors, stack traces, password hashes, authentication secrets, internal filesystem paths or unnecessary customer data.
 - Use pagination for lists and stable public order identifiers where appropriate.
 
-## Suggested initial endpoints
+## Implemented API route contract
 
-### Authentication
-- `POST /api/v1/auth/customer/login` — username/password for Customer App accounts; only approved, active customer accounts may receive a session.
-- `POST /api/v1/auth/staff/login` — username/password for Business/Staff App accounts.
-- `POST /api/v1/auth/logout` — revoke the current app/device refresh session.
-- `POST /api/v1/auth/refresh` — rotate the refresh token and issue a new short-lived access token for the same app audience.
-- `POST /api/v1/auth/change-password` — authenticated password change and session invalidation policy.
-- `GET /api/v1/me` — authenticated account status, account type, capabilities and allowed scope.
-- `POST /api/v1/customer/signup` — public signup request only; creates a pending approval request and does not grant ordering access or an authenticated session.
+The routes below reflect `app/Config/Routes.php` on `feature/mobile-multishop-ordering`. They are versioned under `/api/v1`; API routes are behind the `api-ready` filter, and authenticated customer/staff routes additionally require an audience-specific bearer token.
 
-### Customer
-- `GET /api/v1/customer/shop`
-- `GET /api/v1/customer/catalog`
-- `GET /api/v1/customer/availability`
-- `GET /api/v1/customer/orders`
-- `POST /api/v1/customer/orders`
-- `GET /api/v1/customer/orders/{orderId}`
-- `POST /api/v1/customer/orders/{orderId}/cancel`
+### Public / account entry points
 
-### Shop/owner staff
-- `GET /api/v1/staff/shops`
-- `GET /api/v1/staff/customer-signups?status=pending&shop_id=...` — permissioned, shop-scoped approval queue.
-- `POST /api/v1/staff/customer-signups/{signupId}/approve`
-- `POST /api/v1/staff/customer-signups/{signupId}/reject`
-- `POST /api/v1/staff/customer-accounts` — Admin/Manager-created app account linked to a customer master, subject to shop scope.
-- `GET /api/v1/staff/orders?status=pending&shop_id=...`
-- `GET /api/v1/staff/orders/{orderId}`
-- `POST /api/v1/staff/orders/{orderId}/accept`
-- `POST /api/v1/staff/orders/{orderId}/reject`
-- `POST /api/v1/staff/orders/{orderId}/status`
-- `POST /api/v1/staff/orders/{orderId}/fulfil` (only after the POS integration design is approved)
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/health` | API readiness/status |
+| GET | `/api/v1/customer/auth/shops` | Discover active shops where customer registration is enabled |
+| POST | `/api/v1/customer/auth/signup` | Create pending signup request; does not grant a session |
+| POST | `/api/v1/customer/auth/login` | Customer login; approved, active account only |
+| POST | `/api/v1/customer/auth/refresh` | Rotate a customer refresh token |
+| POST | `/api/v1/staff/auth/login` | Staff login |
+| POST | `/api/v1/staff/auth/refresh` | Rotate a staff refresh token |
 
-Endpoint names are a proposed contract and must be reconciled with existing API conventions before implementation. Do not expose endpoints until their authentication, scope and tests are ready.
+### Customer App API (customer-audience token required except entry points above)
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/customer/auth/logout` | Revoke current session |
+| POST | `/api/v1/customer/auth/change-password` | Change password and apply session invalidation policy |
+| GET | `/api/v1/customer/me` | Customer profile and assigned shop context |
+| GET | `/api/v1/customer/products` | Current shop's enabled catalog with server-calculated price/availability |
+| GET | `/api/v1/customer/orders` | Authenticated customer's own orders |
+| POST | `/api/v1/customer/orders` | Create order with idempotency key |
+| GET | `/api/v1/customer/orders/{orderId}` | Own order detail/status/history |
+| POST | `/api/v1/customer/orders/{orderId}/cancel` | Cancel only when the state machine permits |
+| POST | `/api/v1/customer/orders/{orderId}/reconfirm-price` | Confirm the currently presented revised quote |
+
+### Business / Staff App API (staff-audience token required)
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/staff/auth/logout` | Revoke current session |
+| POST | `/api/v1/staff/auth/change-password` | Change staff password |
+| GET | `/api/v1/staff/me` | Staff identity, role capabilities and authorized scope |
+| GET | `/api/v1/staff/shops` | List only authorized shops |
+| GET / POST | `/api/v1/staff/businesses` | List accessible businesses / create business subject to platform permission |
+| GET / POST | `/api/v1/staff/businesses/{businessId}/shops` | List / create shops within authorized business |
+| GET / POST | `/api/v1/staff/businesses/{businessId}/staff-access` | Read / update staff scope assignments |
+| GET | `/api/v1/staff/orders` | Shop-scoped order queue with filters |
+| GET | `/api/v1/staff/orders/{orderId}` | Shop-scoped order detail and status history |
+| POST | `/api/v1/staff/orders/{orderId}/status` | Validate and apply a legal state transition |
+| GET | `/api/v1/staff/orders/{orderId}/fulfillment-options` | Return eligible physical-cylinder options |
+| POST | `/api/v1/staff/orders/{orderId}/fulfill` | Revalidate and post through existing POS business services |
+| GET / POST | `/api/v1/staff/businesses/{businessId}/catalog` | Read / maintain business-level catalogue |
+| GET | `/api/v1/staff/shops/{shopId}/products` | Read catalogue availability at a shop |
+| POST | `/api/v1/staff/shops/{shopId}/products/{productId}/availability` | Activate/deactivate an eligible product for an authorized shop |
+| GET | `/api/v1/staff/customer-signups` | List pending signup requests for selected shop |
+| POST | `/api/v1/staff/customer-signups/{signupId}/approve` | Link or create customer master and approve signup |
+| POST | `/api/v1/staff/customer-signups/{signupId}/reject` | Reject with reason and clear pending password hash |
+| POST | `/api/v1/staff/customers/{customerId}/app-account` | Create Customer App account linked to an existing customer master |
+| POST | `/api/v1/staff/customer-app-accounts/{accountId}/reset-password` | Admin/Manager-mediated password reset; revoke active sessions |
+| POST | `/api/v1/staff/customer-app-accounts/{accountId}/disable` | Disable account and revoke sessions |
+| GET | `/api/v1/staff/configuration/application` | Read client-safe application settings permitted to this identity |
+| GET | `/api/v1/staff/configuration/businesses/{businessId}` | Read permitted effective business settings |
+| GET | `/api/v1/staff/configuration/shops/{shopId}` | Read permitted effective shop settings |
+| POST | `/api/v1/staff/configuration/save` | Save allow-listed settings under capability + scope checks |
+| POST | `/api/v1/staff/configuration/reset` | Reset eligible overrides |
+
+The route table is implemented in source. Endpoint authorization, token lifecycle, error handling, race behavior and cross-shop denial still require the runtime APISEC01/BIZWEB01/ACCWEB01/OWEB02 checks in `SQA.md`; route presence is not a security test. Do not expose internal secrets or trust any business/shop ID in the client payload as authorization proof.
 
 ## Authentication and app/device sessions
 
