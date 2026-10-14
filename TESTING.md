@@ -373,3 +373,18 @@ The server must not report **“No effective gas/kg rate exists.”** when a val
 - [ ] Verify sale amount, KG, receipt/payment, customer OS, saved rate, and inventory movements reconcile.
 
 Status: **Code updated; runtime/browser/database regression not yet executed.**
+
+---
+
+## Mandatory Page-by-Page Runtime QA
+
+Before a feature/screen change is considered complete, execute the workflow in **[PAGE_TEST_WORKFLOW.md](PAGE_TEST_WORKFLOW.md)** on the current commit.
+
+- Enumerate and test each impacted page, plus linked create/edit/detail/history/ledger/report flows.
+- Test navigation, permissions, direct URL/API access, browser console/network, validation, persistence, responsive layouts and server logs.
+- Reconcile downstream financial and inventory effects where relevant.
+- Run affected regression cases and repeat after fixes.
+- Record real outcomes and evidence in `SQA.md`. CI success is not proof that each page works.
+- If runtime browser/database execution is not available, mark cases **BLOCKED** or **NOT EXECUTED**; do not mark PASS from code review alone.
+
+**Full page smoke suite:** execute every row in the page inventory in `PAGE_TEST_WORKFLOW.md`, adding any newly introduced routes/menu pages. Run this full suite before release and run the impacted-page subset after each change.
