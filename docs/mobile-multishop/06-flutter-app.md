@@ -2,7 +2,7 @@
 
 ## Technology
 
-Use Flutter for a single shared mobile codebase targeting Android and iOS. The Flutter app is a client only; PHP/CodeIgniter owns business rules, authorization and persistent state.
+Use Flutter for two separate mobile apps targeting Android and iOS: Customer App and Business/Staff App. Shared components may be reused, but packages, navigation, release identities and authorization boundaries remain separate. Both are clients only; PHP/CodeIgniter owns business rules, authorization and persistent state.
 
 ## Authentication-driven navigation
 
