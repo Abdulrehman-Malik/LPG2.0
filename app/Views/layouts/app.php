@@ -115,6 +115,13 @@ $groups=[
             ['permission'=>'SUPPLIER_MANAGE','url'=>'suppliers','label'=>'Suppliers','icon'=>'bi-truck'],
         ],
     ],
+    'ordering'=>[
+        'label'=>'Customer Ordering',
+        'icon'=>'bi-basket2',
+        'items'=>[
+            ['permission'=>'ORDER_VIEW','url'=>'customer-orders','label'=>'Customer Orders','icon'=>'bi-basket2'],
+        ],
+    ],
     'cash'=>[
         'label'=>'Cash & Expenses',
         'icon'=>'bi-cash-coin',
