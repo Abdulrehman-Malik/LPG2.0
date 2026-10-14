@@ -393,6 +393,8 @@ class CustomerAccounts extends Controller
             }
 
             $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'approved']);
+            // Revoke any stale sessions even if the account was disabled outside this UI.
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
             if (!$db->transStatus()) {
                 throw new \RuntimeException('Customer App account could not be enabled.');
             }
@@ -460,12 +462,11 @@ class CustomerAccounts extends Controller
                 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
                 'password_changed_at' => date('Y-m-d H:i:s'),
             ]);
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
             if (!$db->transStatus()) {
                 throw new \RuntimeException('Customer app password could not be updated.');
             }
             $db->transCommit();
-
-            (new ApiSessionService())->revokeAllForCustomer($accountId);
             AuditService::log(
                 'CUSTOMER_APP_PASSWORD_RESET',
                 'customer_app_account',
