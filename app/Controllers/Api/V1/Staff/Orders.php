@@ -173,63 +173,6 @@ class Orders extends Controller
         }
     }
 
-    public function fulfillmentOptions(int $orderId)
-    {
-        $guard = $this->guard('ORDER_MANAGE');
-        if (isset($guard['response'])) return $guard['response'];
-
-        try {
-            $options = (new CustomerOrderService())->fulfillmentOptions(
-                $guard['user_id'],
-                $guard['shop_id'],
-                $orderId
-            );
-            return $this->response->setJSON(['data' => $options]);
-        } catch (\Throwable $e) {
-            $message = $e->getMessage();
-            if (str_contains($message, 'not found')) return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
-            if (str_contains($message, 'not available')) return $this->apiError(409, 'FULFILLMENT_NOT_AVAILABLE', $message);
-            if (str_contains($message, 'do not have access')) return $this->apiError(403, 'SHOP_ACCESS_DENIED', 'You do not have access to this shop.');
-            log_message('error', 'Order fulfillment options failed: {message}', ['message' => $message]);
-            return $this->apiError(503, 'FULFILLMENT_OPTIONS_UNAVAILABLE', 'Fulfillment options are temporarily unavailable.');
-        }
-    }
-
-    public function fulfill(int $orderId)
-    {
-        $guard = $this->guard('ORDER_MANAGE');
-        if (isset($guard['response'])) return $guard['response'];
-
-        $input = $this->request->getJSON(true);
-        if (!is_array($input)) $input = $this->request->getPost();
-        if (!is_array($input)) $input = [];
-
-        try {
-            $result = (new CustomerOrderService())->fulfill(
-                $guard['user_id'],
-                $guard['shop_id'],
-                $orderId,
-                $input
-            );
-            $status = ($result['status'] ?? '') === 'reconfirmation_required' ? 409 : 200;
-            return $this->response->setStatusCode($status)->setJSON(['data' => $result]);
-        } catch (\Throwable $e) {
-            $message = $e->getMessage();
-            if (str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED')) {
-                return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The order price changed. Customer reconfirmation is required before posting.');
-            }
-            if (str_contains($message, 'not found')) return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
-            if (str_contains($message, 'not allowed') || str_contains($message, 'required') || str_contains($message, 'must be') || str_contains($message, 'Select ') || str_contains($message, 'Provide ') || str_contains($message, 'Unknown order line') || str_contains($message, 'Only an accepted order')) {
-                return $this->apiError(422, 'INVALID_FULFILLMENT', $message);
-            }
-            if (str_contains($message, 'changed') || str_contains($message, 'unavailable') || str_contains($message, 'insufficient')) {
-                return $this->apiError(409, 'FULFILLMENT_CONFLICT', $message);
-            }
-            log_message('error', 'Order fulfillment failed: {message}', ['message' => $message]);
-            return $this->apiError(503, 'ORDER_FULFILLMENT_UNAVAILABLE', 'The order could not be fulfilled right now.');
-        }
-    }
-
     public function updateStatus(int $orderId)
     {
         $guard = $this->guard('ORDER_MANAGE');
