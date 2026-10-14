@@ -499,31 +499,48 @@ class CustomerAccounts extends Controller
         }
 
         $db = Database::connect();
-        $account = $db->table('customer_app_accounts ca')
-            ->select('ca.id,ca.customer_id,c.location_id,ca.status')
-            ->join('customers c', 'c.id=ca.customer_id', 'inner')
-            ->where(['ca.id' => $accountId, 'c.location_id' => (int) $guard['shop_id']])
-            ->get()->getRowArray();
+        $db->transBegin();
+        try {
+            $account = $db->query(
+                'SELECT ca.id,ca.customer_id,c.location_id,ca.status
+                 FROM customer_app_accounts ca
+                 JOIN customers c ON c.id=ca.customer_id
+                 WHERE ca.id=? AND c.location_id=?
+                 LIMIT 1 FOR UPDATE',
+                [$accountId, (int) $guard['shop_id']]
+            )->getRowArray();
 
-        if (!$account) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'error' => ['code' => 'ACCOUNT_NOT_FOUND', 'message' => 'Customer app account was not found in the selected shop.'],
+            if (!$account) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'ACCOUNT_NOT_FOUND', 'message' => 'Customer App account was not found in the selected shop.'],
+                ]);
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'disabled']);
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Customer App account could not be disabled.');
+            }
+            $db->transCommit();
+
+            AuditService::log(
+                'CUSTOMER_APP_ACCOUNT_DISABLED',
+                'customer_app_account',
+                $accountId,
+                ['status' => $account['status']],
+                ['status' => 'disabled', 'sessions_revoked' => true],
+                (int) $guard['user_id'],
+                (int) $guard['shop_id']
+            );
+
+            return $this->response->setJSON(['data' => ['customer_app_account_id' => $accountId, 'status' => 'disabled', 'sessions_revoked' => true]]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer App account disable failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'ACCOUNT_DISABLE_FAILED', 'message' => 'The Customer App account could not be disabled.'],
             ]);
         }
-
-        $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'disabled']);
-        (new ApiSessionService())->revokeAllForCustomer($accountId);
-
-        AuditService::log(
-            'CUSTOMER_APP_ACCOUNT_DISABLED',
-            'customer_app_account',
-            $accountId,
-            ['status' => $account['status']],
-            ['status' => 'disabled'],
-            (int) $guard['user_id'],
-            (int) $guard['shop_id']
-        );
-
-        return $this->response->setJSON(['data' => ['customer_app_account_id' => $accountId, 'status' => 'disabled']]);
     }
 }
