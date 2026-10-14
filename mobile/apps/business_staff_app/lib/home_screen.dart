@@ -105,7 +105,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: DropdownButtonFormField<int>(
-                      value: shopId,
+                      key: ValueKey<int?>(shopId),
+                      initialValue: shopId,
                       decoration: const InputDecoration(labelText: 'Active shop'),
                       items: shops.map((shop) {
                         final id = int.tryParse('${shop['id']}') ?? 0;
