@@ -843,7 +843,7 @@ class CustomerOrderService
             }
 
             $this->db->transCommit();
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $this->db->transRollback();
             throw $e;
         }
