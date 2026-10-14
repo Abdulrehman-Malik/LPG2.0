@@ -805,6 +805,14 @@ class CustomerOrderService
             throw new RuntimeException('You do not have access to this shop.');
         }
 
+        $existingOrder = $this->db->table('customer_orders')
+            ->where(['id' => $orderId, 'location_id' => $shopId])
+            ->get()->getRowArray();
+        if (!$existingOrder) throw new RuntimeException('Order not found in this shop.');
+        if ((string) $existingOrder['status'] === 'completed' && !empty($existingOrder['pos_sale_id'])) {
+            return ['status' => 'completed', 'message' => 'This order has already been fulfilled.', 'order' => $this->orderById($orderId, null)];
+        }
+
         $requestedLines = is_array($payload['fulfillment_lines'] ?? null) ? $payload['fulfillment_lines'] : [];
         $payments = is_array($payload['payments'] ?? null) ? $payload['payments'] : [];
         if (!$requestedLines) {
