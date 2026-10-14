@@ -403,7 +403,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: FilledButton.icon(
-                    onPressed: _busy || _content == null ? null : () {
+                    onPressed: _busy ? null : () {
                       _content.then((data) => _checkout(data));
                     },
                     icon: _busy
