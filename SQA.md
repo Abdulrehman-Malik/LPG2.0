@@ -547,3 +547,58 @@ Before considering the application release-ready, explicitly execute and record:
 - The posting transaction locks the `customer_orders` row with `SELECT ... FOR UPDATE`; if a competing request has already completed the order and linked a sale, the second request follows the idempotent replay path.
 - `database/schema.sql` defines a unique key on `sales.customer_order_id`, preventing more than one non-NULL sale link per order at the database level.
 - These are code/schema safeguards, not runtime proof. DPF01–DPF04 remain **NOT EXECUTED** until the concurrency and recovery scenarios are run and evidence is recorded.
+
+
+## Financial posting, inventory concurrency, credit-limit and reversal regression
+
+**Execution status: NOT EXECUTED — requires a disposable MySQL 8+ database and two independent application requests/connections where concurrency is specified.** Code inspection below is not a substitute for runtime evidence.
+
+### FIP01 — Atomic rollback after a late posting failure
+1. Record baseline counts and values for the sale, sale items, payments, inventory movements, cash transactions, customer ledger/balance, cylinder unit(s), and (for an order) order status/link.
+2. Prepare a valid transaction that reaches posting but fails late, for example a cash sale with no open counter session or an intentionally induced failure on a dependent insert in a disposable test database.
+3. Verify the operation returns an error and compare every baseline value.
+
+**Expected:** no partial sale/payment/ledger/cash/inventory records remain; cylinder status and gas weight are unchanged; customer balance is unchanged; customer order remains fulfillable and unlinked if fulfillment did not commit. All posting side effects must commit together or roll back together.
+
+### INV01 — Competing requests for the same physical cylinder
+1. Prepare one filled cylinder and submit two near-simultaneous transactions that select the same unit (e.g. two gas-only sales, or a sale competing with an issue-to-custody request).
+2. Repeat for one empty cylinder selected by two empty-cylinder sale / custody operations.
+3. Reconcile the physical unit row and its inventory movements after both requests finish.
+
+**Expected:** the same physical unit cannot be consumed, sold, or issued twice. One operation may succeed and the other must fail safely/retry; final cylinder status and gas weight must match the single successful operation, with no duplicate or orphan movements.
+
+### CRL01 — Concurrent credit sales at the customer credit limit
+1. Configure an active customer with credit enabled and a known limit. Set current outstanding balance so either one proposed credit sale can fit but both together cannot.
+2. Submit two credit sales concurrently using separate requests/connections.
+3. Reconcile the customer ledger, posted sales, payment rows, and outstanding balance.
+
+**Expected:** the customer row lock serializes credit validation and posting. At most the permitted amount is posted; the final outstanding balance must not exceed the configured limit. A rejected request must leave no partial sale, payment, cash, or inventory effects. Repeat for the configured shop-level credit-limit mode.
+
+### PRICE01 — Order price / physical gas weight changes before fulfillment
+1. Create and accept an order against selected physical cylinders and record the quoted price revision, actual gas weights, rates, and delivery fee.
+2. In a disposable test database, change the selected unit's gas weight or the effective price after the quote but before fulfillment.
+3. Attempt fulfillment without customer price reconfirmation, then perform the supported reconfirmation flow and retry.
+
+**Expected:** stale quote fulfillment is blocked; no sale/payment/cash/inventory effects are posted while confirmation is required. The customer is shown the revised quote and must reconfirm it before fulfillment can commit. The final sale total and inventory consumption must agree with the confirmed order.
+
+### REV01 — Void/reversal restores the original financial and physical inventory state
+Run separate cases for: partial gas-only sale; gas-only sale that empties a cylinder; filled-cylinder sale; empty-cylinder sale; same-capacity exchange; and different-capacity exchange. For each case:
+1. Capture the pre-sale cylinder units, gas weights, customer balance, cash session balance, and inventory movement totals.
+2. Post the sale and then void it with a reason.
+3. Reconcile original sale movements against sale_void movements, physical units, customer ledger, sale status, and cash transactions.
+
+**Expected:** the sale is voided once; every inventory movement has exactly one effective reversal; the original physical unit(s) and gas weights are restored without double-restoration or capacity violations; generated empty units are handled correctly; sale cash is reversed; customer outstanding balance returns to the expected pre-sale amount. Repeated void attempts must be rejected without creating additional reversals.
+
+### REV02 — Void after later use of the same cylinder
+1. Post a partial gas-only sale against a filled unit.
+2. Post a second valid gas-only sale against that same unit, including a case that reduces it to empty.
+3. Void the first sale and compare the resulting unit state and movement ledger with the mathematically expected stock after reversing only the first transaction.
+
+**Expected:** reversal must not overwrite later valid activity or create gas beyond cylinder capacity. If the original unit state can no longer be safely reconstructed, void must fail atomically and require controlled manual review rather than corrupting stock.
+
+### Static review observations (not runtime proof)
+- Standard POS posting begins a database transaction and catches exceptions to roll back dependent writes; cash-session availability is checked before the posting can commit.
+- Standard POS and the gas/cylinder header posting paths use customer row locks in their credit-sensitive posting paths; inventory paths acquire MySQL advisory locks keyed by shop and inventory type, then lock/revalidate physical units.
+- Sales have a unique (location_id, sale_no) key. Concurrent requests can still contend while calculating the next sequence; verify the losing request rolls back cleanly and receives a controlled retry/error rather than partial effects.
+- SalesService::void() writes reversal movements and restores physical cylinder state within a transaction. REV01/REV02 are required to validate real-world sequences, especially when a unit has had subsequent valid activity.
+- FIP01, INV01, CRL01, PRICE01, REV01 and REV02 remain **NOT EXECUTED** until test evidence is recorded. Do not report financial/inventory safety as passed based on source review alone.
