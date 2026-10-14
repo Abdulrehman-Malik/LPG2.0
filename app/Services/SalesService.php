@@ -68,7 +68,7 @@ class SalesService
 
         $transactionAt=str_replace('T',' ',trim((string)($payload['transaction_at']??date('Y-m-d H:i:s'))));
         $notes=trim((string)($payload['notes']??''))?:null;
-        $customer=$customerId?$this->customers->find($customerId):null;
+        $customer=$customerId?$this->customers->findForLocation($customerId,$locationId):null;
         if($customerId && !$customer) throw new RuntimeException('Customer not found.');
         if($customerId && !(int)$customer['is_active']) throw new RuntimeException('Customer is inactive.');
 
@@ -193,7 +193,7 @@ class SalesService
         $this->db->transBegin();
         try{
             if($customerId){
-                $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$lockedCustomer || !(int)$lockedCustomer['is_active']) throw new RuntimeException('Customer is unavailable.');
                 $customer=$lockedCustomer;
             }
@@ -374,7 +374,7 @@ class SalesService
         $custodyUnitIds=array_values(array_unique(array_map('intval',is_array($payload['custody_unit_ids']??null)?$payload['custody_unit_ids']:[])));
         $returnUnitIds=array_values(array_unique(array_map('intval',is_array($payload['return_unit_ids']??null)?$payload['return_unit_ids']:[])));
 
-        $customer=$customerId?$this->customers->find($customerId):null;
+        $customer=$customerId?$this->customers->findForLocation($customerId,$locationId):null;
         if($customerId && (!$customer || !(int)$customer['is_active'])) throw new RuntimeException('Customer is invalid or inactive.');
         if($headerType==='security_deposit' || $headerType==='cylinder_return'){
             if(!$customerId) throw new RuntimeException('A named customer is required for cylinder custody transactions.');
@@ -472,7 +472,7 @@ class SalesService
         $this->db->transBegin();
         try{
             if($customerId){
-                $locked=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $locked=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$locked||!(int)$locked['is_active']) throw new RuntimeException('Customer is unavailable.');
             }
 
@@ -681,7 +681,7 @@ class SalesService
         try{
             $customer=null;
             if($customerId){
-                $customer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$customer||!(int)$customer['is_active']) throw new RuntimeException('Customer is unavailable.');
             }
 
@@ -1067,7 +1067,7 @@ class SalesService
                 $locked=$this->db->query("SELECT cu.*,ct.capacity_kg FROM cylinder_units cu JOIN cylinder_types ct ON ct.id=cu.cylinder_type_id JOIN cylinder_custody cc ON cc.cylinder_unit_id=cu.id AND cc.status='issued' WHERE cu.id=? AND cc.customer_id=? FOR UPDATE",[$id,$customerId])->getRowArray();
                 if(!$locked)throw new RuntimeException('Cylinder selection changed while posting. Refresh and retry.');
             }
-            $customer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+            $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
             if(!$customer||!(int)$customer['is_active'])throw new RuntimeException('Customer is unavailable.');
 
             $previousGasOs=$this->customerGasBalance($customerId);
@@ -1413,6 +1413,10 @@ class SalesService
 
     public function customerBalance(int $customerId): float
     {
+        $locationId=(int)($this->currentLocationId??0);
+        if (!$this->customers->findForLocation($customerId,$locationId)) {
+            throw new RuntimeException('Customer not found in current shop.');
+        }
         $gasBalance=$this->customerGasBalance($customerId);
         $settings=(new ShopSettingsModel())->forLocation($this->currentLocationId ?? 0);
         if((int)($settings['include_security_deposit_in_os']??0)!==1)return $gasBalance;
