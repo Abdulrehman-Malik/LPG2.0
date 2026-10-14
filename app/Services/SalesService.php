@@ -78,8 +78,51 @@ class SalesService
 
         $existing = $this->db->table('sales')->where('customer_order_id', $orderId)->get()->getRowArray();
         if ($existing) {
+            if ((string) $existing['status'] !== 'posted') {
+                throw new RuntimeException('The linked POS sale is not posted; manual review is required.');
+            }
             if (!empty($order['pos_sale_id']) && (int) $order['pos_sale_id'] !== (int) $existing['id']) {
                 throw new RuntimeException('Customer order is linked to a different POS sale.');
+            }
+            if ((int) ($order['pos_sale_id'] ?? 0) === 0 || (string) $order['status'] !== 'completed') {
+                $this->db->transBegin();
+                try {
+                    $lockedOrder = $this->db->query(
+                        'SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE',
+                        [$orderId, $locationId]
+                    )->getRowArray();
+                    if (!$lockedOrder) throw new RuntimeException('Customer order was not found in this shop.');
+                    if (!empty($lockedOrder['pos_sale_id']) && (int) $lockedOrder['pos_sale_id'] !== (int) $existing['id']) {
+                        throw new RuntimeException('Customer order is linked to a different POS sale.');
+                    }
+                    if (!in_array((string) $lockedOrder['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery', 'completed'], true)) {
+                        throw new RuntimeException('A posted sale exists for an order that is no longer fulfillable; manual review is required.');
+                    }
+                    if ((string) $lockedOrder['status'] !== 'completed' || empty($lockedOrder['pos_sale_id'])) {
+                        $this->db->table('customer_orders')->where('id', $orderId)->update([
+                            'pos_sale_id' => (int) $existing['id'],
+                            'status' => 'completed',
+                            'completed_by' => $userId,
+                            'completed_at' => $lockedOrder['completed_at'] ?: date('Y-m-d H:i:s'),
+                        ]);
+                        $this->db->table('customer_order_status_history')->insert([
+                            'order_id' => $orderId,
+                            'business_id' => (int) $lockedOrder['business_id'],
+                            'from_status' => (string) $lockedOrder['status'],
+                            'to_status' => 'completed',
+                            'actor_type' => 'staff',
+                            'customer_app_account_id' => null,
+                            'user_id' => $userId,
+                            'reason' => 'Recovered existing POS sale ' . (string) $existing['sale_no'] . ' during an idempotent fulfillment retry.',
+                            'request_id' => null,
+                        ]);
+                    }
+                    if (!$this->db->transStatus()) throw new RuntimeException('Existing POS sale link could not be recovered.');
+                    $this->db->transCommit();
+                } catch (\\Throwable $e) {
+                    $this->db->transRollback();
+                    throw $e;
+                }
             }
             return [
                 'id' => (int) $existing['id'],
