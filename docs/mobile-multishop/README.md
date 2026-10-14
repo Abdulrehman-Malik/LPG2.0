@@ -64,7 +64,7 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 
 ## Decisions already fixed
 
-- One mobile app, Flutter, Android and iOS.
+- Two separate Flutter apps for Android and iOS: Customer App and Business/Staff App; shared components do not merge their packages or authorization boundaries.
 - One business may own multiple shops.
 - A customer belongs to exactly one shop and can order only from that shop.
 - One order belongs to one shop; no split order across shops in the MVP.
