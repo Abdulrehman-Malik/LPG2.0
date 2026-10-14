@@ -224,7 +224,7 @@ class CustomerOrderService
                     throw new RuntimeException('No effective gas/kg rate is available for ' . $row['display_name'] . '.');
                 }
                 $gasKg = $quantity;
-                $gasRateSnapshot = $gasRate;
+                $gasRateSnapshot = round($gasRate, 4);
                 $lineTotal = $gasKg * $gasRateSnapshot;
             } elseif ($mode === 'sell_filled') {
                 if ($gasRate === null || $gasRate <= 0 || $cylinderRate <= 0) {
@@ -249,8 +249,8 @@ class CustomerOrderService
                     // Before physical cylinders are selected, the customer sees a nominal-capacity estimate.
                     $gasKg = $quantity * (float) $row['capacity_kg'];
                 }
-                $gasRateSnapshot = $gasRate;
-                $cylinderRateSnapshot = $cylinderRate;
+                $gasRateSnapshot = round($gasRate, 4);
+                $cylinderRateSnapshot = round($cylinderRate, 4);
                 $lineTotal = ($gasKg * $gasRateSnapshot) + ($quantity * $cylinderRateSnapshot);
             } elseif ($mode === 'sell_empty') {
                 if ($cylinderRate <= 0) {
@@ -268,7 +268,7 @@ class CustomerOrderService
                         throw new RuntimeException('One or more selected empty cylinders are no longer available for ' . $row['display_name'] . '.');
                     }
                 }
-                $cylinderRateSnapshot = $cylinderRate;
+                $cylinderRateSnapshot = round($cylinderRate, 4);
                 $lineTotal = $quantity * $cylinderRateSnapshot;
             } else {
                 throw new RuntimeException('The product has an unsupported sale mode.');
