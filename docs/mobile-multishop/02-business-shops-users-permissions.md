@@ -1,6 +1,6 @@
 # Module 02 — Business, Shops, Users, Roles and Permissions
 
-## Current implementation found
+## Baseline implementation found on main (historical)
 
 - `locations` is the current shop/branch entity.
 - `users.location_id` can identify a staff user's location.
@@ -10,6 +10,13 @@
 - The current model is capability/role based. It does not by itself enforce row-level business/shop scope for every record.
 - `Users::save()` currently sets staff `location_id` from the current session. This is insufficient for a business owner who needs explicit access across multiple shops.
 - Keep current permission management UI and role assignments compatible.
+
+## Feature-branch implementation status
+
+On `feature/mobile-multishop-ordering`, business/shop ownership and the separate authorization-scope layer are implemented through `ShopScopeService`, `PermissionService`, `user_business_access` and `user_shop_access`. The database has `locations.business_id` and the authoritative `customers.location_id`. Browser routes now expose Businesses & Shops management, while staff API routes list/provision authorized businesses/shops and update scope assignments. A staff assignment change revokes existing staff API sessions.
+
+The implementation still requires live tests covering a System Administrator, Head Office user, one-shop staff, multi-shop staff, two independent businesses, direct URL/API ID tampering and access removal. The acceptance criteria below are **release test requirements**, not verified results. See `SQA.md` cases BIZWEB01 and APISEC01.
+
 
 ## Target business hierarchy
 
