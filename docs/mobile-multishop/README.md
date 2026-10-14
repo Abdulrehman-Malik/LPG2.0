@@ -1,6 +1,6 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Backend implementation in progress. The isolated feature branch now includes a guarded staff POS-fulfillment endpoint, physical-cylinder quote snapshots, delivery-fee accounting and a unique order-to-sale link. Current CI and integration verification are required before release; both Flutter apps remain unbuilt.
+**Status:** Backend and initial Flutter source implementation in progress. The isolated feature branch includes guarded staff POS fulfillment, physical-cylinder quote snapshots, delivery-fee accounting, a unique order-to-sale link, customer cart/checkout/order actions, and staff order/cylinder/payment screens. CI and end-to-end device verification remain required; Android/iOS runner projects and store builds are not yet complete.
 **Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
@@ -29,7 +29,7 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 - `shop_settings.location_id`, `rate_cards.location_id`, sales and other operational records are location-aware.
 - `roles`, `permissions`, and `role_permissions` implement database-backed role permissions.
 - `PermissionService::allows()` checks capability permissions, and `syncStandardRolePermissions()` maintains standard permissions for ADMIN, MANAGER and CASHIER while leaving custom roles alone.
-- The current permission model is capability-oriented; business-wide versus shop-specific data scope is not yet a complete authorization layer.
+- The current permission model is capability-oriented; business-wide versus shop-specific data scope is implemented in the feature API layer but still requires end-to-end authorization review.
 - Current `customers` schema/model has no `location_id`; the fresh-install schema must add required customer-to-shop ownership. No legacy customer mapping/backfill is required for this initiative.
 - Current `locations` schema has no business/company parent; business ownership requires a planned schema extension.
 - Current routes are browser/session-oriented and do not yet expose the planned customer mobile API.
@@ -49,9 +49,9 @@ These are source-code observations, not runtime test results.
 | 01 | Product scope and target architecture | Documented |
 | 02 | Business, shops, staff roles and permission/scope model | Documented |
 | 03 | Customer records, mobile identity and single-shop assignment | Documented |
-| 04 | Order lifecycle and safe POS integration | Backend in progress; CI verification pending |
+| 04 | Order lifecycle and safe POS integration | Backend implemented on feature branch; CI and integration verification in progress |
 | 05 | API contracts, authentication and security | Documented |
-| 06 | Flutter app experience and role-based navigation | Documented |
+| 06 | Flutter app experience and role-based navigation | Initial customer/staff flows implemented in Dart; runner projects and device QA pending |
 | 07 | Database migration and legacy-data plan | Documented |
 | 08 | QA, rollout and release gates | Documented |
 | 09 | Dependency-ordered implementation plan and decision register | Documented |
