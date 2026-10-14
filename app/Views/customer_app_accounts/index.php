@@ -88,15 +88,18 @@
             <thead class="table-light"><tr><th>Financial customer</th><th style="min-width:170px">Username</th><th style="min-width:200px">Temporary password</th><th class="text-end">Action</th></tr></thead>
             <tbody>
             <?php foreach ($customers as $customer): ?>
+            <?php $formId = 'create-account-' . (int)$customer['id']; ?>
             <tr>
-                <td><div class="fw-semibold"><?= esc($customer['name']) ?></div><div class="small text-muted"><?= esc($customer['code'] ?: ('Customer #' . $customer['id'])) ?><?= $customer['phone'] ? ' · ' . esc($customer['phone']) : '' ?></div></td>
                 <td>
-                    <form method="post" id="create-account-<?= (int)$customer['id'] ?>" action="<?= site_url('customer-app-accounts/customer/' . (int)$customer['id'] . '/create') ?>">
+                    <div class="fw-semibold"><?= esc($customer['name']) ?></div>
+                    <div class="small text-muted"><?= esc($customer['code'] ?: ('Customer #' . $customer['id'])) ?><?= $customer['phone'] ? ' · ' . esc($customer['phone']) : '' ?></div>
+                    <form method="post" id="<?= esc($formId) ?>" action="<?= site_url('customer-app-accounts/customer/' . (int)$customer['id'] . '/create') ?>">
                         <?= csrf_field() ?>
-                        <input class="form-control form-control-sm" name="username" pattern="[a-zA-Z0-9._-]{3,80}" minlength="3" maxlength="80" autocomplete="off" required placeholder="customer login">
+                    </form>
                 </td>
-                <td><input class="form-control form-control-sm" type="password" name="password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required placeholder="Min <?= (int)$passwordMinimum ?> characters"></td>
-                <td class="text-end"><button class="btn btn-sm btn-primary" type="submit" form="create-account-<?= (int)$customer['id'] ?>">Create login</button></form></td>
+                <td><input class="form-control form-control-sm" form="<?= esc($formId) ?>" name="username" pattern="[a-zA-Z0-9._-]{3,80}" minlength="3" maxlength="80" autocomplete="off" required placeholder="customer login"></td>
+                <td><input class="form-control form-control-sm" form="<?= esc($formId) ?>" type="password" name="password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required placeholder="Min <?= (int)$passwordMinimum ?> characters"></td>
+                <td class="text-end"><button class="btn btn-sm btn-primary" type="submit" form="<?= esc($formId) ?>">Create login</button></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
