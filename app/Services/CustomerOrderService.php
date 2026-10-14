@@ -320,7 +320,12 @@ class CustomerOrderService
             return null;
         }
 
-        $order['items'] = $this->db->table('customer_order_items')
+        $itemBuilder = $this->db->table('customer_order_items');
+        if ($accountId !== null) {
+            // Physical inventory identifiers are internal fulfillment details, not customer-facing data.
+            $itemBuilder->select('id,order_id,business_id,line_no,business_catalog_product_id,cylinder_type_id,sale_mode,product_name_snapshot,quantity_unit,quantity,estimated_gas_kg,gas_rate_snapshot,cylinder_rate_snapshot,line_total,notes,created_at');
+        }
+        $order['items'] = $itemBuilder
             ->where('order_id', $orderId)
             ->orderBy('line_no')
             ->get()->getResultArray();
