@@ -656,7 +656,7 @@ Status: **NOT EXECUTED**.
 5. Reject a pending request with a reason; verify the password hash is cleared and the pending username becomes available.
 6. Create a Customer App account for an existing unlinked party; verify the minimum password policy, username normalization and uniqueness.
 7. Reset the password for an approved account; verify the old refresh/access sessions are revoked and cannot refresh or call protected routes. A new login with the new password should work.
-8. Disable an account, then verify its existing access and refresh tokens stop working. Verify unauthorized roles cannot approve, reject, reset or disable accounts.
+8. Disable an account, then verify its existing access and refresh tokens stop working. Re-enable only while the financial customer is active, then verify old sessions remain invalid and only a fresh login works. Verify unauthorized roles cannot approve, reject, reset, enable or disable accounts.
 
 **Expected:** one mobile account per financial customer; every customer is owned by exactly one shop; pending/rejected/disabled accounts cannot access private profiles or orders; no credit permission is silently enabled.
 
@@ -690,7 +690,7 @@ Status: **NOT EXECUTED**.
 ### APISEC01 — Customer/staff API authentication and isolation
 
 1. Test malformed, missing, expired and wrong-audience access tokens for each customer/staff route.
-2. Rotate refresh tokens, replay an already-used refresh token, logout, change password, run staff-mediated customer password reset, disable an account and remove shop access.
+2. Rotate refresh tokens, replay an already-used refresh token, logout, change password, run staff-mediated customer password reset, disable and re-enable an account and remove shop access.
 3. Verify customer tokens can only read their own linked customer, products and orders; staff can only access authorized business/shop scopes.
 4. Run two customers and two staff members concurrently across two businesses/two shops. Verify order idempotency, state history and sale linkage; test cross-shop order IDs and physical-cylinder IDs.
 5. Verify public error responses don't reveal password hashes, refresh/access token values, session IDs, SQL errors or internal tracebacks.
@@ -720,7 +720,7 @@ Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the require
 | PQA11 | Responsive/browser quality | Desktop/mobile viewport, navigation, modals, tables, browser console, network and server logs | | | NOT EXECUTED |
 | PQA12 | Full end-to-end regression | Execute complete retail-day scenario and reconcile inventory, ledgers, cash, reports and audit | | | NOT EXECUTED |
 | PQA13 | Businesses, shops and staff scope web pages | Create/provision businesses/shops, review shop defaults, staff assignments/default shop and authorization denials | | | NOT EXECUTED |
-| PQA14 | Customer App account administration | Review pending signup, approve/reject, link or create one customer master, reset password, disable login and revoke sessions | | | NOT EXECUTED |
+| PQA14 | Customer App account administration | Review pending signup, approve/reject, link or create one customer master, reset password, disable/re-enable login and revoke sessions | | | NOT EXECUTED |
 | PQA15 | Customer Ordering Catalog | Create/edit products, validate quantity rules, activate shop-specific availability and verify catalog API output | | | NOT EXECUTED |
 | PQA16 | Browser customer order management | Queue/detail/history, valid status transitions, physical-cylinder selection and fulfillment through POS with reconciliation | | | NOT EXECUTED |
 
