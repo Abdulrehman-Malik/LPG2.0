@@ -161,7 +161,7 @@ class CustomerAppAccounts extends Controller
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Web customer app signup approval failed: {message}', ['message' => $e->getMessage()]);
-            return redirect()->to(site_url('customer-app-accounts'))->with('error', $e->getMessage());
+            return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Signup approval failed. Ensure the selected customer is active, belongs to this shop and has no existing Customer App account.');
         }
     }
 
@@ -262,7 +262,7 @@ class CustomerAppAccounts extends Controller
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Web customer app account creation failed: {message}', ['message' => $e->getMessage()]);
-            return redirect()->to(site_url('customer-app-accounts'))->with('error', $e->getMessage());
+            return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account could not be created. Ensure the customer has no existing app account and the username is available.');
         }
     }
 
