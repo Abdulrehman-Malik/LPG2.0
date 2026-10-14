@@ -30,6 +30,7 @@ Both apps use English as the only supported UI language in the initial release. 
 2. Shop/business context.
 3. Pending customer signup approval queue and permissioned account create/reset actions.
 4. Business catalog administration and per-shop product activation/deactivation.
+5. Permission-aware Configuration entry for settings this staff member may view/manage. Show only the user's authorized business/shop scope; do not expose Application Login & Session editing to ordinary business or shop users.
 5. Pending order queue with filters and refresh.
 4. Order details including customer contact, item/quantity, address or collection, notes, price snapshot and timeline.
 5. Accept/reject with reason as required.
@@ -59,6 +60,7 @@ Both apps use English as the only supported UI language in the initial release. 
 ## Acceptance criteria
 
 - Customer App exposes customer capabilities only; Business/Staff App exposes authorized staff/Head Office capabilities only.
-- Changing local role, language or shop state does not grant server permissions.
+- Changing local role, language, shop state or local configuration does not grant server permissions or change effective server settings.
+- Configuration views display effective value and source scope where applicable; unauthorized settings are neither editable nor returned by the API.
 - Orders/status remain consistent across mobile and web.
 - Android and iOS builds use the same API contract and pass the same functional scenarios.
