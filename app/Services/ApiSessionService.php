@@ -23,6 +23,42 @@ class ApiSessionService
         return date('Y-m-d H:i:s');
     }
 
+    protected function policySeconds(string $key, int $minimum, int $maximum): int
+    {
+        $value = (new ConfigurationService())->resolve($key)['value'] ?? null;
+        if (!is_int($value) && !(is_string($value) && preg_match('/^\\d+$/', $value))) {
+            throw new RuntimeException('Invalid application security setting: ' . $key);
+        }
+
+        $seconds = (int) $value;
+        if ($seconds < $minimum || $seconds > $maximum) {
+            throw new RuntimeException('Application security setting is outside its guardrails: ' . $key);
+        }
+
+        return $seconds;
+    }
+
+    protected function accessTtlSeconds(): int
+    {
+        return min(
+            $this->policySeconds('access_token_ttl_seconds', 60, self::ACCESS_TTL_SECONDS),
+            $this->idleTtlSeconds()
+        );
+    }
+
+    protected function idleTtlSeconds(): int
+    {
+        return min(
+            $this->policySeconds('refresh_idle_ttl_seconds', 3600, self::IDLE_TTL_SECONDS),
+            $this->absoluteTtlSeconds()
+        );
+    }
+
+    protected function absoluteTtlSeconds(): int
+    {
+        return $this->policySeconds('refresh_absolute_ttl_seconds', 86400, self::ABSOLUTE_TTL_SECONDS);
+    }
+
     protected function plusSeconds(int $seconds): string
     {
         return date('Y-m-d H:i:s', time() + $seconds);
@@ -73,7 +109,7 @@ class ApiSessionService
     protected function storeAccessToken(int $sessionId): array
     {
         $raw = $this->newRawToken();
-        $expiresAt = $this->plusSeconds(self::ACCESS_TTL_SECONDS);
+        $expiresAt = $this->plusSeconds($this->accessTtlSeconds());
 
         $this->db->table('api_access_tokens')->insert([
             'api_session_id' => $sessionId,
@@ -84,7 +120,7 @@ class ApiSessionService
         return [
             'access_token' => $raw,
             'access_token_expires_at' => $expiresAt,
-            'expires_in' => self::ACCESS_TTL_SECONDS,
+            'expires_in' => $this->accessTtlSeconds(),
         ];
     }
 
@@ -124,8 +160,8 @@ class ApiSessionService
         }
 
         $now = $this->now();
-        $idleExpiry = $this->plusSeconds(self::IDLE_TTL_SECONDS);
-        $absoluteExpiry = $this->plusSeconds(self::ABSOLUTE_TTL_SECONDS);
+        $absoluteExpiry = $this->plusSeconds($this->absoluteTtlSeconds());
+        $idleExpiry = date('Y-m-d H:i:s', min(time() + $this->idleTtlSeconds(), strtotime($absoluteExpiry)));
 
         $this->db->transBegin();
         try {
@@ -184,9 +220,10 @@ class ApiSessionService
 
         $now = $this->now();
         $row = $this->db->query(
-            'SELECT at.id AS access_token_id, at.api_session_id, at.expires_at AS access_expires_at,
-                    s.audience, s.customer_app_account_id, s.user_id, s.expires_at AS session_expires_at,
-                    s.absolute_expires_at, s.revoked_at AS session_revoked_at
+            'SELECT at.id AS access_token_id, at.api_session_id, at.created_at AS access_created_at,
+                    at.expires_at AS access_expires_at, s.audience, s.customer_app_account_id, s.user_id,
+                    s.created_at AS session_created_at, s.last_activity_at,
+                    s.expires_at AS session_expires_at, s.absolute_expires_at, s.revoked_at AS session_revoked_at
              FROM api_access_tokens at
              JOIN api_sessions s ON s.id=at.api_session_id
              WHERE at.token_hash=? AND at.revoked_at IS NULL AND at.expires_at>?
@@ -200,6 +237,25 @@ class ApiSessionService
             return null;
         }
 
+        $nowTimestamp = time();
+        $absoluteBoundary = min(
+            strtotime((string) $row['absolute_expires_at']),
+            strtotime((string) $row['session_created_at']) + $this->absoluteTtlSeconds()
+        );
+        $idleBoundary = min(
+            strtotime((string) $row['session_expires_at']),
+            strtotime((string) $row['last_activity_at']) + $this->idleTtlSeconds(),
+            $absoluteBoundary
+        );
+        $accessBoundary = min(
+            strtotime((string) $row['access_expires_at']),
+            strtotime((string) $row['access_created_at']) + $this->accessTtlSeconds()
+        );
+        if ($absoluteBoundary <= $nowTimestamp || $idleBoundary <= $nowTimestamp || $accessBoundary <= $nowTimestamp) {
+            $this->revokeSession((int) $row['api_session_id']);
+            return null;
+        }
+
         $principalId = $expectedAudience === 'customer'
             ? (int) $row['customer_app_account_id']
             : (int) $row['user_id'];
@@ -209,16 +265,15 @@ class ApiSessionService
             return null;
         }
 
-        $idleExpiry = min(
-            time() + self::IDLE_TTL_SECONDS,
-            strtotime((string) $row['absolute_expires_at'])
-        );
+        $absoluteAt = date('Y-m-d H:i:s', $absoluteBoundary);
+        $idleExpiry = min(time() + $this->idleTtlSeconds(), $absoluteBoundary);
         $this->db->table('api_sessions')
             ->where('id', (int) $row['api_session_id'])
             ->where('revoked_at', null)
             ->update([
                 'last_activity_at' => $now,
                 'expires_at' => date('Y-m-d H:i:s', $idleExpiry),
+                'absolute_expires_at' => $absoluteAt,
             ]);
 
         return [
@@ -243,7 +298,8 @@ class ApiSessionService
             $row = $this->db->query(
                 'SELECT rt.id AS refresh_token_id, rt.api_session_id, rt.expires_at AS refresh_expires_at,
                         rt.consumed_at, rt.revoked_at AS token_revoked_at, s.audience,
-                        s.customer_app_account_id, s.user_id, s.expires_at AS session_expires_at,
+                        s.customer_app_account_id, s.user_id, s.created_at AS session_created_at,
+                        s.last_activity_at, s.expires_at AS session_expires_at,
                         s.absolute_expires_at, s.revoked_at AS session_revoked_at
                  FROM api_refresh_tokens rt
                  JOIN api_sessions s ON s.id=rt.api_session_id
@@ -266,10 +322,19 @@ class ApiSessionService
                 return null;
             }
 
+            $absoluteBoundary = min(
+                strtotime((string) $row['absolute_expires_at']),
+                strtotime((string) $row['session_created_at']) + $this->absoluteTtlSeconds()
+            );
+            $idleBoundary = min(
+                strtotime((string) $row['session_expires_at']),
+                strtotime((string) $row['last_activity_at']) + $this->idleTtlSeconds(),
+                $absoluteBoundary
+            );
             if (!empty($row['token_revoked_at']) || !empty($row['session_revoked_at'])
                 || strtotime((string) $row['refresh_expires_at']) <= time()
-                || strtotime((string) $row['session_expires_at']) <= time()
-                || strtotime((string) $row['absolute_expires_at']) <= time()) {
+                || $idleBoundary <= time()
+                || $absoluteBoundary <= time()) {
                 $this->revokeSession($sessionId);
                 $this->db->transCommit();
                 return null;
@@ -297,8 +362,8 @@ class ApiSessionService
                 return null;
             }
 
-            $absoluteExpiry = (string) $row['absolute_expires_at'];
-            $idleExpiry = min(time() + self::IDLE_TTL_SECONDS, strtotime($absoluteExpiry));
+            $absoluteExpiry = date('Y-m-d H:i:s', $absoluteBoundary);
+            $idleExpiry = min(time() + $this->idleTtlSeconds(), $absoluteBoundary);
             $idleExpiryAt = date('Y-m-d H:i:s', $idleExpiry);
 
             $this->db->table('api_sessions')
@@ -307,6 +372,7 @@ class ApiSessionService
                 ->update([
                     'last_activity_at' => $now,
                     'expires_at' => $idleExpiryAt,
+                    'absolute_expires_at' => $absoluteExpiry,
                     'created_ip' => $ipAddress ? substr($ipAddress, 0, 45) : null,
                     'user_agent' => $userAgent ? substr($userAgent, 0, 500) : null,
                 ]);
