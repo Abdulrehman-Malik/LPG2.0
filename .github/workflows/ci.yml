@@ -126,7 +126,7 @@ jobs:
           LPG_DB_USER: root
           LPG_DB_PASS: root
           LPG_DB_NAME: perfect_lpg
-          LPG_QA_BASE_URL: http://127.0.0.1:8080
+          LPG_QA_BASE_URL: http://localhost:8080
         shell: bash
         run: |
           set -euo pipefail
