@@ -62,7 +62,9 @@ jobs:
           printf "SET @lpg_refresh_transactional_data = 0;\\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/032_20261014_business_shop_ownership.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/033_20261014_customer_accounts_orders_and_catalog.sql
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('businesses','user_business_access','user_shop_access')" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('business_catalog_products','shop_product_availability','customer_app_accounts','customer_signup_requests','api_sessions','api_access_tokens','api_refresh_tokens','customer_orders','customer_order_items','customer_order_status_history')" | grep -qx 10
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='locations' AND COLUMN_NAME='business_id') OR (TABLE_NAME='customers' AND COLUMN_NAME='location_id') OR (TABLE_NAME='users' AND COLUMN_NAME='is_system_admin'))" | grep -qx 3
 
       - name: CodeIgniter smoke check
