@@ -1,12 +1,29 @@
 <?php
 $location = $location ?? [];
-if (!$location && session()->get('location_id')) {
-    try {
-        $layoutDb = \Config\Database::connect();
-        $location = $layoutDb->table('locations')->where('id',(int)session()->get('location_id'))->get()->getRowArray() ?: [];
-    } catch (Throwable $e) {
-        $location = [];
+$layoutDb = null;
+$availableShops = [];
+try {
+    $layoutDb = \Config\Database::connect();
+    if (!$location && session()->get('location_id')) {
+        $location = $layoutDb->table('locations l')
+            ->select('l.*, b.name AS business_name')
+            ->join('businesses b', 'b.id=l.business_id', 'left')
+            ->where('l.id', (int) session()->get('location_id'))
+            ->get()->getRowArray() ?: [];
     }
+    $allowedShopIds = (new \App\Services\ShopScopeService())->accessibleShopIds();
+    if ($allowedShopIds) {
+        $availableShops = $layoutDb->table('locations l')
+            ->select('l.id, l.name, l.business_id, b.name AS business_name')
+            ->join('businesses b', 'b.id=l.business_id', 'left')
+            ->whereIn('l.id', $allowedShopIds)
+            ->orderBy('b.name')
+            ->orderBy('l.name')
+            ->get()->getResultArray();
+    }
+} catch (Throwable $e) {
+    $location = $location ?: [];
+    $availableShops = [];
 }
 $branchName = trim((string)($location['name'] ?? ''));
 $branchName = $branchName !== '' ? $branchName : 'Perfect LPG';
@@ -172,7 +189,23 @@ unset($group);
 </li>
 <?php endforeach; ?>
 </ul><div class="p-3 border-top border-white border-opacity-10"><a href="<?= site_url('logout') ?>" class="nav-link text-white-50" title="Logout"><i class="bi bi-box-arrow-right"></i><span class="menu-label">Logout</span></a></div></nav><div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-<div class="main-content"><div class="topbar"><button class="btn btn-sm btn-outline-secondary sidebar-toggle" id="sidebarToggle" type="button" aria-label="Hide or show sidebar" title="Hide / Show menu"><i class="bi bi-layout-sidebar-inset"></i></button><h5 class="mb-0"><?= esc($title ?? 'Dashboard') ?></h5><div class="d-flex align-items-center gap-2"><span class="small"><?= esc($branchName) ?></span><span class="text-muted small"><?= esc(session()->get('full_name')??'User') ?> <span class="badge bg-secondary"><?= esc(session()->get('role')??'') ?></span></span></div></div>
+<div class="main-content"><div class="topbar flex-wrap gap-2"><div class="d-flex align-items-center gap-2"><button class="btn btn-sm btn-outline-secondary sidebar-toggle" id="sidebarToggle" type="button" aria-label="Hide or show sidebar" title="Hide / Show menu"><i class="bi bi-layout-sidebar-inset"></i></button><h5 class="mb-0"><?= esc($title ?? 'Dashboard') ?></h5></div><div class="d-flex align-items-center gap-2 ms-auto">
+<?php if (count($availableShops) > 1): ?>
+<form method="post" action="<?= site_url('shop-context/select') ?>" class="d-flex align-items-center gap-2 m-0">
+<?= csrf_field() ?>
+<label class="small text-muted" for="activeShopSelector">Shop</label>
+<select id="activeShopSelector" name="location_id" class="form-select form-select-sm" style="max-width:270px" onchange="this.form.submit()" aria-label="Switch active shop">
+<?php foreach ($availableShops as $availableShop): ?>
+<?php $optionName = trim((string)($availableShop['business_name'] ?? '')) !== '' ? $availableShop['business_name'] . ' — ' . $availableShop['name'] : $availableShop['name']; ?>
+<option value="<?= (int)$availableShop['id'] ?>" <?= (int)$availableShop['id'] === (int)session()->get('location_id') ? 'selected' : '' ?>><?= esc($optionName) ?></option>
+<?php endforeach; ?>
+</select>
+<noscript><button class="btn btn-sm btn-primary" type="submit">Switch</button></noscript>
+</form>
+<?php else: ?>
+<span class="small"><?= esc($branchName) ?></span>
+<?php endif; ?>
+<span class="text-muted small"><?= esc(session()->get('full_name')??'User') ?> <span class="badge bg-secondary"><?= esc(session()->get('role')??'') ?></span></span></div></div>
 <div class="content-wrap"><?php
 $pendingMigrationNotice = null;
 try {
