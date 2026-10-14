@@ -769,8 +769,8 @@ class CustomerOrderService
                 $this->db->transCommit();
                 return ['status' => 'completed', 'message' => 'This order has already been fulfilled.', 'order' => $this->orderById($orderId, null)];
             }
-            if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
-                throw new RuntimeException('Only an accepted order can be fulfilled.');
+            if (!in_array((string) $order['status'], ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+                throw new RuntimeException('This order is not eligible for physical-cylinder selection or fulfillment.');
             }
             if ((int) $order['price_reconfirmation_required'] === 1) {
                 throw new RuntimeException('PRICE_RECONFIRMATION_REQUIRED: customer must confirm the current quote before fulfillment.');
@@ -842,6 +842,14 @@ class CustomerOrderService
                 ];
             }
 
+            if ((string) $order['status'] === 'pending') {
+                $this->db->transCommit();
+                return [
+                    'status' => 'awaiting_acceptance',
+                    'message' => 'The quote is current. An authorized shop user must accept the order before POS fulfillment.',
+                    'order' => $this->orderById($orderId, null),
+                ];
+            }
             $this->db->transCommit();
         } catch (\Throwable $e) {
             $this->db->transRollback();
