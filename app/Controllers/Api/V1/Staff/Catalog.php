@@ -61,7 +61,7 @@ class Catalog extends Controller
 
     public function businessCatalog(int $businessId)
     {
-        $context = $this->businessContext($businessId, 'BUSINESS_SETTINGS_VIEW');
+        $context = $this->businessContext($businessId, 'BUSINESS_CATALOG_VIEW');
         if (isset($context['response'])) {
             return $context['response'];
         }
@@ -93,6 +93,9 @@ class Catalog extends Controller
         $name = trim((string) ($input['display_name'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
         $active = $this->parseBoolean($input['is_active'] ?? true);
+        if ($active === null) {
+            return $this->fail(422, 'VALIDATION_FAILED', 'is_active must be true or false.');
+        }
         $minimum = $input['min_quantity'] ?? ($mode === 'sell_gas_only' ? 0.1 : 1);
         $step = $input['quantity_step'] ?? ($mode === 'sell_gas_only' ? 0.1 : 1);
         $minimum = is_numeric($minimum) ? round((float) $minimum, 3) : 0;
@@ -139,6 +142,7 @@ class Catalog extends Controller
             'updated_by' => (int) $context['user_id'],
         ];
 
+        $db->transBegin();
         try {
             if ($productId > 0) {
                 $db->table('business_catalog_products')->where('id', $productId)->update($data);
@@ -152,6 +156,7 @@ class Catalog extends Controller
             if (!$db->transStatus()) {
                 throw new \RuntimeException('Catalog product save failed.');
             }
+            $db->transCommit();
 
             AuditService::log(
                 $productId > 0 ? 'BUSINESS_CATALOG_PRODUCT_UPDATED' : 'BUSINESS_CATALOG_PRODUCT_CREATED',
@@ -169,6 +174,7 @@ class Catalog extends Controller
                 'status' => 'saved',
             ]]);
         } catch (\Throwable $e) {
+            $db->transRollback();
             log_message('error', 'Business catalog save failed: {message}', ['message' => $e->getMessage()]);
             return $this->fail(409, 'CATALOG_PRODUCT_SAVE_FAILED', 'The product could not be saved. Check whether a product already exists for this cylinder type and sale mode.');
         }
