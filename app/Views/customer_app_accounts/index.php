@@ -80,18 +80,29 @@
 
 <div class="card mb-4">
     <div class="card-header"><strong><i class="bi bi-person-plus me-2"></i>Create a Customer App login for an existing party</strong></div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <?php if (!$customers): ?>
-            <div class="text-muted">All active customer masters in this shop already have an app login, or there are no eligible customers.</div>
+            <div class="text-muted p-3">All active customer masters in this shop already have an app login, or there are no eligible customers.</div>
         <?php else: ?>
-        <form method="post" action="#" id="create-customer-app-account" class="row g-3">
-            <div class="col-lg-5"><label class="form-label" for="account-customer">Financial customer *</label><select class="form-select" id="account-customer" required><option value="">Select customer</option><?php foreach ($customers as $customer): ?><option value="<?= (int)$customer['id'] ?>"><?= esc(trim(($customer['code'] ? $customer['code'] . ' · ' : '') . $customer['name'] . ($customer['phone'] ? ' · ' . $customer['phone'] : ''))) ?></option><?php endforeach; ?></select></div>
-            <div class="col-lg-3"><label class="form-label" for="account-username">Username *</label><input class="form-control" id="account-username" pattern="[a-zA-Z0-9._-]{3,80}" minlength="3" maxlength="80" autocomplete="off" required></div>
-            <div class="col-lg-3"><label class="form-label" for="account-password">Temporary password *</label><input class="form-control" type="password" id="account-password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required><div class="form-text">Minimum <?= (int)$passwordMinimum ?> characters.</div></div>
-            <div class="col-lg-1 d-flex align-items-end"><button type="button" class="btn btn-primary w-100" id="show-account-form" disabled>Create</button></div>
-        </form>
-        <div class="small text-muted mt-2">The Create button submits the selected customer, username and password to the server using the standard protected account-creation endpoint.</div>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>Financial customer</th><th style="min-width:170px">Username</th><th style="min-width:200px">Temporary password</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+            <?php foreach ($customers as $customer): ?>
+            <tr>
+                <td><div class="fw-semibold"><?= esc($customer['name']) ?></div><div class="small text-muted"><?= esc($customer['code'] ?: ('Customer #' . $customer['id'])) ?><?= $customer['phone'] ? ' · ' . esc($customer['phone']) : '' ?></div></td>
+                <td>
+                    <form method="post" id="create-account-<?= (int)$customer['id'] ?>" action="<?= site_url('customer-app-accounts/customer/' . (int)$customer['id'] . '/create') ?>">
+                        <?= csrf_field() ?>
+                        <input class="form-control form-control-sm" name="username" pattern="[a-zA-Z0-9._-]{3,80}" minlength="3" maxlength="80" autocomplete="off" required placeholder="customer login">
+                </td>
+                <td><input class="form-control form-control-sm" type="password" name="password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required placeholder="Min <?= (int)$passwordMinimum ?> characters"></td>
+                <td class="text-end"><button class="btn btn-sm btn-primary" type="submit" form="create-account-<?= (int)$customer['id'] ?>">Create login</button></form></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table></div>
         <?php endif; ?>
+        <div class="form-text p-3">Each login links to the existing party. It does not enable credit sales or change the customer's credit limit.</div>
     </div>
 </div>
 
