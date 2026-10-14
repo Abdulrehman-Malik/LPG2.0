@@ -71,7 +71,7 @@ class Auth extends Controller
             }
 
             return $this->response->setJSON(['data' => ['shops' => $shops]]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             log_message('error', 'Customer registration shop list failed: {message}', ['message' => $e->getMessage()]);
             return $this->errorResponse(503, 'REGISTRATION_SHOPS_UNAVAILABLE', 'Registration shops are temporarily unavailable.');
         }
