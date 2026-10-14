@@ -30,6 +30,14 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 - Invalid status transitions are rejected.
 - Rejection/cancellation stores actor/reason and does not post sales, payments, cash, inventory, deposits or custody.
 - Duplicate acceptance/fulfilment cannot post a sale twice.
+- `GET /staff/orders/{id}/fulfillment-options` returns only physical cylinders in the selected authorized shop and the expected cylinder type/status; gas-refill source cylinders must contain enough gas for the requested quantity.
+- Filled/empty cylinder selection is persisted to the order quote. A changed physical selection or actual gas weight updates the quote and requires customer reconfirmation plus shop acceptance before POS posting.
+- Customer-facing order responses never expose internal physical cylinder IDs.
+- Successful fulfillment creates one posted sale with the saved delivery fee, links `sales.customer_order_id` and `customer_orders.pos_sale_id`, posts payments/inventory/ledger effects, and marks the order completed in the same database transaction.
+- Repeated or concurrent fulfillment requests recover the same sale; they do not create duplicate sales.
+- Invalid payment totals, unavailable cylinders, missing cash session, stale quote, or a failed financial posting leave no partial sale/order-completion state.
+- Directly setting order status to `completed` through the status API is rejected.
+- Migration 038/039 work on fresh schema and on an existing database with earlier migrations already applied.
 - Failure midway leaves no partial order/financial state.
 
 ### Security
