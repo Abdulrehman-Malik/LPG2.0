@@ -10,12 +10,14 @@ class LpgLoginScreen extends StatefulWidget {
     required this.audience,
     required this.authService,
     required this.onLoggedIn,
+    this.onSignUp,
   });
 
   final String appName;
   final String audience;
   final LpgAuthService authService;
   final VoidCallback onLoggedIn;
+  final VoidCallback? onSignUp;
 
   @override
   State<LpgLoginScreen> createState() => _LpgLoginScreenState();
@@ -108,6 +110,13 @@ class _LpgLoginScreenState extends State<LpgLoginScreen> {
                     onPressed: _busy ? null : _submit,
                     child: Text(_busy ? 'Signing in…' : 'Sign in'),
                   ),
+                  if (widget.audience == 'customer' && widget.onSignUp != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _busy ? null : widget.onSignUp,
+                      child: const Text('Create customer account'),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   const Text(
                     'English is available in this initial release.',
