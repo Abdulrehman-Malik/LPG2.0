@@ -733,6 +733,144 @@ class CustomerOrderService
         return $order ? $this->orderById($orderId, null) : null;
     }
 
+    public function fulfill(int $userId, int $shopId, int $orderId, array $payload): array
+    {
+        if (!(new ShopScopeService())->canAccessShop($shopId, $userId)) {
+            throw new RuntimeException('You do not have access to this shop.');
+        }
+
+        $requestedLines = is_array($payload['fulfillment_lines'] ?? null) ? $payload['fulfillment_lines'] : [];
+        $payments = is_array($payload['payments'] ?? null) ? $payload['payments'] : [];
+        if (!$requestedLines) {
+            throw new RuntimeException('Physical cylinder/source selection is required for fulfillment.');
+        }
+        if (!$payments) {
+            throw new RuntimeException('At least one payment is required to fulfill an order.');
+        }
+
+        $lineSelections = [];
+        foreach ($requestedLines as $selection) {
+            if (!is_array($selection)) throw new RuntimeException('Invalid fulfillment line selection.');
+            $lineNo = (int) ($selection['line_no'] ?? 0);
+            if ($lineNo <= 0 || isset($lineSelections[$lineNo])) {
+                throw new RuntimeException('Fulfillment line numbers must be unique positive values.');
+            }
+            $lineSelections[$lineNo] = $selection;
+        }
+
+        $this->db->transBegin();
+        try {
+            $order = $this->db->query(
+                'SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE',
+                [$orderId, $shopId]
+            )->getRowArray();
+            if (!$order) throw new RuntimeException('Order not found in this shop.');
+            if ((string) $order['status'] === 'completed' && !empty($order['pos_sale_id'])) {
+                $this->db->transCommit();
+                return ['status' => 'completed', 'message' => 'This order has already been fulfilled.', 'order' => $this->orderById($orderId, null)];
+            }
+            if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+                throw new RuntimeException('Only an accepted order can be fulfilled.');
+            }
+            if ((int) $order['price_reconfirmation_required'] === 1) {
+                throw new RuntimeException('PRICE_RECONFIRMATION_REQUIRED: customer must confirm the current quote before fulfillment.');
+            }
+
+            $oldItems = $this->db->table('customer_order_items')->where('order_id', $orderId)->orderBy('line_no')->get()->getResultArray();
+            if (count($lineSelections) !== count($oldItems)) {
+                throw new RuntimeException('Provide a fulfillment selection for every order line.');
+            }
+
+            $quoteInput = [];
+            $saleLines = [];
+            foreach ($oldItems as $item) {
+                $lineNo = (int) $item['line_no'];
+                if (!isset($lineSelections[$lineNo])) throw new RuntimeException('Missing fulfillment selection for order line ' . $lineNo . '.');
+                $selection = $lineSelections[$lineNo];
+                $mode = (string) $item['sale_mode'];
+                $quantity = (float) $item['quantity'];
+                $selectedIds = array_values(array_unique(array_map('intval', is_array($selection['selected_cylinder_unit_ids'] ?? null) ? $selection['selected_cylinder_unit_ids'] : [])));
+                $sourceId = (int) ($selection['source_cylinder_unit_id'] ?? 0);
+
+                if (in_array($mode, ['sell_filled', 'sell_empty'], true)) {
+                    if (count($selectedIds) !== (int) $quantity || min($selectedIds) <= 0) {
+                        throw new RuntimeException('Select exactly ' . (int) $quantity . ' physical cylinder(s) for order line ' . $lineNo . '.');
+                    }
+                } elseif ($mode === 'sell_gas_only' && $sourceId <= 0) {
+                    throw new RuntimeException('Select a filled source cylinder for gas line ' . $lineNo . '.');
+                }
+
+                $quoteInput[] = [
+                    'product_id' => (int) $item['business_catalog_product_id'],
+                    'quantity' => $quantity,
+                    'selected_cylinder_unit_ids' => $selectedIds,
+                    'notes' => $item['notes'],
+                ];
+                $saleLines[] = [
+                    'sale_mode' => $mode,
+                    'cylinder_type_id' => (int) $item['cylinder_type_id'],
+                    'quantity' => $quantity,
+                    'gas_weight_kg' => $quantity,
+                    'gas_rate' => (float) $item['gas_rate_snapshot'],
+                    'cylinder_rate' => (float) $item['cylinder_rate_snapshot'],
+                    'source_cylinder_unit_id' => $sourceId > 0 ? $sourceId : null,
+                    'selected_cylinder_unit_ids' => $selectedIds,
+                    'notes' => $item['notes'],
+                ];
+            }
+            foreach (array_keys($lineSelections) as $lineNo) {
+                if (!in_array((int) $lineNo, array_map(static fn(array $item): int => (int) $item['line_no'], $oldItems), true)) {
+                    throw new RuntimeException('Unknown order line number ' . $lineNo . '.');
+                }
+            }
+
+            $quote = $this->quoteItems((int) $order['business_id'], $shopId, $quoteInput);
+            if ($this->quoteDiffers($order, $quote, $oldItems)) {
+                $this->saveNewQuote($order, $quote, true);
+                $this->db->table('customer_orders')->where('id', $orderId)->update([
+                    'status' => 'pending',
+                    'accepted_by' => null,
+                    'accepted_at' => null,
+                ]);
+                $this->statusHistory($orderId, (int) $order['business_id'], (string) $order['status'], 'pending', 'staff', null, $userId, 'Physical cylinder selection changed the final quote; customer reconfirmation is required.', null);
+                if (!$this->db->transStatus()) throw new RuntimeException('Updated physical-cylinder quote could not be saved.');
+                $this->db->transCommit();
+                return [
+                    'status' => 'reconfirmation_required',
+                    'message' => 'The selected cylinders change the final price. The revised quote has been saved; customer reconfirmation and shop acceptance are required before posting.',
+                    'order' => $this->orderById($orderId, null),
+                ];
+            }
+
+            $this->db->transCommit();
+        } catch (\\Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
+
+        $salePayload = [
+            'customer_id' => (int) $order['customer_id'],
+            'transaction_at' => date('Y-m-d H:i:s'),
+            'notes' => 'Customer order ' . (string) $order['order_no'] . ($order['customer_notes'] ? ' | ' . (string) $order['customer_notes'] : ''),
+            'discount_amount' => 0,
+            'lines' => $saleLines,
+            'payments' => $payments,
+        ];
+        (new SalesService())->postForCustomerOrder(
+            $salePayload,
+            $userId,
+            $shopId,
+            $orderId,
+            (float) $order['delivery_fee']
+        );
+
+        return [
+            'status' => 'completed',
+            'message' => 'Order fulfilled and posted to POS.',
+            'order' => $this->orderById($orderId, null),
+        ];
+    }
+
     public function updateStatus(int $userId, int $shopId, int $orderId, string $newStatus, string $reason = ''): array
     {
         $validStaffStatuses = ['accepted', 'rejected', 'preparing', 'ready', 'out_for_delivery', 'cancelled', 'unable_to_fulfil'];
