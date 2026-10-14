@@ -170,6 +170,51 @@ class ShopScopeService
         return $shopIds;
     }
 
+    public function defaultShopIdForUser(?int $userId = null): ?int
+    {
+        $user = $this->activeUser($userId);
+        if (!$user) {
+            return null;
+        }
+
+        $id = (int) $user['id'];
+        $currentShopId = (int) ($user['location_id'] ?? 0);
+        if ($currentShopId > 0 && $this->canAccessShop($currentShopId, $id)) {
+            return $currentShopId;
+        }
+
+        $directDefault = $this->db->table('user_shop_access usa')
+            ->select('l.id')
+            ->join('locations l', 'l.id=usa.location_id', 'inner')
+            ->where('usa.user_id', $id)
+            ->where('usa.is_default', 1)
+            ->where('l.is_active', 1)
+            ->orderBy('l.id', 'ASC')
+            ->get()
+            ->getRowArray();
+        if ($directDefault) {
+            return (int) $directDefault['id'];
+        }
+
+        $businessDefault = $this->db->table('user_business_access uba')
+            ->select('l.id')
+            ->join('businesses b', 'b.id=uba.business_id', 'inner')
+            ->join('locations l', 'l.business_id=b.id', 'inner')
+            ->where('uba.user_id', $id)
+            ->where('uba.is_default', 1)
+            ->where('b.is_active', 1)
+            ->where('l.is_active', 1)
+            ->orderBy('l.id', 'ASC')
+            ->get()
+            ->getRowArray();
+        if ($businessDefault) {
+            return (int) $businessDefault['id'];
+        }
+
+        $accessible = $this->accessibleShopIds($id);
+        return $accessible ? (int) $accessible[0] : null;
+    }
+
     public function canAccessShop(int $locationId, ?int $userId = null): bool
     {
         if ($locationId <= 0) {
