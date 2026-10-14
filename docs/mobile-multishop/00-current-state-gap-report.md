@@ -2,7 +2,7 @@
 
 **Reviewed:** 2026-10-14
 **Source branch:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`
-**Status:** Source-level gap report updated to reflect owner-confirmed product decisions. No application/schema behavior has been changed on this documentation branch.
+**Status:** This document describes the historical source gap on `main` at the commit above. The gaps listed in sections 1–4 are baseline findings, not a statement that the current feature branch is unchanged. Implementation has since proceeded on `feature/mobile-multishop-ordering`; see `wp0-source-inventory.md` and `DEVELOPMENT_PLAN.md` for current implementation status. Runtime QA remains pending.
 
 ## 1. Role and permission implementation
 
