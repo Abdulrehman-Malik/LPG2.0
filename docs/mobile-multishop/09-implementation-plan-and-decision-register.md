@@ -190,7 +190,7 @@ Screens:
 - Head Office-defined catalog filtered by each shop's active product settings.
 - Server-calculated prices/availability and saved price snapshots; require review if an offline queued order encounters a changed price.
 - Cart and order review.
-- Customer selects delivery or collection at checkout. Delivery requires an address; only shop-enabled methods are offered, and any configured fee/condition is shown before submission.
+- Customer selects delivery or collection at checkout. Both choices are supported; delivery requires an address and any configured fee/condition is shown before submission.
 - Submit/confirmation with public order number.
 - Own order history, status timeline and cancellation where allowed.
 - Profile/help/error and retry states.
@@ -285,7 +285,7 @@ The register below contains both owner-confirmed choices and remaining choices f
 | D-10 | Effective price source and snapshot | Use existing validated effective-rate logic, including shop-specific/global fallback only where current business rules permit it. The server calculates and snapshots the quote on cloud order creation; catalog settings do not bypass existing rate-card rules | WP-4, WP-5, WP-6 |
 | D-11 | Price changes after ordering | Never silently reprice. If a queued offline order's price/availability changes before sync, require customer review before creating the cloud order. Preserve the price snapshot for cloud orders; if fulfilment needs a different price, get customer reconfirmation or cancel/re-quote before POS posting | WP-4, WP-5, WP-7, WP-9 |
 | D-12 | Stock reservation | No inventory reservation/deduction when submitted or accepted; revalidate at fulfilment unless an explicit reservation design is approved | WP-4, WP-5 |
-| D-13 | Delivery/collection | Customer chooses delivery or collection at checkout. Offer only methods enabled for the assigned shop; delivery requires an address. Any fee or condition must be configured and shown before submission; do not add hidden fees | WP-4, WP-7 |
+| D-13 | Delivery/collection | Customer can select delivery or collection at checkout. Delivery requires an address; any fee or constraint must be configured and shown before submission. Do not add hidden fees | WP-4, WP-7 |
 | D-14 | Payment | No online payment in MVP; payment is handled through existing POS fulfilment and its normal payment rules | WP-5, WP-9 |
 | D-15 | Customer cancellation | Customer may cancel while pending; after acceptance only staff may cancel/mark unable-to-fulfil under the approved status matrix | WP-4, WP-5 |
 | D-16 | Partial fulfilment | Out of scope; one order links to no more than one sale in MVP | WP-4, WP-9 |
@@ -340,7 +340,7 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Customer onboarding:** A permissioned Admin/Manager may create an app account linked to the customer's financial master. A customer may self-register, but the account remains pending until an authorized Admin/Manager approves or rejects it. Pending/rejected/inactive accounts cannot sign in to order or place orders. For MVP, recovery is Admin/Manager-mediated unless a verified self-service recovery channel is separately approved.
 - **Catalog and shop availability:** Head Office defines the business product catalog. Each shop may activate/deactivate products it is or is not currently selling. The server validates active shop products and existing effective-rate logic on each quote and order.
 - **Price integrity:** Cloud orders save a server-calculated price snapshot. Never reprice silently. If a queued offline order encounters a changed price/availability before synchronization, require customer review before creating the cloud order; if price differs before POS fulfilment, obtain customer reconfirmation or cancel/re-quote.
-- **Fulfilment:** Customers choose delivery or collection at checkout. Only shop-enabled methods are offered; delivery requires an address and any fee/condition must be shown before submission.
+- **Fulfilment:** Customers choose delivery or collection at checkout. Both choices are supported; delivery requires an address and any fee/condition must be shown before submission.
 - **Languages:** Both apps are multilingual and offer a language selector at login. Remember the choice on the device and, after sign-in, in the account preference. Agree on supported language list and translations before UI content freeze.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
