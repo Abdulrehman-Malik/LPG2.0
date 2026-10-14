@@ -38,9 +38,13 @@ class ApiSessionService
             $row = $this->db->table('customer_app_accounts ca')
                 ->select('ca.id')
                 ->join('customers c', 'c.id=ca.customer_id', 'inner')
+                ->join('locations l', 'l.id=c.location_id', 'inner')
+                ->join('businesses b', 'b.id=l.business_id', 'inner')
                 ->where('ca.id', $principalId)
                 ->where('ca.status', 'approved')
                 ->where('c.is_active', 1)
+                ->where('l.is_active', 1)
+                ->where('b.is_active', 1)
                 ->get()->getRowArray();
             return $row !== null;
         }
