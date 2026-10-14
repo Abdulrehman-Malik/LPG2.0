@@ -1,6 +1,6 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Backend implementation in progress. The isolated feature branch contains the API foundation; the two Flutter apps and transaction-safe POS fulfillment are not yet complete.
+**Status:** Backend implementation in progress. The isolated feature branch contains the API foundation and initial POS delivery-fee persistence; the two Flutter apps and transaction-safe POS fulfillment are not yet complete.
 **Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
@@ -66,7 +66,7 @@ Review [Module 10 — Centralized Configuration Management](10-configuration-man
 
 Implementation is underway only on `feature/mobile-multishop-ordering`. Keep all changes off `main`; do not merge without explicit approval. Do not build legacy customer mapping/backfill tooling for this deployment.
 
-The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment reconciliation → two-shop pilot and release.
+The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment reconciliation (delivery-fee component groundwork added; atomic posting and reconciliation remain blocked) → two-shop pilot and release.
 
 ## Decisions already fixed
 
