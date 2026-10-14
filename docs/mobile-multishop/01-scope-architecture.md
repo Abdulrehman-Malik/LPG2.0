@@ -6,7 +6,7 @@ Two separate Flutter apps for Android and iOS are delivered: the Customer App an
 
 ## Logical architecture
 
-Flutter mobile app (Customer / Owner / Shop Manager / Order Staff)
+Customer App (customer-only) and Business/Staff App (staff/Head Office only)
 → HTTPS API `/api/v1`
 → CodeIgniter API controllers and authentication/authorization
 → application services (order, customer, shop, catalog; existing sales/inventory services where appropriate)
