@@ -26,6 +26,12 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->post('auth/change-password','Api\\V1\\Auth::staffChangePassword');
         $routes->get('me','Api\\V1\\Staff\\Me::show');
         $routes->get('shops','Api\\V1\\Staff\\Me::shops');
+        $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
+        $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
+        $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');
+        $routes->post('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::createShop/$1');
+        $routes->get('businesses/(:num)/staff-access','Api\\V1\\Staff\\Businesses::staffAccess/$1');
+        $routes->post('businesses/(:num)/staff-access','Api\\V1\\Staff\\Businesses::setStaffAccess/$1');
         $routes->get('orders','Api\\V1\\Staff\\Orders::index');
         $routes->get('orders/(:num)','Api\\V1\\Staff\\Orders::show/$1');
         $routes->post('orders/(:num)/status','Api\\V1\\Staff\\Orders::updateStatus/$1');
