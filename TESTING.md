@@ -384,10 +384,10 @@ The following web/backend surfaces have been implemented on the feature branch. 
 |---|---|---|---|
 | Business and shop administration | /business-management | System Administrator business creation, shop defaults (settings/register/inventory policy), staff business/shop scopes, default shop, revoked staff sessions, direct URL denial | NOT EXECUTED |
 | Customer Ordering Catalog | /mobile-catalog | Business catalog create/edit/deactivate, gas vs cylinder quantity validation, duplicate product rejection, shop-specific availability and cross-shop denial | NOT EXECUTED |
-| Customer App Accounts | /customer-app-accounts | Pending signup approval/rejection, link existing vs create customer master, username uniqueness, no credit enabled by default, disable and revoke tokens | NOT EXECUTED |
+| Customer App Accounts | /customer-app-accounts | Pending signup approval/rejection, link existing vs create customer master, username uniqueness, no credit enabled by default, password reset and disable both revoke sessions | NOT EXECUTED |
 | Web Customer Orders | /customer-orders and /customer-orders/{id} | Shop-scoped queue/detail/history, valid status transitions, reason validation, quote reconfirmation and physical unit selection | NOT EXECUTED |
 | Web order fulfillment | /customer-orders/{id}/fulfill | Existing POS posting path, payment total, delivery-fee component, sale idempotency, cash/customer-ledger/inventory reconciliation | NOT EXECUTED |
-| Customer / staff API | /api/v1 | Authentication/audience separation, refresh rotation/replay, account disable, shop/business scope, order idempotency, quote and fulfillment concurrency | NOT EXECUTED |
+| Customer / staff API | /api/v1 | Authentication/audience separation, refresh rotation/replay, customer password reset, account disable, shop/business scope, order idempotency, quote and fulfillment concurrency | NOT EXECUTED |
 
 The MySQL 8 CI job applies migrations through 039 and asserts delivery-fee, order-to-sale and physical-cylinder selection schema. This checks schema bootstrapping and PHP/test code; it does not replace the browser/API cases above.
 
