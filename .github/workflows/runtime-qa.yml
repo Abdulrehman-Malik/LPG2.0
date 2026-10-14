@@ -1,0 +1,132 @@
+name: LPG Runtime QA
+
+on:
+  push:
+    branches:
+      - main
+      - qa/runtime-deployment
+      - qa/runtime-deployment-verify
+      - qa/workflow-cleanup
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  runtime-qa:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: perfect_lpg
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: intl, mbstring, mysqli
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Bootstrap database
+        env:
+          MYSQL_PWD: root
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/007_20261003_pos_transaction_type.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/008_20261003_individual_cylinder_tracking.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/010_20261004_purchase_inventory_integrity.sql
+          printf "SET @lpg_refresh_transactional_data = 0;\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
+      - name: Prepare test environment
+        run: |
+          cp env .env
+          # Normalize either CodeIgniter base URL spelling, independent of leading whitespace or old value.
+          sed -i -E "s#^[[:space:]]*(app\\.baseURL|app_baseURL)[[:space:]]*=.*#\\1 = 'http://localhost:8080/'#" .env
+          grep -Eq "^(app\\.baseURL|app_baseURL)[[:space:]]*=[[:space:]]*'http://localhost:8080/'$" .env
+          sed -i "s/^CI_ENVIRONMENT[[:space:]]*=.*/CI_ENVIRONMENT = development/" .env
+          cat >> .env <<'EOF'
+          database.default.hostname = 127.0.0.1
+          database.default.database = perfect_lpg
+          database.default.username = root
+          database.default.password = root
+          database.default.DBDriver = MySQLi
+          EOF
+      - name: Start web application
+        run: |
+          env 'LPG_DB_HOST=127.0.0.1' 'LPG_DB_PORT=3306' 'LPG_DB_NAME=perfect_lpg' 'LPG_DB_USER=root' 'LPG_DB_PASS=root' 'LPG_DB_DRIVER=MySQLi' nohup php spark serve --host 0.0.0.0 --port 8080 > /tmp/lpg-server.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/ > /tmp/lpg-login.html; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/lpg-server.log
+          exit 1
+      - name: Verify PHP MySQL connectivity
+        env:
+          MYSQL_PWD: root
+        run: |
+          set -e
+          php -r '$m = new mysqli("127.0.0.1", "root", "root", "perfect_lpg", 3306); if ($m->connect_error) { fwrite(STDERR, "PHP_MYSQLI_CONNECT_FAILED: ".$m->connect_error."\n"); exit(1); } echo "PHP_MYSQLI_CONNECT_PASS\n"; echo "PHP_MYSQLI_SERVER=".$m->server_info."\n";'
+      - name: Run application migrations
+        env:
+          CI_ENVIRONMENT: development
+          MYSQL_PWD: root
+        run: |
+          set -e
+          env \
+            'LPG_DB_HOST=127.0.0.1' \
+            'LPG_DB_PORT=3306' \
+            'LPG_DB_NAME=perfect_lpg' \
+            'LPG_DB_USER=root' \
+            'LPG_DB_PASS=root' \
+            'LPG_DB_DRIVER=MySQLi' \
+            php spark migrations:run
+          curl -fsS http://localhost:8080/ -o /tmp/lpg-login-after-migrations.html
+          grep -qi 'login' /tmp/lpg-login-after-migrations.html
+          grep -qi 'password' /tmp/lpg-login-after-migrations.html
+      - name: Login and application access
+        run: |
+          set -e
+          rm -f /tmp/lpg-cookies.txt
+          curl -fsS -c /tmp/lpg-cookies.txt -b /tmp/lpg-cookies.txt http://localhost:8080/login -o /tmp/lpg-login.html
+          grep -qi 'name="login"' /tmp/lpg-login.html
+          grep -qi 'name="password"' /tmp/lpg-login.html
+          csrf_name=$(grep -oE 'name="[^"]+" value="[^"]+"' /tmp/lpg-login.html | grep -E 'csrf|token' | head -1 | sed -E 's/.*name="([^"]+)" value="([^"]+)".*/\1/')
+          csrf_value=$(grep -oE 'name="[^"]+" value="[^"]+"' /tmp/lpg-login.html | grep -E 'csrf|token' | head -1 | sed -E 's/.*name="([^"]+)" value="([^"]+)".*/\2/')
+          test -n "$csrf_name" && test -n "$csrf_value"
+          curl -sS -L -c /tmp/lpg-cookies.txt -b /tmp/lpg-cookies.txt --data-urlencode "login=admin" --data-urlencode "password=admin123" --data-urlencode "$csrf_name=$csrf_value" http://localhost:8080/login -o /tmp/dashboard.html
+          grep -qiE 'dashboard|welcome back' /tmp/dashboard.html
+          curl -fsS -b /tmp/lpg-cookies.txt http://localhost:8080/dashboard -o /tmp/dashboard-direct.html
+          grep -qi 'dashboard' /tmp/dashboard-direct.html
+
+      - name: Run POS browser smoke test
+        env:
+          LPG_QA_BASE_URL: http://localhost:8080
+        run: |
+          set -e
+          npm install --no-save --no-package-lock @playwright/test
+          npx playwright install --with-deps chromium
+          npx playwright test tests/e2e/lpg-runtime.spec.mjs --grep "E2E-002|E2E-003a|E2E-004|E2E-009|E2E-010|E2E-011|E2E-012|E2E-013" --workers=1
+
+      - name: Upload runtime logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-qa-logs
+          path: |
+            /tmp/lpg-server.log
+            /tmp/lpg-probe.log
+            /tmp/lpg-login.html
+            /tmp/dashboard.html
+            /tmp/*.png

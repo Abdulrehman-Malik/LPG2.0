@@ -1,0 +1,133 @@
+#--------------------------------------------------------------------
+# Example Environment Configuration file
+#
+# Copy this file to .env and change the values for your environment.
+# Never commit real passwords or production secrets to Git.
+# Values in this file are examples/defaults; configure the same variables
+# in your hosting provider's environment settings when deploying there.
+#--------------------------------------------------------------------
+
+#--------------------------------------------------------------------
+# ENVIRONMENT
+#--------------------------------------------------------------------
+
+# Application mode:
+# - development: detailed errors for local development only
+# - production: hide internal error details from visitors (use in Railway/production)
+CI_ENVIRONMENT = development
+
+#--------------------------------------------------------------------
+# APP
+#--------------------------------------------------------------------
+
+# Public base URL of the app; include the trailing slash.
+# Local example:
+app.baseURL = 'http://localhost:180/LPG/public/'
+# Alternative spelling supported by CodeIgniter if dotted keys are awkward:
+app_baseURL = 'http://localhost:180/LPG/public/'
+
+# Optional: force all requests to HTTPS. Enable only when HTTPS/proxy configuration is correct.
+# app.forceGlobalSecureRequests = false
+# Optional: enable Content Security Policy headers after checking the app's required assets.
+# app.CSPEnabled = false
+
+# Company name displayed on the login page and browser title.
+app.companyName = 'Perfect LPG (Pvt.) LTD'
+
+#--------------------------------------------------------------------
+# DATABASE — STANDARD CODEIGNITER SETTINGS
+#--------------------------------------------------------------------
+
+# Use these settings for local .env configuration.
+# hostname: MySQL server hostname (often localhost locally).
+# database: database name to connect to.
+# username/password: MySQL credentials; never use a blank password in production.
+# DBDriver: keep MySQLi for MySQL/MariaDB.
+# port: MySQL server port (commonly 3306).
+database.default.hostname = localhost
+database.default.database = perfect_lpg
+database.default.username = root
+database.default.password = ''
+database.default.DBDriver = MySQLi
+database.default.port = 3306
+
+#--------------------------------------------------------------------
+# DATABASE — RAILWAY / HOST ENVIRONMENT VARIABLES
+#--------------------------------------------------------------------
+
+# The app also supports these explicit variables, useful in Railway's Variables panel.
+# If set, these LPG_DB_* variables take precedence over database.default.* values:
+# LPG_DB_HOST = your-mysql-host
+# LPG_DB_NAME = your-database-name
+# LPG_DB_USER = your-database-user
+# LPG_DB_PASS = your-database-password
+# LPG_DB_PORT = 3306
+# LPG_DB_DRIVER = MySQLi
+#
+# Enter real values in Railway's Variables panel (or your host's secret/environment
+# settings), not in this committed example file. Use the hostname/port/credentials
+# supplied by your database provider.
+
+# If you run database tests, configure a separate test database here.
+# Never point automated tests at your production database.
+# database.tests.hostname = 127.0.0.1
+# database.tests.database = ci4_test
+# database.tests.username = root
+# database.tests.password = root
+# database.tests.DBDriver = MySQLi
+# database.tests.DBPrefix =
+# database.tests.charset = utf8mb4
+# database.tests.DBCollat = utf8mb4_general_ci
+# database.tests.port = 3306
+
+#--------------------------------------------------------------------
+# ENCRYPTION
+#--------------------------------------------------------------------
+
+# Recommended in production: generate a long, random, unique CodeIgniter encryption key.
+# Keep it secret and stable between deploys; changing it may invalidate encrypted data/sessions.
+# Configure it in the host's environment settings, not in Git.
+# encryption.key =
+
+#--------------------------------------------------------------------
+# SESSION
+#--------------------------------------------------------------------
+
+# Optional session handler/path overrides. Use defaults unless you have a specific requirement.
+# session.driver = 'CodeIgniter\Session\Handlers\FileHandler'
+# session.savePath = null
+
+#--------------------------------------------------------------------
+# LOGGER
+#--------------------------------------------------------------------
+
+# Logging verbosity. Use a production-appropriate level; do not expose debug errors to visitors.
+# logger.threshold = 4
+
+#--------------------------------------------------------------------
+# DATABASE BACKUP
+#--------------------------------------------------------------------
+
+# Relative paths are resolved from the project root. Defaults to writable/backups.
+# On ephemeral hosts such as Railway, local backup files may disappear on redeploy;
+# use a durable/external backup destination and test restores before destructive operations.
+# backup.directory = writable/backups
+# Windows/XAMPP executable paths (normally not needed on Linux/Railway):
+# backup.mysqldumpPath = C:/xampp/mysql/bin/mysqldump.exe
+# backup.mysqlPath = C:/xampp/mysql/bin/mysql.exe
+
+#--------------------------------------------------------------------
+# FIRST-TIME DATABASE INSTALLER
+#--------------------------------------------------------------------
+
+# false (recommended/default): normal login; installer is not enabled.
+# true: temporarily enable Installation Setup for a new deployment.
+# The installer creates the configured database if missing, runs database/schema.sql,
+# then runs pending numbered migrations (excluding the separate destructive data-refresh
+# migration). Completion is recorded only after the setup succeeds.
+#
+# DANGER: if the configured database already contains tables/data, replacement is destructive.
+# Replacement requires an active ADMIN account password, explicit typed confirmations,
+# and a verified safety backup before the database is dropped.
+# Enable only during a controlled installation window, verify login afterward, then set false.
+FRESH_DATABASE_SETUP = false

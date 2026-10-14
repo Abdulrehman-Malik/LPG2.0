@@ -1,0 +1,1 @@
+ALTER TABLE rate_cards MODIFY COLUMN cylinder_type_id BIGINT UNSIGNED NULL;

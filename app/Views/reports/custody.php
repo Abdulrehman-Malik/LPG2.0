@@ -1,0 +1,8 @@
+<?= $this->extend('layouts/app') ?><?= $this->section('content') ?>
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h4>Customer Cylinder Custody</h4><div class="text-muted">Company-owned cylinders currently held by customers</div></div><a class="btn btn-outline-secondary" href="<?=site_url('reports')?>">Back to Reports</a></div>
+<div class="row g-3 mb-3"><div class="col-md-4"><div class="card border-warning"><div class="card-body"><div class="text-muted">Security Deposits Held</div><h3>Rs. <?=number_format((float)$depositBalance,2)?></h3><div class="small text-muted">Refundable liability</div></div></div></div><div class="col-md-4"><div class="card card-body"><div class="text-muted">Cylinders on Custody</div><h3><?=count($rows)?></h3></div></div></div>
+<div class="card"><div class="card-body table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Customer</th><th>Phone</th><th>Cylinder</th><th>Type</th><th>Gas KG</th><th>Deposit Held</th><th>Issued At</th><th>Status</th></tr></thead><tbody>
+<?php foreach($rows as $r): ?><tr><td><?=esc(($r['customer_code']?$r['customer_code'].' — ':'').$r['customer_name'])?></td><td><?=esc($r['customer_phone']??'')?></td><td><?=esc($r['unit_code'])?></td><td><?=esc($r['cylinder_code'].' — '.$r['cylinder_name'])?></td><td><?=number_format((float)$r['gas_weight_kg'],2)?></td><td>Rs. <?=number_format((float)$r['deposit_amount'],2)?></td><td><?=esc($r['issued_at'])?></td><td><span class="badge text-bg-warning">Issued / Held</span></td></tr><?php endforeach; ?>
+<?php if(!$rows): ?><tr><td colspan="8" class="text-muted">No cylinders are currently on customer custody.</td></tr><?php endif; ?>
+</tbody></table></div></div>
+<?= $this->endSection() ?>

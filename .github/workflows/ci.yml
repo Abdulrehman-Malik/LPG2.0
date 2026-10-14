@@ -1,0 +1,77 @@
+name: LPG CI
+
+on:
+  push:
+    branches:
+      - main
+      - qa/workflow-cleanup
+  pull_request:
+    branches: [main]
+
+jobs:
+  php-and-db-smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: perfect_lpg
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: intl, mbstring, mysqli
+          coverage: none
+
+      - name: Validate PHP syntax
+        shell: bash
+        run: |
+          set -e
+          find app public tests -type f -name '*.php' -print0 2>/dev/null |
+            while IFS= read -r -d '' file; do
+              php -l "$file"
+            done
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Bootstrap database schema
+        shell: bash
+        env:
+          MYSQL_PWD: root
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/007_20261003_pos_transaction_type.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/008_20261003_individual_cylinder_tracking.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/010_20261004_purchase_inventory_integrity.sql
+          printf "SET @lpg_refresh_transactional_data = 0;\\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
+
+      - name: CodeIgniter smoke check
+        env:
+          CI_ENVIRONMENT: testing
+        run: php spark
+
+      - name: Run PHPUnit
+        env:
+          CI_ENVIRONMENT: testing
+        run: |
+          if [ -d tests ] && find tests -type f \( -name '*Test.php' -o -name '*TestCase.php' \) | grep -q .; then
+            php vendor/bin/phpunit --no-coverage
+          else
+            echo "No PHPUnit test files are currently defined; PHP and database smoke checks completed."
+          fi
