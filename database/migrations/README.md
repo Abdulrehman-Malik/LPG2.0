@@ -47,6 +47,7 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 033 | `033_20261014_customer_accounts_orders_and_catalog.sql` | Adds business catalog/shop availability, customer signup and account tables, API token/session storage, order lines/status history and composite ownership constraints |
 | 034 | `034_20261014_pending_signup_username_guard.sql` | Enforces uniqueness for pending signup usernames while freeing the username after approval/rejection |
 | 035 | `035_20261014_centralized_configuration_storage.sql` | Adds validated application defaults, per-business settings and per-shop overrides with one server-side resolver |
+| 036 | `036_20261014_order_idempotency_price_reconfirmation.sql` | Tracks order request fingerprints and whether the customer must reconfirm a revised quote |
 
 ## Deployment rules
 
@@ -57,7 +58,7 @@ Execution results are recorded in `lpg_migration_history`, including status, che
 
 1. Run `database/schema.sql` only for a fresh database.
 2. For an existing database, run only the migration scripts that have not already been applied.
-3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 030 → 031 → 032 → 033 → 034 → 035**.
+3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 030 → 031 → 032 → 033 → 034 → 035 → 036**.
 4. Migration **011** is not a normal upgrade migration. It is a controlled, destructive refresh intended for disposable staging/test databases. It clears transactional records plus customers, suppliers, cylinder types, rate cards, and rate-change history. Users, roles, permissions, locations, shop settings, cash registers, inventory policies, and other application configuration remain. Whenever a later migration introduces a new transactional table, update the controlled refresh service/script so that table is reset too.
 5. Do not automatically run migration 011 during production deployment.
 6. Do not rename or reorder an already released migration. Add a new sequence number for every future migration.
@@ -114,3 +115,4 @@ Never reuse an existing sequence number.
 - `033_20261014_customer_accounts_orders_and_catalog.sql` — adds customer signup/account, API session/token storage, business catalog, shop product availability, and customer order/state-history tables with matching business/shop/customer/account constraints.
 - `034_20261014_pending_signup_username_guard.sql` — enforces unique pending signup names through a generated key that automatically clears when the request is approved or rejected.
 - `035_20261014_centralized_configuration_storage.sql` — stores application defaults, per-business values and per-shop overrides. `ConfigurationService` is the only supported effective-value resolver; existing `shop_settings` remains intact.
+- `036_20261014_order_idempotency_price_reconfirmation.sql` — persists canonical request fingerprints so reused idempotency keys cannot create/confuse orders, and records quote revisions that need customer confirmation.
