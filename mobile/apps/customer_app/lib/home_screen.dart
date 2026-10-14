@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:lpg_mobile_core/lpg_mobile_core.dart';
 
@@ -15,6 +17,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   late Future<Map<String, dynamic>> _content;
   final Map<int, double> _cart = {};
   bool _busy = false;
+  String? _pendingIdempotencyKey;
+  String? _pendingRequestFingerprint;
 
   @override
   void initState() {
@@ -171,21 +175,29 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     setState(() => _busy = true);
     try {
+      final payload = <String, dynamic>{
+        ...request,
+        'items': _cart.entries.map((entry) => {
+              'product_id': entry.key,
+              'quantity': entry.value,
+            }).toList(),
+      };
+      final fingerprint = jsonEncode(payload);
+      if (_pendingIdempotencyKey == null || _pendingRequestFingerprint != fingerprint) {
+        _pendingIdempotencyKey = 'customer-${DateTime.now().microsecondsSinceEpoch}';
+        _pendingRequestFingerprint = fingerprint;
+      }
       final root = await widget.client.postJson(
         'customer/orders',
-        {
-          ...request,
-          'items': _cart.entries.map((entry) => {
-                'product_id': entry.key,
-                'quantity': entry.value,
-              }).toList(),
-        },
-        headers: {'Idempotency-Key': 'customer-${DateTime.now().microsecondsSinceEpoch}'},
+        payload,
+        headers: {'Idempotency-Key': _pendingIdempotencyKey!},
       );
       final order = _asMap(_asMap(root['data'])['order']);
       if (!mounted) return;
       setState(() {
         _cart.clear();
+        _pendingIdempotencyKey = null;
+        _pendingRequestFingerprint = null;
         _content = _load();
       });
       ScaffoldMessenger.of(context).showSnackBar(
