@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use Config\Database;
+use CodeIgniter\Database\BaseConnection;
 use RuntimeException;
-use JsonException;
 
 class ConfigurationService
 {
@@ -93,9 +93,9 @@ class ConfigurationService
 
     protected $db;
 
-    public function __construct()
+    public function __construct(?BaseConnection $db = null)
     {
-        $this->db = Database::connect();
+        $this->db = $db ?? Database::connect();
     }
 
     public static function definitions(?string $scope = null): array
