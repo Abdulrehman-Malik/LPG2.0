@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep important business and application settings in a clear, permission-aware **Configuration** area instead of scattering them across unrelated screens. Reuse the existing Shop Configuration/Shop Settings behavior as the starting point, then add Head Office/Business settings and Application-level settings. Implementation is underway on the isolated `feature/mobile-multishop-ordering` branch. The existing web Configuration area uses the central resolver; staff mobile API endpoints are being added against the same service. This work does not imply that either Flutter app UI is complete.
+Keep important business and application settings in a clear, permission-aware **Configuration** area. On `feature/mobile-multishop-ordering`, the central resolver and scope-aware web Configuration area are implemented, and staff mobile API read/save/reset routes use the same allow-listed service. The independent Flutter clients have initial source flows but are not store-ready. Runtime verification of inheritance, authorization and security guardrails remains pending; CI/source checks do not prove those cases.
 
 ## Configuration scopes and ownership
 
@@ -38,7 +38,7 @@ Final settings groups must be based on an inventory of existing screens, fields,
 
 Add a dedicated **Login & Session** group under Application Settings. This is where platform security policy defaults and guardrails are visible and managed by an authorized System Administrator, rather than being hidden in code or copied into individual shop screens.
 
-Proposed baseline to verify in WP-0 against the current PHP/CodeIgniter runtime and selected token/session library:
+Implemented application-level baseline (runtime behavior still requires release verification):
 
 - Access token lifetime: 15 minutes.
 - Refresh session inactivity limit: 30 days.
@@ -48,7 +48,7 @@ Proposed baseline to verify in WP-0 against the current PHP/CodeIgniter runtime 
 - Password reset, account disablement or removal of customer approval revokes applicable sessions according to the security policy.
 - Keep Customer App and Business/Staff App session audiences separate.
 
-The above values are proposed defaults, not claims about the current implementation. They must be validated before coding and may only be changed inside reviewed platform security guardrails. Business/Shop settings must not extend token/session lifetime beyond Application-level maximums, disable token rotation, weaken rate limits, bypass approval, or disable revocation. A lower scope may tighten policy only where the application explicitly supports and tests that restriction.
+The service currently defines these defaults and bounds. They must be verified in runtime tests and may only be changed inside reviewed platform security guardrails. Business/Shop settings must not extend token/session lifetime beyond Application-level maximums, disable token rotation, weaken rate limits, bypass approval, or disable revocation. A lower scope may tighten policy only where the application explicitly supports and tests that restriction.
 
 Changing policy must have a defined effective time. At minimum, new values must be enforced on subsequent token issuance/refresh; security-tightening changes must not grant existing sessions extra lifetime. Provide a separately permissioned, confirmed and audited emergency action for revoking active sessions rather than disguising it as an ordinary setting edit.
 
@@ -115,4 +115,4 @@ Acceptance tests must prove:
 - Existing Shop Settings and affected operational flows continue to work.
 - Customer and Business/Staff API audiences receive only safe, relevant configuration values.
 
-The implementation is isolated to the feature branch. Do not merge it into `main` until the mobile API, POS/order fulfillment boundary, permissions, migrations and tests have been reviewed and accepted.
+Implementation remains isolated to the feature branch. Do not merge to `main` until live browser/API, multi-shop authorization, POS/order fulfillment and migration tests have evidence and owner acceptance.
