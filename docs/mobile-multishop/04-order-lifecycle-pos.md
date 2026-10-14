@@ -4,19 +4,19 @@
 
 A customer order is a request for fulfilment. It is not a completed sale, payment, deposit, cash transaction or inventory movement.
 
-## Proposed order states
+## Implemented order states
 
 - `pending`: submitted by customer; awaits staff review.
 - `accepted`: authorized staff confirmed the order.
 - `preparing`: shop is preparing fulfilment.
-- `ready_for_collection`: prepared for customer collection.
+- `ready`: prepared for collection or ready for the next eligible fulfilment step.
 - `out_for_delivery`: handed to delivery workflow.
 - `completed`: fulfilment is confirmed and the business's sale-posting policy is satisfied.
 - `rejected`: shop cannot accept the order; reason required.
 - `cancelled`: cancelled according to allowed transitions; actor and reason recorded.
 - `unable_to_fulfil`: accepted order could not be completed; reason and resolution required.
 
-Allowed transitions must be defined centrally in an OrderService, not scattered across controllers and Flutter UI. The exact cancellation window, whether staff can reopen orders, and the meaning of `completed` must be finalized before coding.
+Allowed transitions are centralized in `CustomerOrderService::updateStatus()` and shared by web/API controllers. The implemented state values are `pending`, `accepted`, `preparing`, `ready`, `out_for_delivery`, `completed`, `rejected`, `cancelled`, and `unable_to_fulfil`. Completion is reserved for successful validated POS posting; no manual status transition can set it. These source behaviors still require runtime transition/concurrency tests.
 
 ## Order data
 
@@ -68,4 +68,7 @@ On acceptance:
 - An order cannot be accepted by unauthorized shop staff.
 - An order cannot be fulfilled twice.
 - Customer sees the same authoritative status saved by the backend.
+- Browser order management is available at `/customer-orders`; staff API queue/detail/status/fulfilment routes are under `/api/v1/staff/orders`.
+- Fulfilment calls `SalesService::postForCustomerOrder()`, uses current physical-cylinder selection/quote validation, separates delivery fee on the sale, and has unique order-to-sale linkage. Runtime financial/inventory atomicity and double-submit checks remain NOT EXECUTED (OWEB02/APISEC01).
+
 - Existing POS regression tests still pass.
