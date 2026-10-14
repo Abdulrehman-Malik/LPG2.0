@@ -57,6 +57,10 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
 
 $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
     $routes->get('dashboard','Dashboard::index');
+    $routes->get('business-management','BusinessManagement::index');
+    $routes->post('business-management/business/save','BusinessManagement::saveBusiness');
+    $routes->post('business-management/shop/save','BusinessManagement::saveShop');
+    $routes->post('business-management/staff-access/save','BusinessManagement::saveStaffAccess');
     $routes->get('customer-orders','OrderManagement::index');
     $routes->get('customer-orders/(:num)','OrderManagement::show/$1');
     $routes->post('customer-orders/(:num)/status','OrderManagement::updateStatus/$1');
