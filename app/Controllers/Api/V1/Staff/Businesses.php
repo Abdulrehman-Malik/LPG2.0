@@ -345,7 +345,15 @@ class Businesses extends Controller
             if ($accessType === 'head_office') {
                 if ($enabled) {
                     if ($isDefault) {
+                        $defaultShop = $db->table('locations')->select('id')
+                            ->where(['business_id' => $businessId, 'is_active' => 1])
+                            ->orderBy('id', 'ASC')->get()->getRowArray();
+                        if (!$defaultShop) {
+                            throw new \\RuntimeException('Create an active shop in this business before making Head Office access the default.');
+                        }
                         $db->table('user_business_access')->where('user_id', $targetUserId)->update(['is_default' => 0]);
+                        $db->table('user_shop_access')->where('user_id', $targetUserId)->update(['is_default' => 0]);
+                        $db->table('users')->where('id', $targetUserId)->update(['location_id' => (int) $defaultShop['id']]);
                     }
                     $exists = $db->table('user_business_access')->where(['user_id' => $targetUserId, 'business_id' => $businessId])->countAllResults() > 0;
                     $data = ['access_level' => 'head_office', 'is_default' => $isDefault ? 1 : 0];
