@@ -122,7 +122,7 @@
                 <tr>
                     <td><div class="fw-semibold"><?= esc($account['customer_name']) ?></div><div class="small text-muted"><?= esc($account['customer_code'] ?: ('Customer #' . $account['customer_id'])) ?><?= $account['phone'] ? ' · ' . esc($account['phone']) : '' ?></div></td>
                     <td><?= esc($account['username']) ?></td>
-                    <td><?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-success">Enabled</span><?php else: ?><span class="badge text-bg-secondary"><?= esc(ucfirst($account['status'])) ?><?= (int)$account['customer_active'] !== 1 ? ' · customer inactive' : '' ?></span><?php endif; ?></td>
+                    <td><?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-success">Enabled</span><?php elseif ($account['status'] === 'disabled' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-secondary">Disabled</span><?php else: ?><span class="badge text-bg-secondary"><?= esc(ucfirst($account['status'])) ?> · customer inactive</span><?php endif; ?></td>
                     <td><?= esc($account['last_login_at'] ?: 'Never') ?></td>
                     <td class="text-end">
                         <?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?>
@@ -139,7 +139,11 @@
                             <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/disable') ?>" onsubmit="return confirm('Disable this Customer App account and revoke its existing sessions?');">
                                 <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-danger">Disable</button>
                             </form>
-                        <?php else: ?><span class="text-muted small">Disabled or inactive</span><?php endif; ?>
+                        <?php elseif ($account['status'] === 'disabled' && (int)$account['customer_active'] === 1): ?>
+                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/enable') ?>" onsubmit="return confirm('Re-enable this Customer App account? Existing sessions will remain revoked.');">
+                                <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-success">Enable</button>
+                            </form>
+                        <?php else: ?><span class="text-muted small">Customer inactive</span><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
