@@ -29,6 +29,10 @@ The existing web application continues to support POS and back-office workflows.
 - Audit history for order changes and important administrative actions.
 - Notification architecture for new orders and status updates; push provider may be phased after core order flow is stable.
 
+## Centralized configuration
+
+Provide a scope-aware Configuration area for Application, Head Office/Business and Shop settings. Keep the existing Shop Settings behavior as the starting point; add an Application-level Login & Session group for global auth/session defaults and guardrails. Every setting declares its owning scope and which lower scopes, if any, may override it. See [Module 10 — Centralized Configuration Management](10-configuration-management.md).
+
 ## Out of scope for first release
 
 - Split orders spanning multiple shops.
@@ -45,6 +49,7 @@ The existing web application continues to support POS and back-office workflows.
 - A submitted order is an operational request, not a financial transaction.
 - Existing POS sales must continue to work independently.
 - API contracts must be versioned and return stable JSON errors/status codes.
+- Configuration is resolved and authorized server-side by scope; client apps never set their own effective permissions or security policies.
 - API auth must not depend on the browser's PHP session.
 - Do not add CORS exceptions as a substitute for authentication. Native mobile clients still require authenticated API access.
 
