@@ -266,6 +266,51 @@ class CustomerAppAccounts extends Controller
         }
     }
 
+    public function enable(int $accountId)
+    {
+        $context = $this->context();
+        if (isset($context['error'])) return $context['error'];
+
+        $userId = (int) $context['user_id'];
+        $shopId = (int) $context['shop_id'];
+        $db = Database::connect();
+        $db->transBegin();
+
+        try {
+            $account = $db->query(
+                'SELECT ca.id,ca.customer_id,ca.username,ca.status,c.location_id,c.is_active AS customer_active
+                 FROM customer_app_accounts ca
+                 JOIN customers c ON c.id=ca.customer_id
+                 WHERE ca.id=? AND c.location_id=?
+                 LIMIT 1 FOR UPDATE',
+                [$accountId, $shopId]
+            )->getRowArray();
+
+            if (!$account) {
+                $db->transRollback();
+                return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account was not found in the current shop.');
+            }
+            if ((int) $account['customer_active'] !== 1) {
+                $db->transRollback();
+                return redirect()->to(site_url('customer-app-accounts'))->with('error', 'An inactive financial customer cannot use the Customer App.');
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'approved']);
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Customer App account could not be enabled.');
+            }
+            $db->transCommit();
+
+            AuditService::log('CUSTOMER_APP_ACCOUNT_ENABLED', 'customer_app_account', $accountId,
+                ['status' => $account['status']], ['status' => 'approved'], $userId, $shopId);
+            return redirect()->to(site_url('customer-app-accounts'))->with('success', 'Customer App account enabled. The customer must sign in again; old sessions remain revoked.');
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Web Customer App account enable failed: {message}', ['message' => $e->getMessage()]);
+            return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account could not be enabled.');
+        }
+    }
+
     public function resetPassword(int $accountId)
     {
         $context = $this->context();
