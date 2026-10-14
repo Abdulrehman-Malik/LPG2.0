@@ -90,7 +90,7 @@
         <div class="form-text mt-2">A product in the business catalog is not automatically offered by every shop. Use the shop availability actions below to activate it.</div>
     </div>
 </div>
-<?php elseif (!$canViewBusinessCatalog): ?>
+<?php elseif (!$canViewBusinessCatalog && !$canManageShopAvailability): ?>
 <div class="alert alert-info">You can only use this page if your role has the relevant catalog or shop product permissions.</div>
 <?php endif; ?>
 
