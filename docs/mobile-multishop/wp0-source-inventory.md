@@ -4,7 +4,7 @@
 **Repository:** `Abdulrehman-Malik/LPG2.0`  
 **Main baseline:** `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`  
 **Implementation branch:** `feature/mobile-multishop-ordering`  
-**Status:** Source-level inventory started; runtime verification is still pending.
+**Status:** Source-level inventory complete for the feature branch; runtime verification is still pending. The notes in sections 2–3 describe the original main-branch baseline, not the current feature branch.
 
 ## 1. Runtime and project shape
 
@@ -12,7 +12,7 @@
 - Dependencies/tests are declared in `composer.json` and `phpunit.dist.xml`.
 - Fresh database schema: `database/schema.sql`.
 - Numbered SQL upgrade scripts: `database/migrations/NNN_*.sql`; `app/Services/MigrationRunnerService.php` reads migration sequence/checksums, tracks execution in `lpg_migration_history`, and blocks login while required migrations are pending.
-- CI: `.github/workflows/ci.yml` provisions MySQL 8, validates PHP syntax, installs Composer dependencies, bootstraps the schema and runs PHPUnit. Its push branches currently name `main` and `qa/workflow-cleanup`; the pull-request trigger targets `main`.
+- CI: `.github/workflows/ci.yml` provisions MySQL 8, validates PHP syntax, installs Composer dependencies, bootstraps the schema, applies the mobile-order migrations and runs PHPUnit. Pushes to `feature/**` run the workflow; PRs to `main` also run it.
 - Tests include `tests/unit/HealthTest.php`, a database example, and Playwright scenarios in `tests/e2e/lpg-runtime.spec.mjs`. The current test set is not yet sufficient for multi-business isolation, customer accounts, API security or ordering.
 - This review is based on GitHub source. No application was executed, no live/non-production database was queried, and no CI run is represented as passed.
 
@@ -51,14 +51,27 @@ Relevant definitions in `database/schema.sql`:
 ## 5. WP-0 open items and execution gate
 
 - Inspect all consumers of `session()->get('location_id')`, `customers`, `cylinder_types`, `rate_cards`, `shop_settings`, role capabilities and customer identifiers before implementing scope changes. A session-level default location is not sufficient authorization.
-- Review all `database/migrations` against the complete numbered list. The migration README's list and sequence guidance have stale references around migration 031; update that documentation as part of repository cleanup.
-- Runtime/test execution is not yet available from this source-only review. A disposable MySQL 8 CI run and app-level regression against a safe local/test environment are still required. Do not run destructive refresh migration 011 against production.
+- Runtime tests still require a configured QA web server, a disposable MySQL database with safe test data, and browser/API credentials for multiple businesses/shops.
+- No live browser session or deployed QA API has been exercised in this review. The CI workflow covers syntax/schema setup/PHPUnit, but it is not a substitute for a running app with customer/staff sessions. Do not run destructive refresh migration 011 against production.
 - Existing populated-install data mapping is not part of the approved MVP. Do not silently assign historical customers or rewrite historical transactions. If a populated installation is later chosen for an upgrade, obtain a separate reviewed mapping/recovery plan.
-- Before implementing token handling, verify available platform/runtime libraries and the exact chosen persistence and revocation design.
+- Token/session persistence and revocation are implemented in `ApiSessionService`; the remaining gate is live token expiry/rotation/reuse-revocation and disabled-account testing.
 
 ## 6. Definition of done for WP-0
 
-- Source inventory and current architecture gaps are documented.
-- Relevant code files, tables, routes, permissions, settings and tests are identified.
-- Contradictory status/migration notes are corrected.
-- Test commands and execution environment are defined, with no unverified PASS claims.
+- [x] Source inventory and baseline architecture gaps are documented.
+- [x] Relevant current code files, tables, routes, permissions, settings and tests are identified.
+- [x] Stale source-status statements are reconciled in `DEVELOPMENT_PLAN.md` and the migration sequence table lists 001–039.
+- [x] CI commands and runtime browser-QA gate are documented, with no unverified PASS claims.
+
+## 7. Feature-branch implementation snapshot
+
+The following code has been added or confirmed on `feature/mobile-multishop-ordering` after the main baseline:
+
+- Ownership/schema layer: businesses, shops, customer-to-shop ownership, staff business/shop access, business catalog, per-shop catalog availability, customer mobile accounts, pending signup requests, API sessions/access/refresh tokens, orders, order lines, status history, selected physical-cylinder snapshots, delivery fee accounting and unique order-to-sale linkage.
+- Scope/security layer: `ShopScopeService`, capability permissions, separate customer/staff API audiences, token expiry/rotation/revocation, API readiness gate and centrally resolved application/business/shop settings.
+- Customer services/API: registration-shop discovery, signup and approval lifecycle, account/profile/password controls, available catalog, order create/list/detail/cancel, price reconfirmation and idempotency.
+- Office/staff services/API: accessible business/shop lookup and provisioning, staff access mapping, business catalog and per-shop availability, customer account approval/rejection, shop-scoped order queue/status, physical-cylinder selection and validated POS fulfilment.
+- Browser operations: Businesses & Shops, Customer Ordering Catalog, Customer App Accounts and Customer Orders pages; all routes are explicitly registered and use current session permissions and shop/business scope.
+- CI coverage is being expanded to assert migrations 037–039 as well as the delivery-fee/order linkage/selected-cylinder schema. Live role-based browser and multi-shop API tests remain not executed.
+
+The Flutter projects themselves (WP-7/WP-8) are outside the current web/backend-only task and remain pending.
