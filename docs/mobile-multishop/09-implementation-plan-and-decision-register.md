@@ -267,26 +267,26 @@ The technical plan is organized; the items below are business/product choices th
 
 | ID | Decision required | Proposed MVP default | Blocks |
 |---|---|---|---|
-| D-01 | Business ownership for existing shops | One approved legacy business owns the current shop(s) until the owner confirms any separate businesses; do not assume unrelated shops belong together | WP-1, WP-2 |
-| D-02 | Existing customer-to-shop mapping | Use audited transaction evidence and owner review; unresolved customers cannot order | WP-1, WP-3 |
+| D-01 | Multi-business and initial setup | Support multiple independent businesses, each with its own Head Office and shops. One business/two shops is only the first pilot, not an architectural limit | WP-1, WP-2 |
+| D-02 | Legacy customer-to-shop mapping | Not required: the planned deployment starts without existing business/customer transactional data to migrate. Assign each customer to one shop at creation; do not build historical mapping/backfill tooling | WP-1, WP-3 |
 | D-03 | Staff can serve multiple shops? | Support explicit many-to-many staff/shop assignment through an assignment table; keep `users.location_id` as a compatibility/default field | WP-2, WP-8 |
 | D-04 | Owner identity/role | Reuse configurable capabilities plus explicit business scope; do not grant global ADMIN access | WP-2 |
 | D-05 | New permission defaults | Add order capabilities; assign only to specifically reviewed standard roles; never silently modify custom roles | WP-2 |
 | D-06 | Customer/staff authentication and API sessions | Username/password through the versioned API over TLS; store password hashes server-side; use short-lived access credentials and revocable refresh sessions; revoke sessions on logout/reset/disablement. SMS/OTP is excluded from MVP | WP-3, WP-6 |
 | D-07 | Customer onboarding and approval | A permissioned Admin/Manager may create an app account linked to a customer master; customers may also self-register, but the signup remains pending until an authorized Admin/Manager approves or rejects it for that shop. No login/order access before approval, and no duplicate financial customer master | WP-3, WP-5, WP-7 |
 | D-08 | Username uniqueness and account recovery | Username is the customer login identifier and must be unique in the customer-account namespace. Admin/Manager-mediated recovery is the MVP default; self-service recovery requires a verified channel to be separately approved. Contact phone numbers are not SMS/OTP credentials in MVP | WP-3, WP-6 |
-| D-09 | Catalog/orderable item types | MVP supports only explicitly approved sellable items that map cleanly to existing POS services; security deposit, issue-cylinder custody and refund/return workflows excluded from mobile orders unless separately approved | WP-4, WP-7, WP-9 |
-| D-10 | Price source/precedence | Use the existing shop-specific rate when configured, otherwise the existing global fallback only if current business rules confirm that fallback; snapshot the displayed quote | WP-4, WP-5 |
-| D-11 | Rate changes after submission | Never silently change a customer-visible price; require customer reconfirmation or staff rejection/re-quote when the authoritative price changes | WP-5, WP-7 |
+| D-09 | Business catalog and shop availability | Head Office defines the business product catalog; each shop can activate/deactivate products based on current offerings. Only products mapped to approved existing POS fulfilment services can be ordered; deposit, cylinder custody and refund/return workflows are excluded unless separately approved | WP-1, WP-4, WP-5, WP-7, WP-9 |
+| D-10 | Effective price source and snapshot | Use existing validated effective-rate logic, including shop-specific/global fallback only where current business rules permit it. The server calculates and snapshots the quote on cloud order creation; catalog settings do not bypass existing rate-card rules | WP-4, WP-5, WP-6 |
+| D-11 | Price changes after ordering | Never silently reprice. If a queued offline order's price/availability changes before sync, require customer review before creating the cloud order. Preserve the price snapshot for cloud orders; if fulfilment needs a different price, get customer reconfirmation or cancel/re-quote before POS posting | WP-4, WP-5, WP-7, WP-9 |
 | D-12 | Stock reservation | No inventory reservation/deduction when submitted or accepted; revalidate at fulfilment unless an explicit reservation design is approved | WP-4, WP-5 |
-| D-13 | Delivery/collection | Support collection as the simplest path; enable delivery per shop only after delivery zones, fee, address, minimum order and time-window rules are agreed | WP-4, WP-7 |
+| D-13 | Delivery/collection | Customer chooses delivery or collection at checkout. Offer only methods enabled for the assigned shop; delivery requires an address. Any fee or condition must be configured and shown before submission; do not add hidden fees | WP-4, WP-7 |
 | D-14 | Payment | No online payment in MVP; payment is handled through existing POS fulfilment and its normal payment rules | WP-5, WP-9 |
 | D-15 | Customer cancellation | Customer may cancel while pending; after acceptance only staff may cancel/mark unable-to-fulfil under the approved status matrix | WP-4, WP-5 |
 | D-16 | Partial fulfilment | Out of scope; one order links to no more than one sale in MVP | WP-4, WP-9 |
 | D-17 | Completed status meaning | Completed only after the agreed fulfilment step and successful authoritative POS posting when a sale is required | WP-4, WP-9 |
 | D-18 | Staff/customer using one phone | Keep customer identities separate from staff identities; require explicit account switch and re-authentication if both modes are later supported | WP-3, WP-8 |
 | D-19 | Notifications | In-app/order-list refresh first; choose SMS/push provider and templates after reliable core order lifecycle | WP-5, WP-7 |
-| D-20 | Languages | Build localization-ready UI; confirm whether English, Urdu or both are required for first release | WP-7, WP-8 |
+| D-20 | Language support | Both mobile apps support multiple languages and show a language selector at login. Remember the selection as a device preference and account preference after sign-in; supported languages and translations must be agreed before UI content freeze | WP-7, WP-8 |
 | D-21 | First rollout | One business, two shops in test/pilot; production rollout only after owner sign-off and all gates pass | WP-10 |
 
 ## 5. Cross-cutting acceptance criteria
