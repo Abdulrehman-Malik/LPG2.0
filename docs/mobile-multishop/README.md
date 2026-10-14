@@ -1,6 +1,6 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Backend and initial Flutter source implementation in progress. The isolated feature branch includes guarded staff POS fulfillment, physical-cylinder quote snapshots, delivery-fee accounting, a unique order-to-sale link, customer cart/checkout/order actions, and staff order/cylinder/payment screens. CI and end-to-end device verification remain required; Android/iOS runner projects and store builds are not yet complete.
+**Status:** The feature branch contains the customer/staff API foundation, scoped business/shop services, browser Business & Shops administration, Customer Ordering Catalog, Customer App Accounts and Customer Orders/fulfilment screens, plus initial Flutter client source flows. CI currently verifies PHP/schema/PHPUnit checks; live browser, mobile/device, and two-shop financial/isolation testing remain required. Android/iOS runner projects/signing and store builds are not complete.
 **Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
@@ -32,7 +32,7 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 - The current permission model is capability-oriented; business-wide versus shop-specific data scope is implemented in the feature API layer but still requires end-to-end authorization review.
 - Current `customers` schema/model has no `location_id`; the fresh-install schema must add required customer-to-shop ownership. No legacy customer mapping/backfill is required for this initiative.
 - Current `locations` schema has no business/company parent; business ownership requires a planned schema extension.
-- Current routes are browser/session-oriented and do not yet expose the planned customer mobile API.
+- The mobile API route contract is now implemented under `/api/v1`; see [the actual route contract](11-mobile-api-contract.md). Token/session, cross-shop and concurrent fulfillment behavior still requires runtime verification.
 
 These are source-code observations, not runtime test results.
 
@@ -49,13 +49,13 @@ These are source-code observations, not runtime test results.
 | 01 | Product scope and target architecture | Documented |
 | 02 | Business, shops, staff roles and permission/scope model | Documented |
 | 03 | Customer records, mobile identity and single-shop assignment | Documented |
-| 04 | Order lifecycle and safe POS integration | Backend implemented on feature branch; CI and integration verification in progress |
-| 05 | API contracts, authentication and security | Documented |
+| 04 | Order lifecycle and safe POS integration | Backend + web queue/fulfillment implemented; CI checks pass on recent commits; live integration tests pending |
+| 05 | API contracts, authentication and security | Versioned API/session implementation and actual route contract documented; security runtime tests pending |
 | 06 | Flutter app experience and role-based navigation | Initial customer/staff flows implemented in Dart; runner projects and device QA pending |
 | 07 | Database migration and legacy-data plan | Documented |
 | 08 | QA, rollout and release gates | Documented |
 | 09 | Dependency-ordered implementation plan and decision register | Documented |
-| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Web UI and staff API in progress |
+| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Central resolver, web UI and staff API routes implemented; inheritance/permissions require runtime QA |
 | 11 | Mobile API contract and implementation status | Documented |
 
 ## Implementation sequence for the coding agent
@@ -66,7 +66,7 @@ Review [Module 10 — Centralized Configuration Management](10-configuration-man
 
 Implementation is underway only on `feature/mobile-multishop-ordering`. Keep all changes off `main`; do not merge without explicit approval. Do not build legacy customer mapping/backfill tooling for this deployment.
 
-The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment backend (initial implementation and CI smoke checks complete; integration edge-case review remains) → Customer and Business/Staff Flutter apps → two-shop pilot and release.
+The delivered web/backend scope is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval + account password reset → order data/state machine → versioned customer/staff API → browser catalogue, accounts, businesses/shops and order fulfillment → validated POS fulfilment integration. Remaining release gates are live security/financial regression, two-shop pilot, Flutter runner/signing/device verification, and owner acceptance.
 
 ## Decisions already fixed
 
