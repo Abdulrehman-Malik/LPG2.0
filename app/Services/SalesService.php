@@ -251,6 +251,7 @@ class SalesService
             if(in_array($mode,['sell_gas_only','replace_same'],true)) $lineTotal=$gasKg*$gasRate;
             elseif(in_array($mode,['sell_filled','replace_different'],true)) $lineTotal=$gasKg*$gasRate+$qty*$cylinderRate;
             elseif($mode==='sell_empty') $lineTotal=$qty*$cylinderRate;
+            if($this->currentOrderId) $lineTotal=round($lineTotal,2);
 
             $subtotal+=$lineTotal;$totalKg+=$gasKg;
             $storedLineType=$mode==='sell_empty'?'empty_cylinder':($mode==='sell_gas_only'?'refill_kg':'filled_cylinder');
