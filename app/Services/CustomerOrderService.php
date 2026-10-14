@@ -856,19 +856,69 @@ class CustomerOrderService
             'lines' => $saleLines,
             'payments' => $payments,
         ];
-        (new SalesService())->postForCustomerOrder(
-            $salePayload,
-            $userId,
-            $shopId,
-            $orderId,
-            (float) $order['delivery_fee']
-        );
+        try {
+            (new SalesService())->postForCustomerOrder(
+                $salePayload,
+                $userId,
+                $shopId,
+                $orderId,
+                (float) $order['delivery_fee']
+            );
+        } catch (\\Throwable $e) {
+            if (str_contains($e->getMessage(), 'ORDER_PRICE_RECONFIRMATION_REQUIRED')) {
+                return $this->refreshQuoteForReconfirmation(
+                    $userId,
+                    $shopId,
+                    $orderId,
+                    'Physical cylinder availability or gas weight changed before POS posting; customer reconfirmation is required.'
+                );
+            }
+            throw $e;
+        }
 
         return [
             'status' => 'completed',
             'message' => 'Order fulfilled and posted to POS.',
             'order' => $this->orderById($orderId, null),
         ];
+    }
+
+    protected function refreshQuoteForReconfirmation(int $userId, int $shopId, int $orderId, string $reason): array
+    {
+        $this->db->transBegin();
+        try {
+            $order = $this->db->query(
+                'SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE',
+                [$orderId, $shopId]
+            )->getRowArray();
+            if (!$order) throw new RuntimeException('Order not found in this shop.');
+            if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+                throw new RuntimeException('Order status changed before the revised quote could be saved.');
+            }
+
+            $oldItems = $this->db->table('customer_order_items')->where('order_id', $orderId)->orderBy('line_no')->get()->getResultArray();
+            $quote = $this->requoteOrder($order);
+            if (!$this->quoteDiffers($order, $quote, $oldItems)) {
+                throw new RuntimeException('The order quote could not be safely refreshed; please retry fulfillment.');
+            }
+            $this->saveNewQuote($order, $quote, true);
+            $this->db->table('customer_orders')->where('id', $orderId)->update([
+                'status' => 'pending',
+                'accepted_by' => null,
+                'accepted_at' => null,
+            ]);
+            $this->statusHistory($orderId, (int) $order['business_id'], (string) $order['status'], 'pending', 'staff', null, $userId, $reason, null);
+            if (!$this->db->transStatus()) throw new RuntimeException('Revised order quote could not be saved.');
+            $this->db->transCommit();
+            return [
+                'status' => 'reconfirmation_required',
+                'message' => 'The selected physical cylinder changed before posting. A revised quote was saved; customer reconfirmation and shop acceptance are required.',
+                'order' => $this->orderById($orderId, null),
+            ];
+        } catch (\\Throwable $e) {
+            $this->db->transRollback();
+            throw $e;
+        }
     }
 
     public function updateStatus(int $userId, int $shopId, int $orderId, string $newStatus, string $reason = ''): array
