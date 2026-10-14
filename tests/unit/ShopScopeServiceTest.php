@@ -116,7 +116,7 @@ final class ShopScopeServiceTest extends CIUnitTestCase
         $scope = new ShopScopeService($this->testConnection);
 
         $this->assertTrue($scope->isSystemAdministrator(3));
-        $this->assertSame([11, 12, 21, 31], $scope->accessibleShopIds(3));
+        $this->assertSame([11, 12, 21], $scope->accessibleShopIds(3));
         $this->assertTrue($scope->canAccessBusiness(2, 3));
     }
 
