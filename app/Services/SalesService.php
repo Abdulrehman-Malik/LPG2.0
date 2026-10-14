@@ -21,6 +21,7 @@ class SalesService
     protected array $creditLocks = [];
     protected ?int $currentLocationId = null;
     protected bool $orderFulfillmentContext = false;
+    protected ?int $currentOrderId = null;
 
     public function __construct()
     {
@@ -56,14 +57,58 @@ class SalesService
         if ($orderId <= 0 || $deliveryFee < 0) {
             throw new RuntimeException('Invalid customer-order fulfillment context.');
         }
+
+        $order = $this->db->table('customer_orders')
+            ->where(['id' => $orderId, 'location_id' => $locationId])
+            ->get()->getRowArray();
+        if (!$order) {
+            throw new RuntimeException('Customer order was not found in this shop.');
+        }
+        if ((int) $order['price_reconfirmation_required'] === 1) {
+            throw new RuntimeException('Customer price reconfirmation is required before fulfillment.');
+        }
+        if (abs((float) $order['delivery_fee'] - $deliveryFee) > 0.009) {
+            throw new RuntimeException('Delivery fee does not match the validated customer order.');
+        }
+        if (!empty($payload['customer_id']) && (int) $payload['customer_id'] !== (int) $order['customer_id']) {
+            throw new RuntimeException('Sale customer does not match the customer order.');
+        }
+        $payload['customer_id'] = (int) $order['customer_id'];
+
+        $existing = $this->db->table('sales')->where('customer_order_id', $orderId)->get()->getRowArray();
+        if ($existing) {
+            if (!empty($order['pos_sale_id']) && (int) $order['pos_sale_id'] !== (int) $existing['id']) {
+                throw new RuntimeException('Customer order is linked to a different POS sale.');
+            }
+            return [
+                'id' => (int) $existing['id'],
+                'sale_no' => (string) $existing['sale_no'],
+                'total' => (float) $existing['total_amount'],
+                'customer_id' => (int) $existing['customer_id'],
+                'credit_amount' => (float) $existing['credit_amount'],
+                'idempotent_replay' => true,
+            ];
+        }
+
+        if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+            throw new RuntimeException('Only an accepted order can be fulfilled.');
+        }
+        if (!empty($order['pos_sale_id'])) {
+            throw new RuntimeException('Customer order has a POS sale link but the sale idempotency record is missing; manual review is required.');
+        }
+
         $previous = $this->orderFulfillmentContext;
+        $previousOrderId = $this->currentOrderId;
         $this->orderFulfillmentContext = true;
+        $this->currentOrderId = $orderId;
         $payload['order_id'] = $orderId;
-        $payload['delivery_fee_amount'] = round($deliveryFee, 2);
+        $payload['transaction_type'] = 'customer_order';
+        $payload['delivery_fee_amount'] = round((float) $order['delivery_fee'], 2);
         try {
             return $this->post($payload, $userId, $locationId);
         } finally {
             $this->orderFulfillmentContext = $previous;
+            $this->currentOrderId = $previousOrderId;
         }
     }
 
@@ -365,7 +410,7 @@ class SalesService
                 'sell_gas_only'=>'refill_service','replace_same'=>'cylinder_exchange','sell_filled'=>'filled_cylinder',
                 'replace_different'=>'mixed','sell_empty'=>'empty_sale'
             };
-            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'delivery_fee_amount'=>$deliveryFee,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
+            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'delivery_fee_amount'=>$deliveryFee,'customer_order_id'=>$this->currentOrderId,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
             $saleId=(int)$this->db->insertID();
 
             foreach($prepared as $row){
