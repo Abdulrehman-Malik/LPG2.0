@@ -229,15 +229,43 @@ class CustomerOrderService
                 if ($gasRate === null || $gasRate <= 0 || $cylinderRate <= 0) {
                     throw new RuntimeException('An effective gas and cylinder rate is required for ' . $row['display_name'] . '.');
                 }
-                // This is a quote based on nominal capacity. Actual POS fulfilment must
-                // use the physical cylinder gas weight in the existing SalesService.
-                $gasKg = $quantity * (float) $row['capacity_kg'];
+                $selectedUnitIds = array_values(array_unique(array_map('intval', is_array($item['selected_cylinder_unit_ids'] ?? null) ? $item['selected_cylinder_unit_ids'] : [])));
+                if ($selectedUnitIds) {
+                    if (count($selectedUnitIds) !== (int) $quantity || min($selectedUnitIds) <= 0) {
+                        throw new RuntimeException('Select exactly ' . (int) $quantity . ' physical cylinder(s) for ' . $row['display_name'] . '.');
+                    }
+                    $units = $this->db->table('cylinder_units')->select('id,location_id,cylinder_type_id,status,gas_weight_kg')
+                        ->where('location_id', $shopId)->where('cylinder_type_id', (int) $row['cylinder_type_id'])
+                        ->where('status', 'filled')->whereIn('id', $selectedUnitIds)->get()->getResultArray();
+                    if (count($units) !== (int) $quantity) {
+                        throw new RuntimeException('One or more selected filled cylinders are no longer available for ' . $row['display_name'] . '.');
+                    }
+                    $byId = [];
+                    foreach ($units as $unit) $byId[(int) $unit['id']] = $unit;
+                    $gasKg = 0.0;
+                    foreach ($selectedUnitIds as $unitId) $gasKg += (float) $byId[$unitId]['gas_weight_kg'];
+                } else {
+                    // Before physical cylinders are selected, the customer sees a nominal-capacity estimate.
+                    $gasKg = $quantity * (float) $row['capacity_kg'];
+                }
                 $gasRateSnapshot = $gasRate;
                 $cylinderRateSnapshot = $cylinderRate;
                 $lineTotal = ($gasKg * $gasRateSnapshot) + ($quantity * $cylinderRateSnapshot);
             } elseif ($mode === 'sell_empty') {
                 if ($cylinderRate <= 0) {
                     throw new RuntimeException('An effective empty-cylinder price is required for ' . $row['display_name'] . '.');
+                }
+                $selectedUnitIds = array_values(array_unique(array_map('intval', is_array($item['selected_cylinder_unit_ids'] ?? null) ? $item['selected_cylinder_unit_ids'] : [])));
+                if ($selectedUnitIds) {
+                    if (count($selectedUnitIds) !== (int) $quantity || min($selectedUnitIds) <= 0) {
+                        throw new RuntimeException('Select exactly ' . (int) $quantity . ' physical empty cylinder(s) for ' . $row['display_name'] . '.');
+                    }
+                    $units = $this->db->table('cylinder_units')->select('id')
+                        ->where('location_id', $shopId)->where('cylinder_type_id', (int) $row['cylinder_type_id'])
+                        ->where('status', 'empty')->whereIn('id', $selectedUnitIds)->get()->getResultArray();
+                    if (count($units) !== (int) $quantity) {
+                        throw new RuntimeException('One or more selected empty cylinders are no longer available for ' . $row['display_name'] . '.');
+                    }
                 }
                 $cylinderRateSnapshot = $cylinderRate;
                 $lineTotal = $quantity * $cylinderRateSnapshot;
@@ -259,6 +287,7 @@ class CustomerOrderService
                 'gas_rate_snapshot' => round($gasRateSnapshot, 4),
                 'cylinder_rate_snapshot' => round($cylinderRateSnapshot, 4),
                 'line_total' => $lineTotal,
+                'selected_cylinder_unit_ids' => $selectedUnitIds ?? [],
                 'notes' => $item['notes'],
             ];
         }
@@ -419,6 +448,7 @@ class CustomerOrderService
                     'gas_rate_snapshot' => $item['gas_rate_snapshot'],
                     'cylinder_rate_snapshot' => $item['cylinder_rate_snapshot'],
                     'line_total' => $item['line_total'],
+                    'selected_cylinder_unit_ids' => !empty($item['selected_cylinder_unit_ids']) ? json_encode(array_values(array_map('intval', $item['selected_cylinder_unit_ids'])), JSON_THROW_ON_ERROR) : null,
                     'notes' => $item['notes'],
                 ]);
             }
@@ -522,9 +552,15 @@ class CustomerOrderService
             ->get()->getResultArray();
         $input = [];
         foreach ($items as $item) {
+            $selectedUnitIds = [];
+            if (!empty($item['selected_cylinder_unit_ids'])) {
+                $decoded = json_decode((string) $item['selected_cylinder_unit_ids'], true);
+                if (is_array($decoded)) $selectedUnitIds = array_values(array_unique(array_map('intval', $decoded)));
+            }
             $input[] = [
                 'product_id' => (int) $item['business_catalog_product_id'],
                 'quantity' => (float) $item['quantity'],
+                'selected_cylinder_unit_ids' => $selectedUnitIds,
                 'notes' => $item['notes'],
             ];
         }
@@ -537,6 +573,16 @@ class CustomerOrderService
             'delivery_fee' => $fee,
             'total' => round($quote['subtotal'] + $fee, 2),
         ];
+    }
+
+    protected function decodeSelectedUnitIds($value): array
+    {
+        if (!is_string($value) || trim($value) === '') return [];
+        $decoded = json_decode($value, true);
+        if (!is_array($decoded)) return [];
+        $ids = array_values(array_unique(array_map('intval', $decoded)));
+        sort($ids, SORT_NUMERIC);
+        return $ids;
     }
 
     protected function quoteDiffers(array $order, array $quote, array $oldItems): bool
@@ -557,7 +603,8 @@ class CustomerOrderService
                 || abs((float) $old['estimated_gas_kg'] - (float) $new['estimated_gas_kg']) > 0.0001
                 || abs((float) $old['gas_rate_snapshot'] - (float) $new['gas_rate_snapshot']) > 0.0001
                 || abs((float) $old['cylinder_rate_snapshot'] - (float) $new['cylinder_rate_snapshot']) > 0.0001
-                || abs((float) $old['line_total'] - (float) $new['line_total']) > 0.009) {
+                || abs((float) $old['line_total'] - (float) $new['line_total']) > 0.009
+                || $this->decodeSelectedUnitIds($old['selected_cylinder_unit_ids'] ?? null) !== array_values(array_map('intval', $new['selected_cylinder_unit_ids'] ?? []))) {
                 return true;
             }
         }
