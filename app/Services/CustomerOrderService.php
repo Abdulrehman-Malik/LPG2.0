@@ -859,7 +859,7 @@ class CustomerOrderService
         $salePayload = [
             'customer_id' => (int) $order['customer_id'],
             'transaction_at' => date('Y-m-d H:i:s'),
-            'notes' => 'Customer order ' . (string) $order['order_no'] . ($order['customer_notes'] ? ' | ' . (string) $order['customer_notes'] : ''),
+            'notes' => mb_substr('Customer order ' . (string) $order['order_no'] . ($order['customer_notes'] ? ' | ' . (string) $order['customer_notes'] : ''), 0, 500),
             'discount_amount' => 0,
             'lines' => $saleLines,
             'payments' => $payments,
