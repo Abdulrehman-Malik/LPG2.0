@@ -4,26 +4,25 @@
 
 Use Flutter for two separate mobile apps targeting Android and iOS: Customer App and Business/Staff App. Shared components may be reused, but packages, navigation, release identities and authorization boundaries remain separate. Both are clients only; PHP/CodeIgniter owns business rules, authorization and persistent state.
 
-## Authentication-driven navigation
+## App and authentication boundaries
 
-After authentication, fetch the trusted account type, allowed capabilities and permitted shop context from `GET /api/v1/me`. Do not let a local preference grant a role.
+Both apps show a language selector before sign-in and use username/password through the API over TLS. SMS/OTP is out of scope for the initial release. After sign-in, fetch account status, capabilities and scope from `GET /api/v1/me`; local preferences never grant permissions.
 
-- Customer account: Customer Home, Catalog, Cart, Checkout, My Orders, Order Details, Profile/Support.
-- Shop staff account: Assigned Shop selector where permitted, Pending Orders, Order Details, accept/reject, preparation/fulfilment status, history.
-- Business owner: business-level overview, filter by authorized shop, cross-shop pending orders and permitted reports/settings.
-- A person with both customer and staff accounts must use explicit account switching/re-authentication or a carefully reviewed dual-role flow; never combine privileges implicitly.
+- **Customer App:** customer home, catalog, cart, checkout, own orders, support and signup/approval states. Pending signups receive no ordering access and must not create a duplicate financial customer.
+- **Business/Staff App:** shop selector where permitted, pending customer signups, pending orders, order actions and permitted product/shop settings.
+- Customer and internal staff identities remain separate. Do not expose staff workflows in the Customer App or customer ordering workflows in the Business/Staff App.
 
 ## Customer screens
 
-1. Phone verification/sign-in.
-2. Shop identity shown read-only after account assignment.
-3. Product/cylinder-type catalogue with server-supplied prices and availability.
-4. Cart with quantities and delivery/collection choice.
-5. Address/instructions if delivery is enabled.
-6. Server-validated order review and submission.
-7. Confirmation with order number.
-8. Order history and status details.
-9. Profile and account support.
+1. Language selector at login; username/password sign-in and recovery/help.
+2. Customer self-registration with a clear pending-approval state; no ordering access until approved.
+3. Shop identity shown read-only after account assignment.
+4. Head Office-defined catalog filtered by shop-level product activation/deactivation.
+5. Cart with quantities and delivery/collection choice; delivery requires an address and shows any configured fee/condition.
+6. Server-calculated quote and order review with price snapshot.
+7. Offline queue with a clear notice that a local-only order has not reached the shop; require review if price/availability changed before synchronization.
+8. Confirmation with public order number after cloud acknowledgement.
+9. Own order history/status details, profile and support.
 
 ## Staff/owner screens
 
