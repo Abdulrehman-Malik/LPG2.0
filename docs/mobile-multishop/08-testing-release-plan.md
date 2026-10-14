@@ -8,7 +8,10 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 
 ### Identity and shop ownership
 - Customer belongs to exactly one active shop.
-- New customer/account linking is atomic and prevents duplicate links.
+- Admin/Manager-created app accounts link to a customer master without duplication.
+- Customer signup remains pending and cannot authenticate or order until an authorized Admin/Manager approves it.
+- Approval/rejection is limited to the responsible shop and is audited.
+- Username/password API login, logout, refresh rotation, recovery/reset, and session revocation behave as specified.
 - Invalid, inactive or blocked customer cannot order.
 - Customer A cannot read Customer B's order, even when IDs are changed.
 - Customer cannot submit an order for another shop.
@@ -21,7 +24,9 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 - Successful order creation creates exactly one pending order.
 - Retried request with same idempotency key does not duplicate order.
 - Invalid item, quantity, price or inactive product is rejected.
-- Shop acceptance revalidates current price and stock/availability.
+- Head Office catalog products can be active/inactive by business and shops can activate/deactivate within the business catalog.
+- A disabled shop product cannot be newly ordered.
+- Shop acceptance revalidates availability and rate policy without silently changing the saved order price; price changes require the specified review/reconfirmation.
 - Invalid status transitions are rejected.
 - Rejection/cancellation stores actor/reason and does not post sales, payments, cash, inventory, deposits or custody.
 - Duplicate acceptance/fulfilment cannot post a sale twice.
@@ -31,7 +36,7 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 - Unauthenticated API request is rejected with JSON, not redirected to HTML login.
 - Expired/revoked token cannot access data.
 - Object-level authorization and shop scope are tested for every endpoint.
-- Mass assignment, SQL error leakage, OTP abuse, request replay and brute force are tested.
+- Mass assignment, SQL error leakage, unauthorized signup approval, request replay, login abuse and brute force are tested.
 - Rate limits and audit events are verified.
 
 ### Regression
@@ -58,9 +63,9 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 
 ## Release gates
 
-- [ ] Business/location/customer ownership migration reviewed and approved.
+- [ ] Fresh-install business/location/customer ownership schema and repeatable seeds are verified; legacy customer mapping/backfill is not a release gate.
 - [ ] Existing database upgrade test passes.
-- [ ] Fresh-install schema includes the final supported schema.
+- [ ] Fresh-install schema includes the final supported schema, including separate customer identity, product controls and order tables.
 - [ ] Role/permission and data-scope tests pass.
 - [ ] API security tests pass.
 - [ ] Order-to-POS duplicate protection and reconciliation pass.
