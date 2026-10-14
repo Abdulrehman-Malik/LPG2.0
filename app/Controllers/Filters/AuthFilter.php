@@ -28,17 +28,19 @@ class AuthFilter implements FilterInterface
                 ->with('migration_error','Database migration status could not be checked: '.$e->getMessage());
         }
 
-        // Permit the context-switch endpoint to validate the requested target
-        // shop independently; the previous session shop may have just been revoked.
-        if (trim($request->getUri()->getPath(), '/') === 'shop-context/select') {
-            return;
-        }
-
         $userId = (int) (session()->get('user_id') ?? 0);
-        if (!(new ShopScopeService())->canAccessCurrentShop($userId)) {
-            session()->destroy();
-            return redirect()->to(site_url('login'))
-                ->with('error', 'Your account no longer has access to the selected shop. Contact an administrator.');
+        $scope = new ShopScopeService();
+        if (!$scope->canAccessCurrentShop($userId)) {
+            // Repair a stale current-shop context only by selecting a shop this
+            // identity is still authorized to access. Never trust a request ID.
+            $defaultShopId = $scope->defaultShopIdForUser($userId);
+            if ($defaultShopId === null) {
+                session()->destroy();
+                return redirect()->to(site_url('login'))
+                    ->with('error', 'Your account is not assigned to an active shop. Contact an administrator.');
+            }
+
+            session()->set('location_id', $defaultShopId);
         }
     }
 
