@@ -138,7 +138,7 @@ class MigrationRunnerService
         $row = $this->db->query($checks[$migration['seq']])->getRowArray();
         $ok = (int)($row['ok'] ?? 0);
 
-        if ($migration['seq'] === 4 || $migration['seq'] === 6 || $migration['seq'] === 15 || $migration['seq'] === 17 || $migration['seq'] === 21) {
+        if (in_array($migration['seq'], [4, 6, 15, 17, 21, 26], true)) {
             $expected = [
                 4 => 2,
                 6 => 2,
