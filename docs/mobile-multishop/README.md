@@ -1,7 +1,7 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Owner decisions incorporated into the planning docs; implementation has not started. This branch remains documentation-only.
-**Working branch:** `docs/mobile-multishop-final-plan`
+**Status:** Backend implementation in progress. The isolated feature branch contains the API foundation; the two Flutter apps and transaction-safe POS fulfillment are not yet complete.
+**Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
 ## Product goal
@@ -40,6 +40,7 @@ These are source-code observations, not runtime test results.
 
 - [Current-state gap report](00-current-state-gap-report.md) — reviewed existing roles/permissions, customer/location schema gaps, POS boundaries and safe first implementation work package.
 - [Centralized Configuration Management](10-configuration-management.md) — scope inheritance, Application Login & Session settings, security guardrails and audit requirements.
+- [Mobile API Contract](11-mobile-api-contract.md) — implemented route inventory and the remaining POS fulfillment safety gate.
 
 ## Module index and delivery sequence
 
@@ -54,7 +55,8 @@ These are source-code observations, not runtime test results.
 | 07 | Database migration and legacy-data plan | Documented |
 | 08 | QA, rollout and release gates | Documented |
 | 09 | Dependency-ordered implementation plan and decision register | Documented |
-| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Documented |
+| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Web UI and staff API in progress |
+| 11 | Mobile API contract and implementation status | Documented |
 
 ## Implementation sequence for the coding agent
 
@@ -62,9 +64,9 @@ Read [the detailed implementation plan and decision register](09-implementation-
 
 Review [Module 10 — Centralized Configuration Management](10-configuration-management.md) alongside role/scope and API-security requirements.
 
-Implementation is **not authorized yet**. First review and approve the consolidated plan. Do not build legacy customer mapping/backfill tooling for this deployment. Do not make application/schema changes until the owner explicitly approves implementation.
+Implementation is underway only on `feature/mobile-multishop-ordering`. Keep all changes off `main`; do not merge without explicit approval. Do not build legacy customer mapping/backfill tooling for this deployment.
 
-The ordered work is: source inventory → fresh-install schema and ownership → business/shop authorization → customer identity/signup approval → order data/state machine → backend services and web Order Management → versioned API/security → separate Customer App → separate Business/Staff App → POS fulfilment reconciliation → two-shop pilot and release.
+The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment reconciliation → two-shop pilot and release.
 
 ## Decisions already fixed
 
