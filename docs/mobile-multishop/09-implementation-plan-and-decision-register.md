@@ -2,7 +2,7 @@
 
 **Plan version:** 1.0  
 **Prepared:** 2026-10-13  
-**Status:** Planning completed; implementation deliberately not started.  
+**Status:** Planning decisions confirmed; implementation deliberately not started.  
 **Target branch:** `feature/mobile-multishop-ordering-requirements`  
 **Baseline:** `main` at `9abc7d9a417d0508ebc8afd04da3e3d7a15d9038`
 
@@ -309,3 +309,63 @@ Planning is complete when:
 - The owner approves decisions that affect customer behavior, data ownership, security or financial workflows.
 
 **This document does not mark business decisions as approved.** The next permitted step is decision review plus data discovery on a safe database copy. Implementation remains paused until that gate is explicitly cleared.
+
+
+## 5. Approved hierarchy and confirmed decisions (2026-10-14)
+
+The following decisions have been confirmed by the business owner and supersede any conflicting open questions elsewhere in this plan.
+
+- **Multi-business capable architecture:** Support multiple independent businesses in the data model. Each business has its own Head Office and one or more shops. Initial setup may contain one business, but the design must not hard-code a single-business assumption.
+- **Head Office:** Head Office users can access multiple shops within their own business, subject to explicit permissions. Permitted functions may include viewing consolidated or shop-specific inventory, sales, outstanding balances (OS), and other operational data, and sending approved data/instructions to shops. Head Office access does not imply access to unrelated businesses or automatic permission to every function.
+- **Shop isolation:** Each shop has its own employees and operational data. Shop employees can access only their assigned shop, unless a separately approved explicit multi-shop assignment is granted. Role capability and data scope must both be checked.
+- **Shop roles:** Manager, Cashier, Operations Manager, and Shop Admin are supported shop-level roles. Their capabilities are permission-driven; role names alone are not authorization. Shop Admin has full access to data and administration within their own shop, including managing that shop's employees and settings, but cannot access other shops or businesses unless separately assigned and permitted.
+- **Customer ownership:** Each customer belongs to exactly one shop. A customer mobile account links to that existing customer record; it must not create a duplicate financial customer. The project starts with no existing business/customer transactional data to migrate, so no legacy customer-to-shop mapping or historical-data backfill is required. Fresh-install schema and seed setup must create the required structure.
+- **Mobile application:** One Flutter application for Android and iOS serves customers and shop/Head Office staff. The signed-in identity and server-granted permissions determine the appropriate experience and available actions.
+- **Authentication:** SMS/OTP is out of scope for the initial release. Implement secure non-SMS authentication appropriate to the approved deployment and threat model. Keep authentication extensible so SMS/OTP can be introduced later without redesigning customer ownership or authorization.
+- **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
+- **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
+
+### Final hierarchy
+
+```text
+Platform
+└── Business A
+    ├── Head Office
+    │   └── Head Office users (business-wide scope, permission-controlled)
+    ├── Shop 1
+    │   ├── Manager
+    │   ├── Cashier
+    │   ├── Operations Manager
+    │   └── Shop Admin (full access within Shop 1)
+    ├── Shop 2
+    │   └── Shop-specific employees and data
+    └── Shop 3
+        └── Shop-specific employees and data
+
+Future: Business B, Business C, etc., each with its own Head Office and shops.
+```
+
+### Updated work-package order
+
+1. **WP-0 — Baseline and technical inventory:** Confirm LPG2.0 schema, migrations, authorization services, POS posting services, tests, and deployment constraints. Documentation only until implementation approval.
+2. **WP-1 — Business/shop and permission design:** Finalize entities, Head Office membership, shop assignments, permission codes, standard-role defaults, custom-role preservation, and business/shop scope enforcement.
+3. **WP-2 — Fresh-install schema and seed design:** Define business, location/shop, employee assignment, customer-to-shop, customer mobile identity, and permissions. Since no legacy data exists, focus on clean install and repeatable seeds rather than backfill tooling.
+4. **WP-3 — Customer identity and authentication:** Specify secure initial non-SMS login, account linking, recovery, deactivation, and an extension point for future SMS/OTP.
+5. **WP-4 — Order model and state machine:** Define order records, shop/customer ownership, price/availability validation, status history, idempotency, and order-to-sale linkage.
+6. **WP-5 — Backend order services and browser Order Management:** Implement server-side authorization and shop-scoped workflows before mobile UI.
+7. **WP-6 — Versioned API:** Expose authenticated customer and staff operations with JSON errors, rate limiting, validation, and object-level scope checks.
+8. **WP-7 — Flutter app:** Build role-appropriate customer, shop staff, and Head Office views against the stable API.
+9. **WP-8 — Integration and release:** Regression-test existing POS transaction types, role/permission behavior, cross-shop/business isolation, migrations, and order/POS idempotency. Pilot before production rollout.
+
+### Acceptance gates
+
+- Automated tests prove a shop user cannot read or mutate another shop's records by changing URLs, IDs, API payloads, or filters.
+- Head Office users see only shops belonging to their business and only functions granted by permissions.
+- Shop Admin has full access within their shop, not global platform access.
+- A customer cannot submit an order for a different shop or another customer's account.
+- Existing custom roles are not silently granted new capabilities.
+- Pending/rejected/cancelled orders create no POS or financial/inventory postings.
+- Repeated API requests cannot create duplicate orders or duplicate sales.
+- Fresh installation and repeat migration/seed execution are tested.
+- Existing Gas Sale/Refill, Cylinder Sale, Security Deposit/Issue Cylinder, and Cylinder Return/Refund Deposit flows pass regression tests.
+- No production release until the owner approves implementation, test evidence, and deployment/rollback plan.
