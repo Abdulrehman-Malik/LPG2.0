@@ -52,6 +52,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->post('customer-signups/(:num)/reject','Api\\V1\\Staff\\CustomerAccounts::rejectSignup/$1');
         $routes->post('customers/(:num)/app-account','Api\\V1\\Staff\\CustomerAccounts::createAccount/$1');
         $routes->post('customer-app-accounts/(:num)/disable','Api\\V1\\Staff\\CustomerAccounts::disableAccount/$1');
+        $routes->post('customer-app-accounts/(:num)/reset-password','Api\\V1\\Staff\\CustomerAccounts::resetPassword/$1');
     });
 });
 
@@ -66,6 +67,7 @@ $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
     $routes->post('customer-app-accounts/signup/(:num)/reject','CustomerAppAccounts::reject/$1');
     $routes->post('customer-app-accounts/customer/(:num)/create','CustomerAppAccounts::createAccount/$1');
     $routes->post('customer-app-accounts/(:num)/disable','CustomerAppAccounts::disable/$1');
+    $routes->post('customer-app-accounts/(:num)/reset-password','CustomerAppAccounts::resetPassword/$1');
     $routes->get('mobile-catalog','MobileCatalogManagement::index');
     $routes->post('mobile-catalog/product/save','MobileCatalogManagement::saveProduct');
     $routes->post('mobile-catalog/product/(:num)/availability','MobileCatalogManagement::toggleAvailability/$1');
