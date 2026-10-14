@@ -329,6 +329,12 @@ class CustomerOrderService
             ->where('order_id', $orderId)
             ->orderBy('line_no')
             ->get()->getResultArray();
+        if ($accountId === null) {
+            foreach ($order['items'] as &$orderItem) {
+                $orderItem['selected_cylinder_unit_ids'] = $this->decodeSelectedUnitIds($orderItem['selected_cylinder_unit_ids'] ?? null);
+            }
+            unset($orderItem);
+        }
         $order['status_history'] = $this->db->table('customer_order_status_history')
             ->select('from_status,to_status,actor_type,reason,created_at')
             ->where(['order_id' => $orderId, 'business_id' => (int) $order['business_id']])
