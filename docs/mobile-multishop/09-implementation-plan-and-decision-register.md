@@ -96,18 +96,18 @@ Exit criteria:
 **Goal:** Keep one financial customer master record while adding secure mobile sign-in.
 
 Design tasks:
-- Add `customers.location_id` initially nullable; backfill only from the approved mapping report.
+- Define customer shop ownership as a required relationship for newly created customers in the fresh-install model; do not make a legacy mapping report or historical backfill part of this initiative.
 - Add a separate customer mobile identity/account relation with unique constraints and account status.
 - Keep customer app identities separate from staff `users` identities unless a security-reviewed design explicitly approves shared identity.
-- Define normalized phone-number format, account linking, duplicate/shared phone handling, phone change, account recovery, blocked/inactive customer behavior and audit requirements.
+- Define username rules, account linking to an existing financial customer master, shared contact handling, password reset/recovery, pending-approval/blocked-account behavior and audit requirements. Contact phone numbers are not login credentials in MVP.
 - Define a safe shop transfer workflow. Transfer must be explicit and audited, apply to future orders, and never rewrite historic transactions.
-- Choose OTP provider and secrets/configuration approach. Never store plaintext OTP values or log them.
+- Use username/password login through the versioned API over TLS. Store only strong server-side password hashes; never log passwords. SMS/OTP is out of scope for the initial release, while the authentication service should remain extensible for a future method.
 - Ensure a customer cannot choose a shop by changing client payloads.
 
 Exit criteria:
-- Existing customers are not duplicated.
-- Identity linking is verified, atomic and resistant to phone-number guessing or unauthorized linking.
-- No customer can order until their shop mapping and account state are valid.
+- Existing financial customer masters are not duplicated by mobile onboarding.
+- Account linking and approval are atomic and auditable.
+- Pending, rejected, inactive or blocked customers cannot log in to the ordering experience or place orders.
 
 ### WP-4 — Order data model and state machine
 **Goal:** Persist order intent without side effects in the financial system.
