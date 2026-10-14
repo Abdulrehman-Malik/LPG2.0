@@ -48,6 +48,12 @@ The central Configuration editor remains in the authenticated web application fo
 - Accessible touch targets, concise text, responsive layouts and localization-ready UI strings. English is the only initial language; future language additions should not require business-logic changes.
 - Do not store sensitive order data longer than needed in local caches.
 
+## Current source implementation status
+
+The feature branch now contains the shared authenticated API client and two separated Flutter source apps. The Customer App supports catalog browsing, cart quantity selection, delivery/collection checkout, idempotent order submission, order history, price reconfirmation and pending-order cancellation. The Business/Staff App supports shop context, order status actions, physical-cylinder/source selection and payment entry for guarded POS fulfillment.
+
+These are initial source-level workflows, not release-complete apps. Android/iOS runner projects, signup/approval screens, fuller catalog administration, automated widget/integration coverage, and device-level end-to-end testing remain open. Do not mark any release criterion complete from static analysis alone.
+
 ## Build and release
 
 - Two separately packaged Flutter apps with separate application IDs, navigation, release packages and store listings; each targets Android and iOS. Shared widgets/API clients may live in common code.
