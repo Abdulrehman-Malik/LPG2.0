@@ -154,9 +154,20 @@ class SalesService
                 $gasRequirements[]=['line_no'=>$i+1,'type_id'=>$typeId,'gas_kg'=>$gasKg];
             }elseif(in_array($mode,['replace_same','sell_filled','replace_different'],true)){
                 if(floor($qty)!==$qty) throw new RuntimeException('Cylinder quantity on line '.($i+1).' must be a whole number.');
-                $previewUnits=$this->cylinders->availableForDisplay($locationId,$typeId,'filled');
-                if(count($previewUnits)<(int)$qty) throw new RuntimeException('Insufficient filled cylinders of '.$type['name'].'.');
-                $selected=array_slice($previewUnits,0,(int)$qty);
+                $requestedUnitIds=array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[])));
+                if($requestedUnitIds){
+                    if(count($requestedUnitIds)!==(int)$qty || min($requestedUnitIds)<=0) throw new RuntimeException('Select exactly '.(int)$qty.' physical filled cylinder(s) on line '.($i+1).'.');
+                    $previewUnits=$this->db->table('cylinder_units')->select('id,unit_code,cylinder_type_id,status,gas_weight_kg')
+                        ->where('location_id',$locationId)->where('cylinder_type_id',$typeId)->where('status','filled')
+                        ->whereIn('id',$requestedUnitIds)->get()->getResultArray();
+                    if(count($previewUnits)!==(int)$qty) throw new RuntimeException('One or more selected filled cylinders are unavailable or belong to another cylinder type.');
+                    usort($previewUnits,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                }else{
+                    $previewUnits=$this->cylinders->availableForDisplay($locationId,$typeId,'filled');
+                    if(count($previewUnits)<(int)$qty) throw new RuntimeException('Insufficient filled cylinders of '.$type['name'].'.');
+                    $previewUnits=array_slice($previewUnits,0,(int)$qty);
+                }
+                $selected=$previewUnits;
                 $gasKg=array_sum(array_map(static fn($u)=>(float)$u['gas_weight_kg'],$selected));
                 if($gasKg<=0) throw new RuntimeException('Selected filled cylinders contain no gas.');
                 if($mode==='replace_same'){
@@ -171,8 +182,17 @@ class SalesService
                 if($receivedTypeId) $emptyReceived=$qty;
             }elseif($mode==='sell_empty'){
                 if(floor($qty)!==$qty) throw new RuntimeException('Empty-cylinder quantity on line '.($i+1).' must be a whole number.');
-                $availableEmpty=$this->cylinders->availableForDisplay($locationId,$typeId,'empty');
-                if(count($availableEmpty)<(int)$qty) throw new RuntimeException('Insufficient empty cylinders of '.$type['name'].'.');
+                $requestedUnitIds=array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[])));
+                if($requestedUnitIds){
+                    if(count($requestedUnitIds)!==(int)$qty || min($requestedUnitIds)<=0) throw new RuntimeException('Select exactly '.(int)$qty.' physical empty cylinder(s) on line '.($i+1).'.');
+                    $availableEmpty=$this->db->table('cylinder_units')->select('id,unit_code,cylinder_type_id,status,gas_weight_kg')
+                        ->where('location_id',$locationId)->where('cylinder_type_id',$typeId)->where('status','empty')
+                        ->whereIn('id',$requestedUnitIds)->get()->getResultArray();
+                    if(count($availableEmpty)!==(int)$qty) throw new RuntimeException('One or more selected empty cylinders are unavailable or belong to another cylinder type.');
+                }else{
+                    $availableEmpty=$this->cylinders->availableForDisplay($locationId,$typeId,'empty');
+                    if(count($availableEmpty)<(int)$qty) throw new RuntimeException('Insufficient empty cylinders of '.$type['name'].'.');
+                }
             }
 
             $customGas=$gasRateInput!==null && ($standardGasRate===null || abs($gasRate-$standardGasRate)>0.00001);
@@ -191,6 +211,7 @@ class SalesService
             $prepared[]=[
                 'line_no'=>$i+1,'sale_mode'=>$mode,'line_type'=>$storedLineType,'cylinder_type_id'=>$typeId,
                 'source_cylinder_unit_id'=>($mode==='sell_gas_only'?(int)($line['source_cylinder_unit_id']??0):null),
+                'selected_cylinder_unit_ids'=>array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[]))),
                 'received_cylinder_type_id'=>$receivedTypeId,'quantity'=>$qty,'gas_weight_kg'=>$gasKg,
                 'entered_amount'=>$enteredAmount,
                 'gas_rate'=>$gasRate,'cylinder_rate'=>$cylinderRate,'standard_gas_rate'=>$standardGasRate,
@@ -286,7 +307,12 @@ class SalesService
                 }elseif(in_array($mode,['replace_same','sell_filled','replace_different'],true)){
                     $units=$this->cylinders->available($locationId,$typeId,'filled');
                     $units=array_values(array_filter($units,static fn(array $unit): bool => !isset($reservedFilledIds[(int)$unit['id']])));
-                    if(count($units)<(int)$qty) throw new RuntimeException('Filled-cylinder stock changed while posting. Please retry the sale.');
+                    $requestedUnitIds=$row['selected_cylinder_unit_ids']??[];
+                    if($requestedUnitIds){
+                        $units=array_values(array_filter($units,static fn(array $unit): bool => in_array((int)$unit['id'],$requestedUnitIds,true)));
+                        usort($units,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                    }
+                    if(count($units)<(int)$qty) throw new RuntimeException('One or more selected filled cylinders changed while posting. Please retry the sale.');
                     $selected=array_slice($units,0,(int)$qty);$actualGas=0;
                     foreach($selected as $unit){
                         $reservedFilledIds[(int)$unit['id']]=true;
@@ -301,7 +327,12 @@ class SalesService
                 }elseif($mode==='sell_empty'){
                     $units=$this->cylinders->available($locationId,$typeId,'empty');
                     $units=array_values(array_filter($units,static fn(array $unit): bool => !isset($reservedEmptyIds[(int)$unit['id']])));
-                    if(count($units)<(int)$qty) throw new RuntimeException('Empty-cylinder stock changed while posting. Please retry the sale.');
+                    $requestedUnitIds=$row['selected_cylinder_unit_ids']??[];
+                    if($requestedUnitIds){
+                        $units=array_values(array_filter($units,static fn(array $unit): bool => in_array((int)$unit['id'],$requestedUnitIds,true)));
+                        usort($units,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                    }
+                    if(count($units)<(int)$qty) throw new RuntimeException('One or more selected empty cylinders changed while posting. Please retry the sale.');
                     foreach(array_slice($units,0,(int)$qty) as $unit){
                         $reservedEmptyIds[(int)$unit['id']]=true;
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
