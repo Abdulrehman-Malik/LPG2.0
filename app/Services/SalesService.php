@@ -22,6 +22,7 @@ class SalesService
     protected ?int $currentLocationId = null;
     protected bool $orderFulfillmentContext = false;
     protected ?int $currentOrderId = null;
+    protected ?float $currentOrderExpectedTotal = null;
 
     public function __construct()
     {
@@ -99,8 +100,10 @@ class SalesService
 
         $previous = $this->orderFulfillmentContext;
         $previousOrderId = $this->currentOrderId;
+        $previousExpectedTotal = $this->currentOrderExpectedTotal;
         $this->orderFulfillmentContext = true;
         $this->currentOrderId = $orderId;
+        $this->currentOrderExpectedTotal = (float) $order['total_amount'];
         $payload['order_id'] = $orderId;
         $payload['transaction_type'] = 'customer_order';
         $payload['delivery_fee_amount'] = round((float) $order['delivery_fee'], 2);
@@ -109,6 +112,7 @@ class SalesService
         } finally {
             $this->orderFulfillmentContext = $previous;
             $this->currentOrderId = $previousOrderId;
+            $this->currentOrderExpectedTotal = $previousExpectedTotal;
         }
     }
 
@@ -271,7 +275,11 @@ class SalesService
         if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
         if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
         if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-        $total=round($subtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
+        $total=round($subtotal-$discount+$deliveryFee,2);
+        if($this->currentOrderId && ($this->currentOrderExpectedTotal===null || abs($total-$this->currentOrderExpectedTotal)>0.009)) {
+            throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the physical-cylinder total no longer matches the customer-confirmed quote.');
+        }
+        $paymentTotal=0;$credit=0;$cashAmount=0;
         foreach($payments as $p){
             $mode=(string)($p['payment_mode']??'');$amount=(float)($p['amount']??0);
             if(!in_array($mode,['cash','cheque','online','credit'],true)||$amount<=0) throw new RuntimeException('Invalid payment.');
@@ -282,6 +290,26 @@ class SalesService
 
         $this->db->transBegin();
         try{
+            $lockedOrder = null;
+            if($this->currentOrderId){
+                $lockedOrder=$this->db->query("SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE",[$this->currentOrderId,$locationId])->getRowArray();
+                if(!$lockedOrder) throw new RuntimeException('Customer order was not found in this shop.');
+                if((string)$lockedOrder['status']==='completed' && !empty($lockedOrder['pos_sale_id'])){
+                    $existingSale=$this->db->table('sales')->where(['id'=>(int)$lockedOrder['pos_sale_id'],'customer_order_id'=>$this->currentOrderId])->get()->getRowArray();
+                    if($existingSale){
+                        $this->db->transRollback();
+                        return ['id'=>(int)$existingSale['id'],'sale_no'=>(string)$existingSale['sale_no'],'total'=>(float)$existingSale['total_amount'],'customer_id'=>(int)$existingSale['customer_id'],'credit_amount'=>(float)$existingSale['credit_amount'],'idempotent_replay'=>true];
+                    }
+                }
+                if(!in_array((string)$lockedOrder['status'],['accepted','preparing','ready','out_for_delivery'],true)) throw new RuntimeException('Only an accepted order can be fulfilled.');
+                if((int)$lockedOrder['price_reconfirmation_required']===1) throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: customer confirmation is pending.');
+                if(!empty($lockedOrder['pos_sale_id'])) throw new RuntimeException('Customer order already has a POS sale link.');
+                if(abs((float)$lockedOrder['total_amount']-(float)$this->currentOrderExpectedTotal)>0.009
+                    || abs((float)$lockedOrder['delivery_fee']-(float)$deliveryFee)>0.009
+                    || (int)$lockedOrder['customer_id']!==(int)$customerId){
+                    throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: order details changed before posting.');
+                }
+            }
             if($customerId){
                 $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$lockedCustomer || !(int)$lockedCustomer['is_active']) throw new RuntimeException('Customer is unavailable.');
@@ -365,7 +393,11 @@ class SalesService
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>(float)$unit['gas_weight_kg'],'direction'=>'out','unit_id'=>(int)$unit['id']];
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
                     }
-                    if(abs($actualGas-(float)$row['gas_weight_kg'])>0.00001) throw new RuntimeException('Filled-cylinder gas weight changed while posting. Please retry the sale.');
+                    if(abs($actualGas-(float)$row['gas_weight_kg'])>0.00001) {
+                        throw new RuntimeException($this->currentOrderId
+                            ? 'ORDER_PRICE_RECONFIRMATION_REQUIRED: physical-cylinder gas weight changed during fulfillment.'
+                            : 'Filled-cylinder gas weight changed while posting. Please retry the sale.');
+                    }
                     if($row['received_cylinder_type_id']){
                         for($n=0;$n<(int)$qty;$n++) $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>(int)$row['received_cylinder_type_id'],'quantity'=>1,'direction'=>'in','unit_id'=>null,'transition'=>'new_empty'];
                     }
@@ -391,7 +423,11 @@ class SalesService
             $deliveryFee=(float)($payload['delivery_fee_amount']??0);
             if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
             if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
-            $total=round($preparedSubtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
+            $total=round($preparedSubtotal-$discount+$deliveryFee,2);
+            if($this->currentOrderId && ($this->currentOrderExpectedTotal===null || abs($total-$this->currentOrderExpectedTotal)>0.009)) {
+                throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the physical-cylinder total changed during fulfillment.');
+            }
+            $paymentTotal=0;$credit=0;$cashAmount=0;
             foreach($payments as $p){
                 $mode=(string)$p['payment_mode'];$amount=(float)$p['amount'];$paymentTotal+=$amount;
                 if($mode==='credit')$credit+=$amount;if($mode==='cash')$cashAmount+=$amount;
@@ -454,6 +490,26 @@ class SalesService
                 $session=$this->cash->openSessionForLocation($locationId);
                 if(!$session) throw new RuntimeException('Open the counter cash session before posting a cash sale.');
                 $this->cash->postSaleCash((int)$session['id'],$saleId,$cashAmount,$userId,$transactionAt);
+            }
+            if($this->currentOrderId && $lockedOrder){
+                $completedAt=date('Y-m-d H:i:s');
+                $this->db->table('customer_orders')->where(['id'=>$this->currentOrderId,'location_id'=>$locationId])->update([
+                    'pos_sale_id'=>$saleId,
+                    'status'=>'completed',
+                    'completed_by'=>$userId,
+                    'completed_at'=>$completedAt,
+                ]);
+                $this->db->table('customer_order_status_history')->insert([
+                    'order_id'=>$this->currentOrderId,
+                    'business_id'=>(int)$lockedOrder['business_id'],
+                    'from_status'=>(string)$lockedOrder['status'],
+                    'to_status'=>'completed',
+                    'actor_type'=>'staff',
+                    'customer_app_account_id'=>null,
+                    'user_id'=>$userId,
+                    'reason'=>'Fulfilled and posted as POS sale '.$saleNo.'.',
+                    'request_id'=>null,
+                ]);
             }
             if(!$this->db->transStatus()) throw new RuntimeException('Sale posting failed.');
             $this->db->transCommit();
