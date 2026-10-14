@@ -46,6 +46,13 @@ Customer ownership is checked server-side. Creating, cancelling or reconfirming 
 | GET/POST | `/staff/businesses/{businessId}/catalog` | View or manage the business catalog |
 | GET | `/staff/shops/{shopId}/products` | View products and shop activation state |
 | POST | `/staff/shops/{shopId}/products/{productId}/availability` | Activate/deactivate a business product for one shop |
+| GET | `/staff/customer-signups` | List pending signups for selected shop |
+| POST | `/staff/customer-signups/{signupId}/approve` | Link existing/create customer master and approve signup |
+| POST | `/staff/customer-signups/{signupId}/reject` | Reject signup with reason and clear pending credential |
+| POST | `/staff/customers/{customerId}/app-account` | Create app login for an existing unlinked financial customer |
+| POST | `/staff/customer-app-accounts/{accountId}/reset-password` | Reset password and revoke all customer app sessions |
+| POST | `/staff/customer-app-accounts/{accountId}/disable` | Disable account and revoke all customer app sessions |
+| POST | `/staff/customer-app-accounts/{accountId}/enable` | Re-enable account only if its linked financial customer is active; old sessions remain revoked |
 | GET | `/staff/orders` | List orders within the selected authorized shop |
 | GET | `/staff/orders/{orderId}` | View order detail and status history |
 | POST | `/staff/orders/{orderId}/status` | Advance/reject/cancel within the allowed order state machine |
