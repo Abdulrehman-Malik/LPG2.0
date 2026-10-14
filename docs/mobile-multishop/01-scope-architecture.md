@@ -2,7 +2,7 @@
 
 ## Goal
 
-One installable Flutter app for Android and iOS serves customers and shop staff/owners. It communicates with the existing CodeIgniter application through a versioned HTTPS JSON API. The MySQL database remains private to the backend.
+Two separate Flutter apps for Android and iOS are delivered: the Customer App and the Business/Staff App. They may share approved components but retain separate app packages, navigation and authorization boundaries. Both communicate with the existing CodeIgniter application through a versioned HTTPS JSON API. The MySQL database remains private to the backend.
 
 ## Logical architecture
 
