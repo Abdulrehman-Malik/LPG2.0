@@ -360,6 +360,61 @@ class CustomerAccounts extends Controller
         }
     }
 
+    public function enableAccount(int $accountId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            $account = $db->query(
+                'SELECT ca.id,ca.customer_id,ca.username,ca.status,c.location_id,c.is_active AS customer_active
+                 FROM customer_app_accounts ca
+                 JOIN customers c ON c.id=ca.customer_id
+                 WHERE ca.id=? AND c.location_id=?
+                 LIMIT 1 FOR UPDATE',
+                [$accountId, (int) $guard['shop_id']]
+            )->getRowArray();
+
+            if (!$account) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'ACCOUNT_NOT_FOUND', 'message' => 'Customer App account was not found in the selected shop.'],
+                ]);
+            }
+            if ((int) $account['customer_active'] !== 1) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => ['code' => 'CUSTOMER_INACTIVE', 'message' => 'An inactive financial customer cannot use the Customer App.'],
+                ]);
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'approved']);
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Customer App account could not be enabled.');
+            }
+            $db->transCommit();
+
+            AuditService::log('CUSTOMER_APP_ACCOUNT_ENABLED', 'customer_app_account', $accountId,
+                ['status' => $account['status']], ['status' => 'approved'],
+                (int) $guard['user_id'], (int) $guard['shop_id']);
+
+            return $this->response->setJSON(['data' => [
+                'customer_app_account_id' => $accountId,
+                'status' => 'approved',
+            ]]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer App account enable failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'ACCOUNT_ENABLE_FAILED', 'message' => 'The Customer App account could not be enabled.'],
+            ]);
+        }
+    }
+
     public function resetPassword(int $accountId)
     {
         $guard = $this->guard();
