@@ -617,6 +617,87 @@ Run separate cases for: partial gas-only sale; gas-only sale that empties a cyli
 - Updated `SalesService::post()` to honor `credit_limit_validation_mode`, preserve the positive customer-limit behavior in `none` mode, and use the shop-scoped advisory lock plus shop outstanding calculation in `shop` mode.
 - This is a source-level fix only. CRL01/CRL02 remain **NOT EXECUTED** until the customer and shop-limit scenarios (including concurrent requests) pass against a disposable database.
 
+## Web and mobile-backend release cases
+
+These cases were added for the current web/backend implementation. **Every case below is NOT EXECUTED until a result and evidence are recorded.** Passing CI does not prove the running application works.
+
+### BIZWEB01 — Business/shop provisioning and staff scope
+
+1. As System Administrator, create a unique second business and verify an authorized user can see it.
+2. Create two shops under the second business; verify each receives a default shop_settings row, main cash register and base inventory policy.
+3. Verify a Business/Head Office user can access the business shops, but is not silently granted global System Administrator/ADMIN permissions.
+4. Assign one staff member to one shop and another staff member to both shops; verify defaults are consistent, access changes revoke old staff API sessions, and the next login exposes only permitted shops.
+5. Try to access a different business/shop by editing URLs, form IDs and API path IDs. Deny out-of-scope read and write attempts.
+6. Set Head Office as the default assignment and verify the default shop belongs to that business; remove access and verify no stale users.location_id grants access.
+
+**Expected:** provisioning is atomic; no duplicate shop defaults; access follows role capability AND business/shop membership; scope violations are denied.
+
+Status: **NOT EXECUTED**.
+
+### CATWEB01 — Business catalog and per-shop product availability
+
+1. Create one product per supported sale mode (sell_gas_only, sell_filled, sell_empty) for an active cylinder type.
+2. Verify gas quantity rules permit only valid positive KG minimum/step values, cylinder products require whole-number quantity rules, and duplicate business/type/mode products are rejected safely.
+3. Edit and deactivate a product; verify it is not orderable at any shop when the business catalog item is inactive.
+4. Activate the product at Shop A, keep it inactive at Shop B, then verify customer catalog responses reflect the separate shop availability.
+5. Try to activate a product belonging to another business or write Shop B availability while scoped only to Shop A.
+6. Verify audit records contain the business/shop actor context for create/update/availability changes.
+
+**Expected:** one shared business catalog with separate explicit per-shop availability; no cross-business product reference or permission bypass.
+
+Status: **NOT EXECUTED**.
+
+### ACCWEB01 — Customer App signup approval and account lifecycle
+
+1. Submit self-registration for Shop A and verify no login/order access exists while signup is pending.
+2. Approve the request by linking an existing active financial customer in Shop A; verify exactly one account-to-customer link and no duplicate customer master.
+3. Approve another request by creating a new financial customer master; confirm the new master starts with credit sales disabled, zero credit limit, and no opening balance.
+4. Attempt to link a customer from Shop B, a customer that already has an app account, an occupied username, and a duplicate pending username; each must be rejected safely.
+5. Reject a pending request with a reason; verify the password hash is cleared and the pending username becomes available.
+6. Create a Customer App account for an existing unlinked party; verify the minimum password policy, username normalization and uniqueness.
+7. Disable an account, then verify its existing access and refresh tokens stop working. Verify unauthorized roles cannot approve, reject or disable accounts.
+
+**Expected:** one mobile account per financial customer; every customer is owned by exactly one shop; pending/rejected/disabled accounts cannot access private profiles or orders; no credit permission is silently enabled.
+
+Status: **NOT EXECUTED**.
+
+### OWEB01 — Customer order list and status workflow in browser
+
+1. Open /customer-orders as an authorized order viewer; verify status filters and empty/populated views.
+2. Open an order from Shop A, verify customer ownership and the entire status history.
+3. Try every permitted status transition, including mandatory reason checks for rejection/cancellation/unable-to-fulfil; test invalid/backward transitions.
+4. Verify staff cannot mark an order completed directly; completion must come from POS fulfillment.
+5. Open the same order under Shop B and as a role without ORDER_VIEW/ORDER_MANAGE; access must be denied.
+
+**Expected:** the same server-side order state machine is used by the browser and staff API; the route or form cannot bypass a permission or shop-scope check.
+
+Status: **NOT EXECUTED**.
+
+### OWEB02 — Browser fulfillment posts once through validated POS
+
+1. Use an accepted order with one gas-only line and one cylinder line. Ensure the shop has sufficient real cylinder units and an open cash session.
+2. Select physical units and submit a payment split whose total equals the current server-calculated order total (including delivery fee if applicable).
+3. Verify the linked POS sale, separate delivery-fee component, payments, cash session, customer balance, physical-cylinder states/weights and immutable inventory movement history.
+4. Change a cylinder's gas weight or the effective price before fulfillment. Verify the new quote forces customer reconfirmation, resets acceptance, and does not create a sale.
+5. Submit the same fulfillment request twice or concurrently. Verify one POS sale maximum and a safe idempotent replay/recovery.
+6. Try insufficient stock, a closed cash session, invalid payment mode, payment total mismatch, wrong cylinder type/unit, and a request selecting a unit from another shop.
+
+**Expected:** failure leaves no partial financial/inventory posting; one order can create at most one sale; only the validated POS posting path can complete an order.
+
+Status: **NOT EXECUTED**.
+
+### APISEC01 — Customer/staff API authentication and isolation
+
+1. Test malformed, missing, expired and wrong-audience access tokens for each customer/staff route.
+2. Rotate refresh tokens, replay an already-used refresh token, logout, change password, disable an account and remove shop access.
+3. Verify customer tokens can only read their own linked customer, products and orders; staff can only access authorized business/shop scopes.
+4. Run two customers and two staff members concurrently across two businesses/two shops. Verify order idempotency, state history and sale linkage; test cross-shop order IDs and physical-cylinder IDs.
+5. Verify public error responses don't reveal password hashes, refresh/access token values, session IDs, SQL errors or internal tracebacks.
+
+**Expected:** audience separation, scope enforcement and token revocation are proven by HTTP responses/database evidence. Static source review alone is not a PASS.
+
+Status: **NOT EXECUTED**.
+
 ## Page-by-page runtime execution register
 
 Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the required checks per page. The workflow must be executed in a running browser against the current commit and disposable SQA database; static inspection and CI are not substitutes.
@@ -637,5 +718,9 @@ Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the require
 | PQA10 | Customer/staff mobile API and multi-shop scope | Auth/token lifecycle, order flows, price reconfirmation, duplicate protection and cross-shop denial | | | NOT EXECUTED |
 | PQA11 | Responsive/browser quality | Desktop/mobile viewport, navigation, modals, tables, browser console, network and server logs | | | NOT EXECUTED |
 | PQA12 | Full end-to-end regression | Execute complete retail-day scenario and reconcile inventory, ledgers, cash, reports and audit | | | NOT EXECUTED |
+| PQA13 | Businesses, shops and staff scope web pages | Create/provision businesses/shops, review shop defaults, staff assignments/default shop and authorization denials | | | NOT EXECUTED |
+| PQA14 | Customer App account administration | Review pending signup, approve/reject, link or create one customer master, disable login and revoke sessions | | | NOT EXECUTED |
+| PQA15 | Customer Ordering Catalog | Create/edit products, validate quantity rules, activate shop-specific availability and verify catalog API output | | | NOT EXECUTED |
+| PQA16 | Browser customer order management | Queue/detail/history, valid status transitions, physical-cylinder selection and fulfillment through POS with reconciliation | | | NOT EXECUTED |
 
 For each PQA row, link the detailed individual page/case IDs and evidence in the result comments. Split a row into multiple entries when individual pages have different outcomes. A page must not be marked PASS merely because its controller or route exists.
