@@ -6,9 +6,16 @@ Each customer belongs to exactly one shop. A shop may have many customers. This 
 
 The customer's assigned shop is the authoritative shop for mobile ordering. The customer cannot choose a different shop from the app.
 
-## Current gap
+## Feature-branch implementation status
 
-The current `customers` table and `CustomerModel::$allowedFields` do not include `location_id`. The existing ledger derives a location filter from the current session in some paths, but this is not a durable customer ownership relationship. Add explicit customer-to-shop ownership through a backward-compatible migration.
+The customer/staff API already supports approved customer login, refresh/logout/password change, profile, shop-specific catalog, idempotent order create/list/detail/cancel, price reconfirmation, and staff-side signup approval/rejection/account creation/disablement. Browser administration is available at `/customer-app-accounts`; staff API-mediated password reset is implemented at `POST /api/v1/staff/customer-app-accounts/{accountId}/reset-password` and revokes active customer sessions. These paths use the existing financial customer master; they do not create a second ledger identity.
+
+The business/customer constraints and flows are implemented in source, but account lifecycle, race conditions, and cross-shop isolation remain **NOT EXECUTED** runtime cases in `SQA.md` (ACCWEB01 and APISEC01).
+
+
+## Historical baseline gap (resolved on the feature branch)
+
+The main-branch baseline lacked a durable customer-to-shop relationship. On `feature/mobile-multishop-ordering`, `customers.location_id`, customer mobile-account mapping and shop-scoped signup/order services are present in the fresh-install schema and migration set. Do not treat this historical paragraph as the current feature-branch schema.
 
 ## Identity design
 
