@@ -49,6 +49,7 @@ Customer ownership is checked server-side. Creating, cancelling or reconfirming 
 | GET | `/staff/orders` | List orders within the selected authorized shop |
 | GET | `/staff/orders/{orderId}` | View order detail and status history |
 | POST | `/staff/orders/{orderId}/status` | Advance/reject/cancel within the allowed order state machine |
+| POST | `/staff/orders/{orderId}/fulfill` | Select physical cylinders, confirm the current quote, collect payment details and post the order through the existing POS service |
 | GET | `/staff/configuration/application` | Read application settings if authorized |
 | GET | `/staff/configuration/businesses/{businessId}` | Read effective business configuration if authorized |
 | GET | `/staff/configuration/shops/{shopId}` | Read effective shop configuration if authorized |
@@ -62,15 +63,16 @@ The configuration endpoints reuse `ConfigurationService` and enforce capability 
 - Order submission stores an order and quote snapshots; it is not a POS sale.
 - The shop may accept only when the current quote is still valid and no customer price reconfirmation is pending.
 - Order status changes must not create financial postings.
-- The final `completed` transition remains blocked until fulfillment can call the existing `SalesService` with a safe, atomic order-to-sale link and reconcile the final price (including physical cylinder gas weight and delivery fee). Do not bypass this gate or mark an order completed manually.
-- POS mixed-cart sales now persist `delivery_fee_amount` as a separate sale component, and `SalesService::postForCustomerOrder()` is the internal entry point for supplying it. This is groundwork only; the order service does not yet call it and fulfillment is not enabled.
-- A unique `customer_orders.pos_sale_id` exists in the schema as the link to the eventual POS sale. Completion needs an idempotent recovery path so retries cannot create duplicate sales.
+- Staff fulfillment is exposed at `POST /staff/orders/{orderId}/fulfill`. The request contains `fulfillment_lines` (each `line_no` plus physical `selected_cylinder_unit_ids` for cylinder products or `source_cylinder_unit_id` for gas refill) and a `payments` array using the existing POS payment modes.
+- Physical filled-cylinder IDs and actual gas weights are persisted in the order quote. If selection or weight changes the total, the service saves a revised quote, returns `reconfirmation_required`, and does not post a sale until the customer reconfirms and the shop accepts again.
+- POS posting records `sales.customer_order_id` with a unique constraint and sets `customer_orders.pos_sale_id`, `status=completed`, and completion history in the same POS database transaction. Delivery fee is a separate `sales.delivery_fee_amount` component. This prevents a retry from posting a duplicate sale or leaving a committed sale without its order completion link.
+- Order status changes alone still do not post financial entries. Do not bypass the fulfillment endpoint or mark an order completed manually.
 
 ## Implementation status and next gates
 
 1. **Backend API foundation:** auth, customer catalog/order APIs, staff order/catalog APIs, business/shop provisioning and scoped configuration APIs are present on this feature branch.
 2. **Verification:** run the repository's PHP syntax, database/schema smoke and PHPUnit workflow after the latest commit; successful earlier runs do not replace checking the current head.
-3. **Next implementation:** complete transaction-safe POS fulfillment for single and mixed carts. Delivery-fee persistence and a guarded SalesService entry point are now present, but still need order validation/linking. Remaining gates are explicit physical cylinder selection, exact quote reconciliation before commit, payment capture, inventory-lock/transaction boundary safety, idempotency and recovery after a partial failure.
+3. **POS fulfillment backend:** the staff route and service now connect customer orders to existing mixed-cart POS posting with explicit physical cylinder selection, delivery-fee accounting, price reconfirmation, payment validation and a unique recoverable order-to-sale link. Run the current PHP/schema smoke and PHPUnit workflow and review edge cases before treating this as release-ready.
 4. **Then:** build the two separate Flutter applications (Customer and Business/Staff) against this contract, using secure platform token storage and role-aware navigation.
 5. **Release gate:** no merge to `main` until permissions, migrations, tests, fulfillment atomicity and both apps have been reviewed.
 
