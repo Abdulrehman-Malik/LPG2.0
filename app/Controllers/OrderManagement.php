@@ -12,8 +12,10 @@ class OrderManagement extends Controller
 {
     protected function context(bool $manage = false): array
     {
-        $permission = $manage ? 'ORDER_MANAGE' : 'ORDER_VIEW';
-        if (!PermissionService::allows($permission)) {
+        $allowed = $manage
+            ? PermissionService::allows('ORDER_MANAGE')
+            : (PermissionService::allows('ORDER_VIEW') || PermissionService::allows('ORDER_MANAGE'));
+        if (!$allowed) {
             return ['error' => $this->response->setStatusCode(403)->setBody('You do not have permission to view or manage customer orders.')];
         }
 
