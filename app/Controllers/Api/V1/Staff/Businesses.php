@@ -349,7 +349,7 @@ class Businesses extends Controller
                             ->where(['business_id' => $businessId, 'is_active' => 1])
                             ->orderBy('id', 'ASC')->get()->getRowArray();
                         if (!$defaultShop) {
-                            throw new \\RuntimeException('Create an active shop in this business before making Head Office access the default.');
+                            throw new \RuntimeException('Create an active shop in this business before making Head Office access the default.');
                         }
                         $db->table('user_business_access')->where('user_id', $targetUserId)->update(['is_default' => 0]);
                         $db->table('user_shop_access')->where('user_id', $targetUserId)->update(['is_default' => 0]);
