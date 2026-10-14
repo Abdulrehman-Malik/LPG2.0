@@ -28,6 +28,12 @@ class AuthFilter implements FilterInterface
                 ->with('migration_error','Database migration status could not be checked: '.$e->getMessage());
         }
 
+        // Permit the context-switch endpoint to validate the requested target
+        // shop independently; the previous session shop may have just been revoked.
+        if (trim($request->getUri()->getPath(), '/') === 'shop-context/select') {
+            return;
+        }
+
         $userId = (int) (session()->get('user_id') ?? 0);
         if (!(new ShopScopeService())->canAccessCurrentShop($userId)) {
             session()->destroy();
