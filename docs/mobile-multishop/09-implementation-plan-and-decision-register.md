@@ -269,7 +269,7 @@ Exit criteria:
 
 ## 4. Decision register
 
-The technical plan is organized; the items below are business/product choices that must be approved before the dependent work package starts. The proposed default is a recommendation, not authorization to implement without approval.
+The register below contains both owner-confirmed choices and remaining choices for implementation planning. Confirmed decisions are summarized in Section 7; remaining technical details must be verified in their work packages. A proposed technical default is not permission to change code or deploy without explicit implementation approval.
 
 | ID | Decision required | Proposed MVP default | Blocks |
 |---|---|---|---|
