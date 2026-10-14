@@ -79,14 +79,39 @@ class BusinessManagement extends Controller
                 )->getResultArray();
 
                 $shopIdsForBusiness = array_map(static fn(array $shop): int => (int) $shop['id'], $business['shops']);
-                if ($shopIdsForBusiness) {
+                if ($scope->isSystemAdministrator($userId)) {
+                    // Platform administrators can assign any active staff account to a new business.
                     $business['staff_options'] = $db->table('users u')
                         ->select('u.id,u.full_name,u.username')
-                        ->groupStart()
-                            ->whereIn('u.location_id', $shopIdsForBusiness)
-                            ->orWhereIn('u.id', array_column($business['assignments'], 'user_id') ?: [0])
-                        ->groupEnd()
                         ->where('u.is_active', 1)
+                        ->orderBy('u.full_name')
+                        ->get()->getResultArray();
+                } elseif ($shopIdsForBusiness) {
+                    // Business managers may reuse staff already scoped to this business or staff not yet assigned to any business/shop.
+                    // Do not offer users explicitly assigned only to another business.
+                    $assignedUserIds = array_values(array_unique(array_map(
+                        'intval',
+                        array_column($business['assignments'], 'user_id')
+                    )));
+                    $business['staff_options'] = $db->table('users u')
+                        ->select('u.id,u.full_name,u.username')
+                        ->where('u.is_active', 1)
+                        ->groupStart()
+                            ->whereIn('u.id', $assignedUserIds ?: [0])
+                            ->orWhereIn('u.location_id', $shopIdsForBusiness)
+                            ->orGroupStart()
+                                ->whereNotIn('u.id', static function ($subQuery) {
+                                    $subQuery->select('user_id')->from('user_business_access');
+                                })
+                                ->whereNotIn('u.id', static function ($subQuery) {
+                                    $subQuery->select('user_id')->from('user_shop_access');
+                                })
+                                ->groupStart()
+                                    ->where('u.location_id IS NULL', null, false)
+                                    ->orWhereIn('u.location_id', $shopIdsForBusiness)
+                                ->groupEnd()
+                            ->groupEnd()
+                        ->groupEnd()
                         ->orderBy('u.full_name')
                         ->get()->getResultArray();
                 }
