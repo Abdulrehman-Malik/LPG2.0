@@ -360,6 +360,81 @@ class CustomerAccounts extends Controller
         }
     }
 
+    public function resetPassword(int $accountId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $input = $this->payload();
+        $password = (string) ($input['password'] ?? '');
+        $passwordMinLength = (int) (new ConfigurationService())->resolve('password_min_length')['value'];
+        if (strlen($password) < $passwordMinLength) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'VALIDATION_FAILED', 'message' => 'New password must be at least ' . $passwordMinLength . ' characters.'],
+            ]);
+        }
+
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            $account = $db->query(
+                'SELECT ca.id,ca.customer_id,ca.username,ca.status,c.location_id,c.is_active AS customer_active
+                 FROM customer_app_accounts ca
+                 JOIN customers c ON c.id=ca.customer_id
+                 WHERE ca.id=? AND c.location_id=?
+                 LIMIT 1 FOR UPDATE',
+                [$accountId, (int) $guard['shop_id']]
+            )->getRowArray();
+
+            if (!$account) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'ACCOUNT_NOT_FOUND', 'message' => 'Customer App account was not found in the selected shop.'],
+                ]);
+            }
+            if ((string) $account['status'] !== 'approved' || (int) $account['customer_active'] !== 1) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => ['code' => 'ACCOUNT_NOT_ACTIVE', 'message' => 'Only an approved account linked to an active customer can have its password reset.'],
+                ]);
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update([
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                'password_changed_at' => date('Y-m-d H:i:s'),
+            ]);
+            if (!$db->transStatus()) {
+                throw new \\RuntimeException('Customer app password could not be updated.');
+            }
+            $db->transCommit();
+
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
+            AuditService::log(
+                'CUSTOMER_APP_PASSWORD_RESET',
+                'customer_app_account',
+                $accountId,
+                ['password_changed' => false],
+                ['password_changed' => true, 'sessions_revoked' => true],
+                (int) $guard['user_id'],
+                (int) $guard['shop_id']
+            );
+
+            return $this->response->setJSON(['data' => [
+                'customer_app_account_id' => $accountId,
+                'status' => 'password_reset',
+                'sessions_revoked' => true,
+            ]]);
+        } catch (\\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer app password reset failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'PASSWORD_RESET_FAILED', 'message' => 'The Customer App password could not be reset.'],
+            ]);
+        }
+    }
+
     public function disableAccount(int $accountId)
     {
         $guard = $this->guard();
