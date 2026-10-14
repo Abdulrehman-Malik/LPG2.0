@@ -1,15 +1,56 @@
 <?php
+
 namespace App\Models;
+
 class GasRateModel extends RateCardModel
 {
-    public function currentCylinderRate(int $id, ?string $asOf=null): ?float
+    protected function effectiveRow(string $rateType, ?int $cylinderTypeId, ?string $asOf = null, ?int $locationId = null): ?array
     {
-        $row=$this->where('rate_type','cylinder_package')->where('cylinder_type_id',$id)->where('effective_from <=',$asOf??date('Y-m-d H:i:s'))->orderBy('effective_from','DESC')->first();
-        return $row?(float)$row['rate_value']:null;
+        $asOf = $asOf ?? date('Y-m-d H:i:s');
+
+        $queryForLocation = function ($locationFilter) use ($rateType, $cylinderTypeId, $asOf) {
+            $builder = $this->db->table('rate_cards')
+                ->where('rate_type', $rateType)
+                ->where('effective_from <=', $asOf);
+
+            if ($cylinderTypeId === null) {
+                $builder->where('cylinder_type_id', null);
+            } else {
+                $builder->where('cylinder_type_id', $cylinderTypeId);
+            }
+
+            if ($locationFilter === 'global') {
+                $builder->where('location_id', null);
+            } elseif ($locationFilter !== null) {
+                $builder->where('location_id', (int) $locationFilter);
+            }
+
+            return $builder->orderBy('effective_from', 'DESC')->orderBy('id', 'DESC')->get(1)->getRowArray();
+        };
+
+        if ($locationId !== null && $locationId > 0) {
+            $row = $queryForLocation($locationId);
+            if ($row) {
+                return $row;
+            }
+
+            // Global rates are the only fallback; never consume another shop's rate.
+            return $queryForLocation('global');
+        }
+
+        // Keep the legacy no-location call behavior for any not-yet-migrated callers.
+        return $queryForLocation(null);
     }
-    public function currentKgRate(?string $asOf=null): ?float
+
+    public function currentCylinderRate(int $id, ?string $asOf = null, ?int $locationId = null): ?float
     {
-        $row=$this->where('rate_type','gas_per_kg')->where('cylinder_type_id',null)->where('effective_from <=',$asOf??date('Y-m-d H:i:s'))->orderBy('effective_from','DESC')->first();
-        return $row?(float)$row['rate_value']:null;
+        $row = $this->effectiveRow('cylinder_package', $id, $asOf, $locationId);
+        return $row ? (float) $row['rate_value'] : null;
+    }
+
+    public function currentKgRate(?string $asOf = null, ?int $locationId = null): ?float
+    {
+        $row = $this->effectiveRow('gas_per_kg', null, $asOf, $locationId);
+        return $row ? (float) $row['rate_value'] : null;
     }
 }
