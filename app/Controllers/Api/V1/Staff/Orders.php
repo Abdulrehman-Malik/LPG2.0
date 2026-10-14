@@ -96,6 +96,52 @@ class Orders extends Controller
         return $this->response->setJSON(['data' => ['order' => $order]]);
     }
 
+    public function fulfill(int $orderId)
+    {
+        $guard = $this->guard('ORDER_MANAGE');
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $input = $this->request->getJSON(true);
+        if (!is_array($input)) {
+            $input = $this->request->getPost();
+        }
+
+        try {
+            $result = (new CustomerOrderService())->fulfill(
+                $guard['user_id'],
+                $guard['shop_id'],
+                $orderId,
+                is_array($input) ? $input : []
+            );
+            return $this->response->setJSON(['data' => [
+                'order' => $result['order'] ?? [],
+                'status' => $result['status'] ?? null,
+                'message' => $result['message'] ?? 'Order fulfillment processed.',
+            ]]);
+        } catch (\\Throwable $e) {
+            $message = $e->getMessage();
+            if (str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED')) {
+                return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The customer must review and reconfirm the current order total before fulfillment.');
+            }
+            if (str_contains($message, 'not found')) {
+                return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
+            }
+            if (str_contains($message, 'You do not have access')) {
+                return $this->apiError(403, 'SHOP_ACCESS_DENIED', 'You do not have access to this shop.');
+            }
+            if (str_contains($message, 'Only an accepted order') || str_contains($message, 'changed before') || str_contains($message, 'unavailable') || str_contains($message, 'Insufficient') || str_contains($message, 'stock changed') || str_contains($message, 'counter cash session')) {
+                return $this->apiError(409, 'POS_FULFILLMENT_CONFLICT', 'The order cannot be fulfilled with the current order state, stock, or cash-counter state. Refresh the order and try again.');
+            }
+            if (str_contains($message, 'Select ') || str_contains($message, 'Provide a fulfillment') || str_contains($message, 'fulfillment selection') || str_contains($message, 'line numbers') || str_contains($message, 'Unknown order line') || str_contains($message, 'At least one payment') || str_contains($message, 'payment')) {
+                return $this->apiError(422, 'INVALID_FULFILLMENT_REQUEST', $message);
+            }
+            log_message('error', 'Staff order fulfillment failed: {message}', ['message' => $message]);
+            return $this->apiError(503, 'POS_FULFILLMENT_UNAVAILABLE', 'The order could not be posted to POS right now.');
+        }
+    }
+
     public function updateStatus(int $orderId)
     {
         $guard = $this->guard('ORDER_MANAGE');
