@@ -65,12 +65,18 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 ## Decisions already fixed
 
 - Two separate Flutter apps for Android and iOS: Customer App and Business/Staff App; shared components do not merge their packages or authorization boundaries.
-- One business may own multiple shops.
+- Multiple independent businesses are supported; each has its own Head Office and shops.
 - A customer belongs to exactly one shop and can order only from that shop.
 - One order belongs to one shop; no split order across shops in the MVP.
-- Business owner can oversee all shops in their business.
+- Head Office can view/manage permitted functions for its own business; Shop Admin has full shop-level access only within their shop.
 - Shop manager/order staff can access only assigned shop(s), as permitted.
 - Existing LPG web application remains the system of record.
+- Username/password login is via the API over TLS; SMS/OTP is out of scope for the first release.
+- Admin/Manager may create a customer account; customers may self-register, but an Admin/Manager must approve the signup before login/order access.
+- Head Office defines the business product catalog; each shop activates/deactivates products based on what it currently sells.
+- Customer chooses delivery or collection; delivery requires an address and any configured fee/condition is shown before submission.
+- The server calculates prices and saves a cloud-order price snapshot; changes require customer review/reconfirmation, never silent repricing.
+- Both apps are multilingual with language selection at login.
 - MVP order is pending until accepted by authorized staff.
 - No online payment, automated deposit, or automatic cylinder custody in the first release unless separately approved.
 
