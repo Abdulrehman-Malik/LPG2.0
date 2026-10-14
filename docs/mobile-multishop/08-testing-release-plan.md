@@ -59,8 +59,8 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 9. Fulfil one accepted order through the approved POS integration and reconcile sale, inventory and payment records.
 10. Repeat with network interruption/retry, cancellation, stock/rate change, product activation/deactivation and price reconfirmation.
 11. Test signup pending state, Admin/Manager approval and rejection, account recovery, and login-time language selection in both apps.
-11. Run Android and iOS functional tests against the same API.
-12. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
+12. Run Android and iOS functional tests against the same API.
+13. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
 
 ## Release gates
 
