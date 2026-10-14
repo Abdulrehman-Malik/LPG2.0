@@ -406,7 +406,7 @@ class CustomerAccounts extends Controller
                 'password_changed_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$db->transStatus()) {
-                throw new \\RuntimeException('Customer app password could not be updated.');
+                throw new \RuntimeException('Customer app password could not be updated.');
             }
             $db->transCommit();
 
@@ -426,7 +426,7 @@ class CustomerAccounts extends Controller
                 'status' => 'password_reset',
                 'sessions_revoked' => true,
             ]]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Customer app password reset failed: {message}', ['message' => $e->getMessage()]);
             return $this->response->setStatusCode(422)->setJSON([
