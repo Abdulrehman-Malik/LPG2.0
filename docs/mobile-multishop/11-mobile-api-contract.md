@@ -63,13 +63,14 @@ The configuration endpoints reuse `ConfigurationService` and enforce capability 
 - The shop may accept only when the current quote is still valid and no customer price reconfirmation is pending.
 - Order status changes must not create financial postings.
 - The final `completed` transition remains blocked until fulfillment can call the existing `SalesService` with a safe, atomic order-to-sale link and reconcile the final price (including physical cylinder gas weight and delivery fee). Do not bypass this gate or mark an order completed manually.
+- POS mixed-cart sales now persist `delivery_fee_amount` as a separate sale component, and `SalesService::postForCustomerOrder()` is the internal entry point for supplying it. This is groundwork only; the order service does not yet call it and fulfillment is not enabled.
 - A unique `customer_orders.pos_sale_id` exists in the schema as the link to the eventual POS sale. Completion needs an idempotent recovery path so retries cannot create duplicate sales.
 
 ## Implementation status and next gates
 
 1. **Backend API foundation:** auth, customer catalog/order APIs, staff order/catalog APIs, business/shop provisioning and scoped configuration APIs are present on this feature branch.
 2. **Verification:** run the repository's PHP syntax, database/schema smoke and PHPUnit workflow after the latest commit; successful earlier runs do not replace checking the current head.
-3. **Next implementation:** complete a transaction-safe POS fulfillment service for single and mixed carts, physical cylinder selection, exact quote reconciliation, delivery fees, payment capture, idempotency and recovery after a partial failure.
+3. **Next implementation:** complete transaction-safe POS fulfillment for single and mixed carts. Delivery-fee persistence and a guarded SalesService entry point are now present, but still need order validation/linking. Remaining gates are explicit physical cylinder selection, exact quote reconciliation before commit, payment capture, inventory-lock/transaction boundary safety, idempotency and recovery after a partial failure.
 4. **Then:** build the two separate Flutter applications (Customer and Business/Staff) against this contract, using secure platform token storage and role-aware navigation.
 5. **Release gate:** no merge to `main` until permissions, migrations, tests, fulfillment atomicity and both apps have been reviewed.
 
