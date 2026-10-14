@@ -131,7 +131,7 @@ class Orders extends Controller
             if (str_contains($message, 'You do not have access')) {
                 return $this->apiError(403, 'SHOP_ACCESS_DENIED', 'You do not have access to this shop.');
             }
-            if (str_contains($message, 'Only an accepted order') || str_contains($message, 'not eligible for physical-cylinder') || str_contains($message, 'changed before') || str_contains($message, 'unavailable') || str_contains($message, 'Insufficient') || str_contains($message, 'stock changed') || str_contains($message, 'counter cash session')) {
+            if (str_contains($message, 'Only an accepted order') || str_contains($message, 'not eligible for physical-cylinder') || str_contains($message, 'changed before') || str_contains($message, 'unavailable') || str_contains($message, 'no longer available') || str_contains($message, 'changed while posting') || str_contains($message, 'Insufficient') || str_contains($message, 'stock changed') || str_contains($message, 'counter cash session')) {
                 return $this->apiError(409, 'POS_FULFILLMENT_CONFLICT', 'The order cannot be fulfilled with the current order state, stock, or cash-counter state. Refresh the order and try again.');
             }
             if (str_contains($message, 'Select ') || str_contains($message, 'Provide a fulfillment') || str_contains($message, 'fulfillment selection') || str_contains($message, 'line numbers') || str_contains($message, 'Unknown order line') || str_contains($message, 'At least one payment') || str_contains($message, 'payment')) {
