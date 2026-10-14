@@ -64,6 +64,19 @@ The configuration endpoints reuse `ConfigurationService` and enforce capability 
 - The shop may accept only when the current quote is still valid and no customer price reconfirmation is pending.
 - Order status changes must not create financial postings.
 - Staff fulfillment is exposed at `POST /staff/orders/{orderId}/fulfill`. The request contains `fulfillment_lines` (each `line_no` plus physical `selected_cylinder_unit_ids` for cylinder products or `source_cylinder_unit_id` for gas refill) and a `payments` array using the existing POS payment modes.
+- Request body shape:
+  ```json
+  {
+    "fulfillment_lines": [
+      { "line_no": 1, "source_cylinder_unit_id": 101 },
+      { "line_no": 2, "selected_cylinder_unit_ids": [201, 202] }
+    ],
+    "payments": [
+      { "payment_mode": "cash", "amount": 2500.00 }
+    ]
+  }
+  ```
+  Use `source_cylinder_unit_id` for a gas-only refill line; use `selected_cylinder_unit_ids` for filled/empty cylinder lines. Payment amounts must equal the server-calculated final total. The delivery fee is taken from the saved order, never trusted from the mobile request.
 - Physical filled-cylinder IDs and actual gas weights are persisted in the order quote. If selection or weight changes the total, the service saves a revised quote, returns `reconfirmation_required`, and does not post a sale until the customer reconfirms and the shop accepts again.
 - POS posting records `sales.customer_order_id` with a unique constraint and sets `customer_orders.pos_sale_id`, `status=completed`, and completion history in the same POS database transaction. Delivery fee is a separate `sales.delivery_fee_amount` component. This prevents a retry from posting a duplicate sale or leaving a committed sale without its order completion link.
 - Order status changes alone still do not post financial entries. Do not bypass the fulfillment endpoint or mark an order completed manually.
