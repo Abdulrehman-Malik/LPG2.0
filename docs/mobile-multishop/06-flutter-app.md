@@ -26,9 +26,11 @@ Both apps show a language selector before sign-in and use username/password thro
 
 ## Staff/owner screens
 
-1. Secure sign-in.
+1. Language selector and username/password sign-in.
 2. Shop/business context.
-3. Pending order queue with filters and refresh.
+3. Pending customer signup approval queue and permissioned account create/reset actions.
+4. Business catalog administration and per-shop product activation/deactivation.
+5. Pending order queue with filters and refresh.
 4. Order details including customer contact, item/quantity, address or collection, notes, price snapshot and timeline.
 5. Accept/reject with reason as required.
 6. Update allowed fulfilment status.
@@ -42,12 +44,12 @@ Both apps show a language selector before sign-in and use username/password thro
 - Prevent double taps and show submission state; rely on server idempotency too.
 - Do not calculate authoritative totals locally; display server quotes.
 - Do not display other shops' stock, customer details or order queues.
-- Accessible touch targets, concise text, responsive layouts, and localization readiness (English/Urdu decision can be made in implementation planning).
+- Accessible touch targets, concise text, responsive layouts and translations for every supported language. Use right-to-left layout where the selected language requires it. The language is selected at login.
 - Do not store sensitive order data longer than needed in local caches.
 
 ## Build and release
 
-- One Flutter project with Android and iOS targets.
+- Two separately packaged Flutter apps with separate application IDs, navigation, release packages and store listings; each targets Android and iOS. Shared widgets/API clients may live in common code.
 - Separate development/test/production API base URLs via build configuration, not hard-coded source URLs.
 - Secrets must remain server-side.
 - Android signing and Play Store release require release credentials.
@@ -56,7 +58,7 @@ Both apps show a language selector before sign-in and use username/password thro
 
 ## Acceptance criteria
 
-- Same app build presents correct authorized experience for customer, shop staff and owner accounts.
-- Changing local role state does not grant server privileges.
+- Customer App exposes customer capabilities only; Business/Staff App exposes authorized staff/Head Office capabilities only.
+- Changing local role, language or shop state does not grant server permissions.
 - Orders/status remain consistent across mobile and web.
 - Android and iOS builds use the same API contract and pass the same functional scenarios.
