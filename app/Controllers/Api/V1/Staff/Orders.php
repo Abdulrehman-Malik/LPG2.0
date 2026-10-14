@@ -111,7 +111,7 @@ class Orders extends Controller
                     $orderId
                 ),
             ]]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $message = $e->getMessage();
             if (str_contains($message, 'not found')) {
                 return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
