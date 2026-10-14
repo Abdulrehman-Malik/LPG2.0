@@ -42,6 +42,8 @@ Tasks:
 - Reconfirm feature branch and main baseline SHAs before starting implementation.
 - Inspect schema, migration runner, Models, Services, route filters, order-related naming conventions, current sale primary key, receipt/ledger relationships, rate-card precedence, inventory availability services and current runtime test setup.
 - Confirm current capabilities and standard-role permission seeding behavior; identify custom-role preservation requirements.
+- Inventory the existing Shop Settings/Configuration screen, fields, routes, controllers, models/tables and code paths that consume those settings. Classify each item as Application, Business/Head Office or Shop scope before proposing a move.
+- Verify the current authentication/session implementation and token/session library, then map which login/session settings can safely be managed through Application Settings and what guardrails must remain fixed.
 - Maintain the decision register in Section 4 and record each approved choice before dependent work starts.
 - Confirm which existing web screens are impacted and how current-commit runtime QA can be executed.
 
@@ -84,6 +86,7 @@ Design tasks:
 - Design a scope resolver/service that answers allowed businesses, allowed shops and record ownership from authenticated identity.
 - Reuse `roles`, `permissions`, `role_permissions` and `PermissionService`; do not authorize by role name alone.
 - Define permission codes for order view, accept, reject, status update, cancellation, shop view/manage, cross-shop reporting and customer account linking. Confirm standard-role defaults and do not auto-grant to existing custom roles.
+- Define separate view/edit capabilities for Application Settings, Business/Head Office Settings and Shop Settings; only System Administrators may edit Application settings.
 - Apply scope checks in service/query paths as well as controllers; prevent IDOR by scoping queries before retrieving records.
 - Audit business ownership changes, shop assignment changes and privileged owner actions.
 
@@ -148,6 +151,9 @@ Tasks:
 - Keep customer and order reads scoped to authorized shops/businesses.
 - Add a permission-controlled customer signup approval queue for Admin/Manager users; approvals must be limited to their own shop scope and link to one customer master record.
 - Provide Head Office control of the business product catalog and shop-level product activation/deactivation, plus shop configuration for available fulfilment methods.
+- Implement one scope-aware Configuration area and backend resolver/service for Application, Business/Head Office and Shop settings. Preserve existing Shop Settings behavior and storage; do not create duplicate sources of truth.
+- Add Application Settings groups for Login & Session and other approved platform-wide settings. Restrict application-security controls to System Administrators and enforce guardrails server-side.
+- Display effective values and their source scope, support allowed overrides/reset-to-inherited, validate values server-side, audit changes, and refresh affected caches after updates.
 - Use existing validated rate logic and define handling for rate/availability changes after an order is submitted.
 - Ensure order completion requires the explicitly agreed fulfilment/POS reconciliation condition; never mark a sale completed before the authoritative posting succeeds.
 - Keep notifications outside the critical transaction where practical; persist/commit state first and retry notification delivery safely.
@@ -173,6 +179,7 @@ Tasks:
 - Validate every identifier against authenticated server-side scope.
 - Use idempotency for order creation and fulfilment; do not assume the client can guarantee exactly-once delivery.
 - Test expired/revoked sessions, login throttling, refresh-session rotation/replay, mass assignment, object reference attacks and cross-shop requests.
+- Expose only client-safe effective configuration needed by mobile clients; configuration/security-policy writes remain permissioned server-side operations and do not accept arbitrary keys.
 
 Exit criteria:
 - API security tests pass independently of Flutter.
@@ -294,6 +301,7 @@ The register below contains both owner-confirmed choices and remaining choices f
 | D-19 | Notifications | In-app/order-list refresh first; choose SMS/push provider and templates after reliable core order lifecycle | WP-5, WP-7 |
 | D-20 | Language support | English is the only supported UI language in the initial release. Keep UI strings localization-ready so additional languages can be added later without changing business logic. No language selector is needed while only English is available; add a selector when a second language is introduced | WP-7, WP-8 |
 | D-21 | First rollout | One business, two shops in test/pilot; production rollout only after owner sign-off and all gates pass | WP-10 |
+| D-22 | Centralized configuration scope | One permission-aware Configuration area for Application, Head Office/Business and Shop settings. Resolve only allowed overrides as Shop → Business → Application. Login & Session policy is Application-owned by default; lower scopes cannot weaken security guardrails. Inventory and preserve existing Shop Settings before consolidating | WP-0, WP-2, WP-5, WP-6, WP-8 |
 
 ## 5. Cross-cutting acceptance criteria
 
@@ -301,6 +309,8 @@ The feature is not ready unless all of these are true:
 - Business, shop, staff and customer ownership are enforced server-side for web and API.
 - Customer master records and historic transactions are preserved.
 - Custom roles remain intact; permission and scope checks are independently tested.
+- Application, Business/Head Office and Shop configuration are scope-isolated, validated, inherited only when allowed, and audited.
+- Business/Shop configuration cannot weaken Application login/session guardrails or retrieve secret values.
 - Order state and status history are atomic, auditable and transition-controlled.
 - Retries cannot duplicate an order or a posted sale.
 - Pending/accepted/rejected/cancelled orders have no unintended financial or stock side effects.
@@ -319,6 +329,8 @@ Planning is complete when:
 - The logical data model, API domains, authorization rules, state machine, POS boundary and migration approach are documented.
 - Every implementation work package has dependencies and exit criteria.
 - Business choices are visible in the decision register with recommended defaults.
+- Existing Shop Settings are inventoried and preserved, with a defined Configuration area and Application-level Login & Session group.
+- Setting ownership, override rules, audit expectations and client-safe configuration API behavior are documented.
 - Fresh-install schema/seeds and account-linking rules are documented without legacy customer mapping/backfill.
 - Onboarding/approval, username/password API authentication, session revocation, product controls, price-change handling, delivery/collection and multilingual login are defined.
 - The owner approves decisions that affect customer behavior, data ownership, security or financial workflows.
@@ -342,6 +354,8 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Price integrity:** Cloud orders save a server-calculated price snapshot. Never reprice silently. If a queued offline order encounters a changed price/availability before synchronization, require customer review before creating the cloud order; if price differs before POS fulfilment, obtain customer reconfirmation or cancel/re-quote.
 - **Fulfilment:** Customers choose delivery or collection at checkout. Both choices are supported; delivery requires an address and any fee/condition must be shown before submission.
 - **Languages:** English is the only UI language in the initial release. Keep UI strings localization-ready for future languages. Add a login-time language selector when a second language is introduced.
+- **Centralized configuration:** Keep a single permission-aware Configuration area with Application, Head Office/Business and Shop scopes. Existing Shop Settings must be inventoried and preserved. Effective value follows Shop → Business → Application only when that setting explicitly permits override.
+- **Login & Session settings:** Provide an Application-level group for authorized System Administrators. Verify the proposed token/session lifetimes in WP-0. Business/Shop users cannot extend platform security limits, disable required token protections or access secrets. Changes are validated and audited.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
 
