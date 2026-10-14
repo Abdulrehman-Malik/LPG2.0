@@ -40,6 +40,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('orders','Api\\V1\\Staff\\Orders::index');
         $routes->get('orders/(:num)','Api\\V1\\Staff\\Orders::show/$1');
         $routes->post('orders/(:num)/status','Api\\V1\\Staff\\Orders::updateStatus/$1');
+        $routes->post('orders/(:num)/fulfill','Api\\V1\\Staff\\Orders::fulfill/$1');
         $routes->get('businesses/(:num)/catalog','Api\\V1\\Staff\\Catalog::businessCatalog/$1');
         $routes->post('businesses/(:num)/catalog','Api\\V1\\Staff\\Catalog::saveBusinessProduct/$1');
         $routes->get('shops/(:num)/products','Api\\V1\\Staff\\Catalog::shopProducts/$1');
