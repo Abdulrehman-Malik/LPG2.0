@@ -48,8 +48,8 @@ Endpoint names are a proposed contract and must be reconciled with existing API 
 
 - Customer and staff accounts use username/password through the API over TLS; SMS/OTP is out of scope for the first release.
 - Store strong password hashes server-side and never log submitted passwords.
-- Proposed lifecycle: access token lifetime target of 15 minutes; rotating, revocable refresh session with a 30-day maximum lifetime target; maintain independent revocable sessions per app/device. Verify library/framework support before implementation and record any change to these targets.
-- Logout revokes the current device session. Password reset, account disablement or removal of customer signup approval revokes all sessions for that account.
+- Recommended lifecycle: access token expires after 15 minutes; refresh tokens rotate on every successful refresh and are revocable per app/device. Expire a refresh session after 30 days of inactivity, with an absolute maximum session age of 90 days from sign-in; require login again after either limit. Reject refresh-token reuse and revoke that session/token family. Verify framework/library support in WP-0 before implementation and document any change to these targets.
+- Logout revokes the current app/device session. Password reset, account disablement or removal of customer signup approval revokes all sessions for that account. If a refresh token is expired, revoked, reused or invalid, require a fresh username/password login.
 - Pending/rejected/inactive accounts cannot obtain an ordering session. Never create a usable session as a side effect of public signup before Admin/Manager approval.
 - Customer and staff auth endpoints issue app-audience-bound sessions. Customer sessions are rejected by staff endpoints and staff sessions are rejected by customer endpoints, even when a person uses both apps.
 - Rate-limit login, signup and recovery flows and avoid revealing whether a username/customer exists.
