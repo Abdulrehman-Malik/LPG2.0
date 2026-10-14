@@ -185,7 +185,7 @@ class Orders extends Controller
                 $orderId
             );
             return $this->response->setJSON(['data' => $options]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $message = $e->getMessage();
             if (str_contains($message, 'not found')) return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
             if (str_contains($message, 'not available')) return $this->apiError(409, 'FULFILLMENT_NOT_AVAILABLE', $message);
@@ -213,7 +213,7 @@ class Orders extends Controller
             );
             $status = ($result['status'] ?? '') === 'reconfirmation_required' ? 409 : 200;
             return $this->response->setStatusCode($status)->setJSON(['data' => $result]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $message = $e->getMessage();
             if (str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED')) {
                 return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The order price changed. Customer reconfirmation is required before posting.');
