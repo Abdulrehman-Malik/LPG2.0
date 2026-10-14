@@ -81,6 +81,10 @@ class SalesService
             if ((string) $existing['status'] !== 'posted') {
                 throw new RuntimeException('The linked POS sale is not posted; manual review is required.');
             }
+            if ((int) $existing['location_id'] !== $locationId
+                || (int) ($existing['customer_id'] ?? 0) !== (int) $order['customer_id']) {
+                throw new RuntimeException('The linked POS sale customer or shop does not match the order; manual review is required.');
+            }
             if (!empty($order['pos_sale_id']) && (int) $order['pos_sale_id'] !== (int) $existing['id']) {
                 throw new RuntimeException('Customer order is linked to a different POS sale.');
             }
