@@ -6,7 +6,7 @@ Use Flutter for two separate mobile apps targeting Android and iOS: Customer App
 
 ## App and authentication boundaries
 
-Both apps show a language selector before sign-in and use username/password through the API over TLS. SMS/OTP is out of scope for the initial release. After sign-in, fetch account status, capabilities and scope from `GET /api/v1/me`; local preferences never grant permissions.
+Both apps use English as the only supported UI language in the initial release. Structure UI strings for localization so additional languages can be added later without redesigning screens or business logic. Use username/password through the API over TLS; SMS/OTP is out of scope for the initial release. After sign-in, fetch account status, capabilities and scope from `GET /api/v1/me`; local preferences never grant permissions.
 
 - **Customer App:** customer home, catalog, cart, checkout, own orders, support and signup/approval states. Pending signups receive no ordering access and must not create a duplicate financial customer.
 - **Business/Staff App:** shop selector where permitted, pending customer signups, pending orders, order actions and permitted product/shop settings.
@@ -14,7 +14,7 @@ Both apps show a language selector before sign-in and use username/password thro
 
 ## Customer screens
 
-1. Language selector at login; username/password sign-in and recovery/help.
+1. English UI; username/password sign-in and recovery/help. Keep UI text localization-ready for future languages.
 2. Customer self-registration with a clear pending-approval state; no ordering access until approved.
 3. Shop identity shown read-only after account assignment.
 4. Head Office-defined catalog filtered by shop-level product activation/deactivation.
@@ -26,7 +26,7 @@ Both apps show a language selector before sign-in and use username/password thro
 
 ## Staff/owner screens
 
-1. Language selector and username/password sign-in.
+1. English UI and username/password sign-in; keep UI text localization-ready for future languages.
 2. Shop/business context.
 3. Pending customer signup approval queue and permissioned account create/reset actions.
 4. Business catalog administration and per-shop product activation/deactivation.
@@ -44,7 +44,7 @@ Both apps show a language selector before sign-in and use username/password thro
 - Prevent double taps and show submission state; rely on server idempotency too.
 - Do not calculate authoritative totals locally; display server quotes.
 - Do not display other shops' stock, customer details or order queues.
-- Accessible touch targets, concise text, responsive layouts and translations for every supported language. Use right-to-left layout where the selected language requires it. The language is selected at login.
+- Accessible touch targets, concise text, responsive layouts and localization-ready UI strings. English is the only initial language; future language additions should not require business-logic changes.
 - Do not store sensitive order data longer than needed in local caches.
 
 ## Build and release
