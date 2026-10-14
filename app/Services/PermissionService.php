@@ -61,6 +61,7 @@ class PermissionService
             'SHOP_SETTINGS_VIEW' => 'View shop settings',
             'SHOP_SETTINGS_MANAGE' => 'Manage shop settings',
             'SHOP_ACCESS_MANAGE' => 'Manage staff shop assignments',
+            'BUSINESS_CATALOG_VIEW' => 'View business product catalog',
             'BUSINESS_CATALOG_MANAGE' => 'Manage business product catalog',
             'ORDER_VIEW' => 'View customer orders',
             'ORDER_MANAGE' => 'Manage customer orders',
