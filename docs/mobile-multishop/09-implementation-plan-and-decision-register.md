@@ -1,8 +1,8 @@
 # Implementation Plan and Decision Register — Mobile Multi-Shop Ordering
 
-**Plan version:** 1.0  
-**Prepared:** 2026-10-13  
-**Status:** Planning decisions confirmed; implementation deliberately not started.  
+**Plan version:** 1.1  
+**Prepared:** 2026-10-14  
+**Status:** Owner decisions incorporated; documentation consistency pass in progress; implementation deliberately not started.  
 **Target branch:** `docs/mobile-multishop-final-plan` for this documentation-only update; implementation branch to be created after planning approval  
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14)
 
