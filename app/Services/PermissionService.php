@@ -146,6 +146,50 @@ class PermissionService
         return self::$permissionCache;
     }
 
+    /**
+     * Capabilities for an explicit staff identity. API requests do not use the
+     * browser session, so they must never rely on all()'s session-derived user ID.
+     *
+     * @return list<string>
+     */
+    public static function allForUser(int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        self::syncStandardRolePermissions();
+
+        $codes = Database::connect()->table('users u')
+            ->select('permissions.code')
+            ->join('role_permissions rp', 'rp.role_id=u.role_id')
+            ->join('permissions', 'permissions.id=rp.permission_id')
+            ->where(['u.id' => $userId, 'u.is_active' => 1])
+            ->get()
+            ->getResultArray();
+
+        return array_values(array_unique(array_map('strval', array_column($codes, 'code'))));
+    }
+
+    public static function allowsForUser(string $permission, int $userId): bool
+    {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        if (in_array($permission, self::SYSTEM_ADMIN_ONLY, true)) {
+            $user = Database::connect()->table('users')
+                ->select('id')
+                ->where(['id' => $userId, 'is_active' => 1, 'is_system_admin' => 1])
+                ->get()->getRowArray();
+            if (!$user) {
+                return false;
+            }
+        }
+
+        return in_array($permission, self::allForUser($userId), true);
+    }
+
     public static function current(): array
     {
         return array_fill_keys(self::all(), true);
