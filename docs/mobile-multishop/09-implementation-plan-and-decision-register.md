@@ -369,3 +369,74 @@ Future: Business B, Business C, etc., each with its own Head Office and shops.
 - Fresh installation and repeat migration/seed execution are tested.
 - Existing Gas Sale/Refill, Cylinder Sale, Security Deposit/Issue Cylinder, and Cylinder Return/Refund Deposit flows pass regression tests.
 - No production release until the owner approves implementation, test evidence, and deployment/rollback plan.
+
+
+## 7. Confirmed customer offline-order synchronization architecture (2026-10-14)
+
+This section records the owner's clarified requirement for the customer mobile app. It supersedes any interpretation that customer orders must be sent immediately or that the customer mobile app must connect directly to a shop's local database.
+
+### 7.1 Applications and responsibilities
+
+- **Customer mobile app (Android/iOS):** Used by customers to browse the assigned shop's approved orderable items, prepare and submit orders, and view order status. It keeps a durable local queue of orders that have not yet been accepted by the cloud.
+- **Central cloud API and database:** The authoritative endpoint for customer order submission, identity/shop authorization, order IDs, status, and synchronization. The mobile app must never connect directly to MySQL.
+- **Shop web app:** Receives and displays orders after they have successfully reached the central cloud database. Staff process them through the existing permission-controlled Order Management workflow.
+- **Head Office:** Views orders across shops in its own business only where the signed-in user has the required permissions. It can see a customer's pending local-only order only after that order has synchronized to the cloud.
+- **Shop-local database:** Any existing or future local shop installation is separate from this customer-order flow. The customer app does not need direct connectivity to the shop's local database for an order to be submitted.
+
+### 7.2 Online and offline behavior
+
+**When internet is available**
+1. Customer reviews the order and submits it to the versioned cloud API.
+2. The server authenticates the customer, derives the customer's assigned shop from trusted server-side data, validates orderable items and current rules, and stores the order.
+3. The server returns the stable public order number and current status.
+4. The order appears in the correct shop's web Order Management queue and authorized Head Office views.
+
+**When internet is unavailable or the request cannot be confirmed**
+1. Show a clear message such as: **“Internet connection unavailable. Your order is saved on this phone and will be sent automatically when the connection returns.”**
+2. Save the order payload durably in the app's local database/queue with a client-generated unique operation ID/idempotency key, creation time, and a `pending_sync` state.
+3. Show that it is **saved on this device but not yet received by the shop**. Do not show it as submitted, accepted, or confirmed by the shop.
+4. Retry automatically when connectivity returns and also provide a safe manual retry action.
+5. Only mark it synchronized after the server confirms successful storage and returns the authoritative order ID/status. If the outcome of a request is uncertain, retry with the same idempotency key and reconcile with the server rather than creating a new order.
+6. If validation fails after reconnection (for example, an item is no longer orderable or the price/availability has changed), show the reason and require the customer to review or resubmit as appropriate. Never silently alter the order or its quoted price.
+
+**Connectivity note:** A device's connectivity indicator alone does not prove the cloud API is reachable. The app must handle timeouts, DNS/TLS errors, server errors, app restarts, and intermittent connections without losing queued orders or creating duplicates.
+
+### 7.3 Queue and API requirements
+
+- Persist pending orders across app restarts and device reboots; do not rely only on in-memory state.
+- Use a stable idempotency key per intended order submission. Server-side uniqueness and transactional processing must prevent duplicate orders when requests are retried.
+- Distinguish at least these client sync states: `pending_sync`, `syncing`, `synced`, and `needs_customer_action` (exact names can follow code conventions).
+- Store only the minimum customer/order information needed for the queue, protect local sensitive data, and clear or securely handle it on logout/account removal according to an approved retention policy.
+- Use exponential/backoff-style retry limits and avoid rapid repeated requests. Keep a visible retry/error state without discarding the order.
+- The server derives business, shop, and customer ownership from the authenticated account. Never trust a shop ID supplied by the mobile client as authorization.
+- Provide a way to reconcile local queued submissions with server order IDs after an ambiguous network failure.
+- Cloud order status updates should refresh the customer app when online; status must not be fabricated or treated as live while disconnected.
+- Push notifications may be added later; they are not required for the first reliable order-sync release.
+
+### 7.4 Business and financial boundaries
+
+- A locally queued order is only an unsubmitted customer intention. It is not visible to the shop until the cloud accepts it.
+- An order in the cloud is still an order, not a POS sale. Submission, synchronization, acceptance, rejection, and cancellation must not independently post sales, revenue, customer outstanding balance (OS), receipts, cash, deposits, cylinder custody, or inventory movement.
+- Shop staff must process synchronized orders using the approved web workflow and the existing authoritative POS fulfilment services.
+- An order may be fulfilled only once. Use the unique order-to-sale link and idempotent fulfilment boundary documented in WP-4/WP-9.
+- The app must clearly distinguish local-only pending orders from cloud-submitted orders and shop-confirmed statuses.
+
+### 7.5 Additional acceptance tests
+
+1. Customer submits online: one cloud order appears in only the customer's assigned shop queue.
+2. Customer submits offline: the order remains in local storage, a clear offline/pending message is shown, and no shop order is falsely reported as received.
+3. App is closed/reopened while offline: the pending order remains available.
+4. Connectivity returns: the order synchronizes and appears once in the correct shop queue.
+5. API stores the order but the response is lost: retry with the same idempotency key yields the original order, not a duplicate.
+6. Connectivity repeatedly drops during synchronization: the order is retained and eventually reconciled without duplicates.
+7. Customer tampers with shop/customer identifiers: server-side scope checks reject unauthorized access and submission.
+8. Price/item availability changes before synchronization: the app surfaces the conflict and requires the defined review action.
+9. A pending local-only order is not shown as cloud-confirmed in customer history or Head Office/shop views.
+10. Synchronizing, accepting, rejecting, or cancelling an order creates no unintended POS, ledger, cash, deposit, custody, or inventory posting.
+11. Logout/account change does not expose one customer's queued orders to another signed-in customer.
+12. Existing POS transaction-type and ledger/inventory regression suites continue to pass.
+
+### 7.6 Scope clarification
+
+The first release requires **offline queueing on the customer phone**, not full offline customer-to-shop communication. If the internet is down, the shop cannot receive the order until the phone can reach the cloud. Offline order acceptance, shop-to-phone local-network synchronization, or direct peer-to-peer sync are explicitly out of scope unless separately approved.
+
