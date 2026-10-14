@@ -146,7 +146,9 @@ Tasks:
 - Add a web Order Management screen under existing authentication and permission conventions.
 - Provide pending queue, filters, order detail/timeline, accept/reject reasons, allowed status changes and safe links to existing POS fulfilment.
 - Keep customer and order reads scoped to authorized shops/businesses.
-- Define operational handling for changed rates/availability after an order is submitted.
+- Add a permission-controlled customer signup approval queue for Admin/Manager users; approvals must be limited to their own shop scope and link to one customer master record.
+- Provide Head Office control of the business product catalog and shop-level product activation/deactivation, plus shop configuration for available fulfilment methods.
+- Use existing validated rate logic and define handling for rate/availability changes after an order is submitted.
 - Ensure order completion requires the explicitly agreed fulfilment/POS reconciliation condition; never mark a sale completed before the authoritative posting succeeds.
 - Keep notifications outside the critical transaction where practical; persist/commit state first and retry notification delivery safely.
 
@@ -159,18 +161,18 @@ Exit criteria:
 **Goal:** Expose the approved order workflow safely to native clients.
 
 Proposed API groups (final routes must follow repository conventions):
-- Auth: OTP request/verify, logout, optional refresh, `GET /api/v1/me`.
+- Auth: `POST /api/v1/auth/login` with username/password, logout, refresh/session renewal, password change/recovery as approved, and `GET /api/v1/me`; no SMS/OTP endpoints in MVP.
 - Customer: assigned shop, catalog, availability/quote, create/list/read/cancel own orders.
 - Staff/owner: authorized shops, scoped order list/detail, accept/reject/status and approved fulfilment handoff.
 - Platform responses: stable JSON error schema, pagination, request/correlation ID and no HTML login redirects for API requests.
 
 Tasks:
-- Select token/session lifecycle, expiry, revocation, refresh and device storage behavior.
+- Use TLS-only login and API access. Target a 15-minute access-token lifetime and rotating refresh sessions with a 30-day maximum lifetime; keep sessions separately revocable per app/device. Logout revokes the current session; password reset, account disablement, or removal of signup approval revokes all sessions. Verify framework support in WP-0 before implementation and document any required adjustment.
 - Add request validation, payload-size limits, rate limits, safe logging, error handling and audit.
 - Enforce authentication, capability, business/shop scope, record ownership and state transition on every protected endpoint.
 - Validate every identifier against authenticated server-side scope.
 - Use idempotency for order creation and fulfilment; do not assume the client can guarantee exactly-once delivery.
-- Test expired/revoked credentials, brute-force controls, replay, mass assignment, object reference attacks and cross-shop requests.
+- Test expired/revoked sessions, login throttling, refresh-session rotation/replay, mass assignment, object reference attacks and cross-shop requests.
 
 Exit criteria:
 - API security tests pass independently of Flutter.
@@ -183,11 +185,12 @@ Exit criteria:
 This is a separate app from the Business/Staff App. Customer and staff identities, navigation, app distribution and workflows must not be combined into a single app package.
 
 Screens:
-- Phone verification/sign-in and account recovery.
+- Login-time language selector; username/password sign-in; customer self-registration with pending-approval state; account recovery/help and password change.
 - Read-only assigned-shop context.
-- Approved catalog and server-provided prices/availability.
+- Head Office-defined catalog filtered by each shop's active product settings.
+- Server-calculated prices/availability and saved price snapshots; require review if an offline queued order encounters a changed price.
 - Cart and order review.
-- Delivery/collection details only according to approved shop policy.
+- Customer selects delivery or collection at checkout. Delivery requires an address; only shop-enabled methods are offered, and any configured fee/condition is shown before submission.
 - Submit/confirmation with public order number.
 - Own order history, status timeline and cancellation where allowed.
 - Profile/help/error and retry states.
@@ -209,9 +212,10 @@ Exit criteria:
 This is a separate app package from the Customer App. Within the Business/Staff App, available screens and actions are determined by server-granted capabilities and business/shop scope.
 
 Screens:
-- Staff sign-in and server-derived permissions.
+- Login-time language selector; staff username/password sign-in and server-derived permissions.
 - Authorized shop selection only for accounts with multiple shop assignments.
-- Pending orders, filters, order details, status timeline and reason capture.
+- Pending customer signups needing approval, plus pending orders, filters, order details, status timeline and reason capture.
+- Business catalog administration and shop-level product activation/deactivation, limited by permissions and business/shop scope.
 - Owner cross-shop overview restricted to the owner's business and allowed capabilities.
 - Empty/loading/offline/retry/permission-denied states.
 
