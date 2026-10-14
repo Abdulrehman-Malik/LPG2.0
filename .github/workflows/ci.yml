@@ -66,6 +66,9 @@ jobs:
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/034_20261014_pending_signup_username_guard.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/035_20261014_centralized_configuration_storage.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/036_20261014_order_idempotency_price_reconfirmation.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/037_20261014_sale_delivery_fee_component.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/038_20261014_customer_order_sale_idempotency.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/039_20261014_order_physical_cylinder_selection.sql
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('businesses','user_business_access','user_shop_access')" | grep -qx 3
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('business_catalog_products','shop_product_availability','customer_app_accounts','customer_signup_requests','api_sessions','api_access_tokens','api_refresh_tokens','customer_orders','customer_order_items','customer_order_status_history')" | grep -qx 10
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customer_signup_requests' AND COLUMN_NAME='pending_username'" | grep -qx 1
@@ -74,6 +77,8 @@ jobs:
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM application_settings WHERE setting_key IN ('customer_ordering_feature_enabled','orders_enabled','delivery_enabled','collection_enabled','delivery_fee','customer_self_registration_enabled','supported_languages','access_token_ttl_seconds','refresh_idle_ttl_seconds','refresh_absolute_ttl_seconds','password_min_length')" | grep -qx 11
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customer_orders' AND COLUMN_NAME IN ('request_fingerprint','price_revision','price_reconfirmation_required','price_reconfirmed_at')" | grep -qx 4
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='locations' AND COLUMN_NAME='business_id') OR (TABLE_NAME='customers' AND COLUMN_NAME='location_id') OR (TABLE_NAME='users' AND COLUMN_NAME='is_system_admin'))" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='sales' AND COLUMN_NAME='delivery_fee_amount') OR (TABLE_NAME='sales' AND COLUMN_NAME='customer_order_id') OR (TABLE_NAME='customer_order_items' AND COLUMN_NAME='selected_cylinder_unit_ids'))" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sales' AND INDEX_NAME='uq_sales_customer_order' AND NON_UNIQUE=0" | grep -qx 1
 
       - name: CodeIgniter smoke check
         env:
