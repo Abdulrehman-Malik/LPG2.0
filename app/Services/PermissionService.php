@@ -82,9 +82,7 @@ class PermissionService
                 'ROLE_PERMISSION_MANAGE',
                 'APPLICATION_SETTINGS_VIEW',
                 'APPLICATION_SETTINGS_MANAGE',
-                'BUSINESS_SETTINGS_VIEW',
-                'BUSINESS_SETTINGS_MANAGE',
-                'SHOP_ACCESS_MANAGE',
+
             ])),
             'CASHIER' => ['DASHBOARD_VIEW', 'POS_SALE', 'POS_HISTORY', 'CUSTOMER_MANAGE', 'REPORT_VIEW'],
         ];
