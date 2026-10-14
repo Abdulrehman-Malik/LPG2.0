@@ -82,5 +82,5 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 - Delivery fee, service area and delivery-slot rules.
 - Whether customer-facing rates use shop-specific rate cards or a business-level default with shop override.
 - Whether owner role should be a new role code or an existing configurable role with business-wide scope.
-- How existing customers are mapped to shops during migration. Never guess this mapping silently.
+- No legacy customer-to-shop mapping/backfill is required for this fresh deployment. If a populated existing installation is later selected for upgrade, handle it through a separate approved upgrade plan.
 
