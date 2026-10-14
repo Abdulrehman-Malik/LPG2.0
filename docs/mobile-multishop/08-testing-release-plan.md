@@ -34,7 +34,7 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 
 ### Security
 - Unauthenticated API request is rejected with JSON, not redirected to HTML login.
-- Expired/revoked token cannot access data.
+- Expired/revoked session cannot access data; Customer App sessions cannot call staff endpoints and Business/Staff App sessions cannot call customer endpoints.
 - Object-level authorization and shop scope are tested for every endpoint.
 - Mass assignment, SQL error leakage, unauthorized signup approval, request replay, login abuse and brute force are tested.
 - Rate limits and audit events are verified.
@@ -57,7 +57,8 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 7. Verify Shop B staff cannot view or act on Shop A's order.
 8. Sign in as business owner; confirm cross-shop overview only within the owner's business.
 9. Fulfil one accepted order through the approved POS integration and reconcile sale, inventory and payment records.
-10. Repeat with network interruption/retry, cancellation, stock change and price change.
+10. Repeat with network interruption/retry, cancellation, stock/rate change, product activation/deactivation and price reconfirmation.
+11. Test signup pending state, Admin/Manager approval and rejection, account recovery, and login-time language selection in both apps.
 11. Run Android and iOS functional tests against the same API.
 12. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
 
