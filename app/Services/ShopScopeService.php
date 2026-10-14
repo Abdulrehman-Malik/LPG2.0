@@ -105,9 +105,14 @@ class ShopScopeService
         }
 
         if ((int) ($user['is_system_admin'] ?? 0) === 1) {
-            $rows = $this->db->table('locations')
-                ->select('id')
-                ->where('is_active', 1)
+            $rows = $this->db->table('locations l')
+                ->select('l.id')
+                ->join('businesses b', 'b.id=l.business_id', 'left')
+                ->where('l.is_active', 1)
+                ->groupStart()
+                    ->where('l.business_id IS NULL', null, false)
+                    ->orWhere('b.is_active', 1)
+                ->groupEnd()
                 ->get()
                 ->getResultArray();
 
@@ -129,8 +134,13 @@ class ShopScopeService
         $directRows = $this->db->table('user_shop_access usa')
             ->select('l.id')
             ->join('locations l', 'l.id=usa.location_id', 'inner')
+            ->join('businesses b', 'b.id=l.business_id', 'left')
             ->where('usa.user_id', $id)
             ->where('l.is_active', 1)
+            ->groupStart()
+                ->where('l.business_id IS NULL', null, false)
+                ->orWhere('b.is_active', 1)
+            ->groupEnd()
             ->get()
             ->getResultArray();
 
@@ -153,9 +163,14 @@ class ShopScopeService
         }
 
         if (!$hasShopAssignments && !$hasBusinessAssignments && !empty($user['location_id'])) {
-            $legacyShop = $this->db->table('locations')
-                ->select('id')
-                ->where(['id' => (int) $user['location_id'], 'is_active' => 1])
+            $legacyShop = $this->db->table('locations l')
+                ->select('l.id')
+                ->join('businesses b', 'b.id=l.business_id', 'left')
+                ->where(['l.id' => (int) $user['location_id'], 'l.is_active' => 1])
+                ->groupStart()
+                    ->where('l.business_id IS NULL', null, false)
+                    ->orWhere('b.is_active', 1)
+                ->groupEnd()
                 ->get()
                 ->getRowArray();
 
@@ -186,9 +201,14 @@ class ShopScopeService
         $directDefault = $this->db->table('user_shop_access usa')
             ->select('l.id')
             ->join('locations l', 'l.id=usa.location_id', 'inner')
+            ->join('businesses b', 'b.id=l.business_id', 'left')
             ->where('usa.user_id', $id)
             ->where('usa.is_default', 1)
             ->where('l.is_active', 1)
+            ->groupStart()
+                ->where('l.business_id IS NULL', null, false)
+                ->orWhere('b.is_active', 1)
+            ->groupEnd()
             ->orderBy('l.id', 'ASC')
             ->get()
             ->getRowArray();
