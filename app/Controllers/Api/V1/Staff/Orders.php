@@ -120,7 +120,7 @@ class Orders extends Controller
                 'status' => $result['status'] ?? null,
                 'message' => $result['message'] ?? 'Order fulfillment processed.',
             ]]);
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $message = $e->getMessage();
             if (str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED')) {
                 return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The customer must review and reconfirm the current order total before fulfillment.');
