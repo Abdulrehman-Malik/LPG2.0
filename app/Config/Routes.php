@@ -12,10 +12,12 @@ $routes->group('api/v1', static function(RouteCollection $routes){
 
     $routes->group('customer', ['filter'=>'api-auth:customer'], static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::customerLogout');
+        $routes->post('auth/change-password','Api\\V1\\Auth::customerChangePassword');
         $routes->get('me','Api\\V1\\Customer\\Me::show');
     });
     $routes->group('staff', ['filter'=>'api-auth:staff'], static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::staffLogout');
+        $routes->post('auth/change-password','Api\\V1\\Auth::staffChangePassword');
         $routes->get('me','Api\\V1\\Staff\\Me::show');
         $routes->get('shops','Api\\V1\\Staff\\Me::shops');
         $routes->get('customer-signups','Api\\V1\\Staff\\CustomerAccounts::signupRequests');
