@@ -24,7 +24,7 @@ The backend remains authoritative for identity, permissions, shop scope, item el
 
 1. No direct MySQL access from the mobile app.
 2. No application or database changes on `main`; work only on the designated feature branch until explicit merge approval.
-3. No production data updates, customer reassignment or migration until a reviewed mapping report and backup/recovery plan are approved.
+3. No application, schema, configuration or production-data changes until implementation is explicitly approved. The owner confirmed that no existing business/customer transactional data must be migrated for this initiative, so do not create legacy customer-to-shop mapping or historical backfill tooling. Design repeatable fresh-install schema/seeds and a reviewed upgrade path for any existing installation that may be selected later.
 4. A submitted or accepted order is not a sale. It must not, by itself, create revenue, customer OS, receipts, cash movement, payment, deposit, cylinder custody or inventory movement.
 5. Actual sale fulfilment must call the existing validated backend POS/sales services and must not reproduce their financial rules in Flutter or a new order controller.
 6. Preserve current ADMIN/MANAGER/CASHIER and custom role behavior. Extend the existing permission tables and service; add explicit business/shop scope checks rather than a parallel role system.
@@ -51,26 +51,28 @@ Exit criteria:
 - Test environments and a safe copy of a representative database are available.
 - No code or schema changed during this work package.
 
-### WP-1 — Legacy data discovery and customer-to-shop mapping
-**Goal:** Know which shop owns each existing customer before adding enforced ownership.
+### WP-1 — Fresh-install schema and ownership foundations
+**Goal:** Define business/shop/customer ownership for a clean install without legacy customer-data migration.
 
 Tasks:
-- On a safe, non-production database copy, inventory businesses/locations, customers, staff, sales, receipts, ledger entries, security deposits, cylinder custody and transactions by location.
-- Identify customers with no posted transactions, customers with activity in one location, customers with activity in multiple locations, customers whose activity has null/missing location, duplicate/shared phone values and inactive records.
-- Produce a mapping report with proposed shop, evidence, confidence, unresolved reason and owner decision.
-- Do not infer customer ownership from the currently logged-in browser session or assign all customers to a default shop.
-- Decide how to represent customers with multi-shop historic activity while preserving each historical transaction's original location.
+- Design the business/company parent entity; every shop/location belongs to exactly one business.
+- Assign every customer to exactly one shop at customer creation or explicit, audited account setup.
+- Ensure each customer app identity links to one financial customer master record rather than creating a duplicate during signup.
+- Specify fresh-install schema, repeatable seeds, unique constraints and relationships for businesses, shops, customers, customer identities and permissions.
+- Inspect current source schema and migration conventions for compatibility, but do not perform historic transaction mapping or infer legacy customer ownership.
+- If an existing installation is later selected for upgrade, require a separate reviewed upgrade/data-handling plan before changing live data.
 
 Deliverables:
-- Data inventory summary.
-- Customer-to-shop mapping CSV/report with sensitive details minimized.
-- Unresolved mapping register and reviewed disposition.
-- Backup/restore and rehearsal evidence.
+- Reviewed logical data model and relationship constraints.
+- Fresh-install schema/migration and seed specification.
+- Upgrade and recovery considerations for any existing installation.
+- Customer account-to-financial-master linking rules.
 
 Exit criteria:
-- Shop-to-business ownership and customer-to-shop mapping approved by the business owner.
-- Unresolved customers are identified and explicitly prevented from mobile ordering until resolved.
-- Historical sales, receipts, deposits, custody, cash and inventory records remain unchanged.
+- Clean install creates the required business, shop and customer ownership structure repeatably.
+- Every newly created customer belongs to one shop, and customers cannot self-select an unauthorized shop.
+- Legacy customer mapping reports and historical backfills are not prerequisites.
+- Signup does not duplicate or silently rewrite financial customer or historical transaction records.
 
 ### WP-2 — Business/shop ownership and authorization foundations
 **Goal:** Enforce capability permission and data scope as separate server-side checks.
