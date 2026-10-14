@@ -13,7 +13,9 @@ class BusinessManagement extends Controller
 {
     protected function canCreateBusiness(): bool
     {
-        return PermissionService::allows('APPLICATION_SETTINGS_MANAGE');
+        $userId = (int) (session()->get('user_id') ?? 0);
+        return PermissionService::allows('APPLICATION_SETTINGS_MANAGE')
+            && (new ShopScopeService())->isSystemAdministrator($userId);
     }
 
     public function index()
