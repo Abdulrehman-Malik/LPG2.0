@@ -744,6 +744,61 @@ class CustomerOrderService
         return $order ? $this->orderById($orderId, null) : null;
     }
 
+    public function fulfillmentOptions(int $userId, int $shopId, int $orderId): array
+    {
+        if (!(new ShopScopeService())->canAccessShop($shopId, $userId)) {
+            throw new RuntimeException('You do not have access to this shop.');
+        }
+
+        $order = $this->db->table('customer_orders')
+            ->where(['id' => $orderId, 'location_id' => $shopId])
+            ->get()->getRowArray();
+        if (!$order) throw new RuntimeException('Order not found in this shop.');
+        if (!in_array((string) $order['status'], ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+            throw new RuntimeException('This order has no available fulfillment options.');
+        }
+
+        $items = $this->db->table('customer_order_items')->where('order_id', $orderId)->orderBy('line_no')->get()->getResultArray();
+        $options = [];
+        foreach ($items as $item) {
+            $mode = (string) $item['sale_mode'];
+            $status = $mode === 'sell_empty' ? 'empty' : 'filled';
+            $builder = $this->db->table('cylinder_units')
+                ->select('id,unit_code,cylinder_type_id,status,gas_weight_kg')
+                ->where(['location_id' => $shopId, 'cylinder_type_id' => (int) $item['cylinder_type_id'], 'status' => $status])
+                ->orderBy('unit_code', 'ASC')
+                ->orderBy('id', 'ASC');
+            if ($status === 'filled') $builder->where('gas_weight_kg >', 0);
+            if ($mode === 'sell_gas_only') $builder->where('gas_weight_kg >=', (float) $item['quantity']);
+            $units = $builder->get()->getResultArray();
+
+            $options[] = [
+                'line_no' => (int) $item['line_no'],
+                'product_name' => (string) $item['product_name_snapshot'],
+                'sale_mode' => $mode,
+                'cylinder_type_id' => (int) $item['cylinder_type_id'],
+                'quantity_required' => (float) $item['quantity'],
+                'selection_field' => $mode === 'sell_gas_only' ? 'source_cylinder_unit_id' : 'selected_cylinder_unit_ids',
+                'cylinders' => array_map(static function (array $unit) use ($status): array {
+                    $result = [
+                        'id' => (int) $unit['id'],
+                        'unit_code' => (string) $unit['unit_code'],
+                        'status' => (string) $unit['status'],
+                    ];
+                    if ($status === 'filled') $result['gas_weight_kg'] = round((float) $unit['gas_weight_kg'], 3);
+                    return $result;
+                }, $units),
+            ];
+        }
+
+        return [
+            'order_id' => $orderId,
+            'shop_id' => $shopId,
+            'price_reconfirmation_required' => (int) $order['price_reconfirmation_required'] === 1,
+            'lines' => $options,
+        ];
+    }
+
     public function fulfill(int $userId, int $shopId, int $orderId, array $payload): array
     {
         if (!(new ShopScopeService())->canAccessShop($shopId, $userId)) {
