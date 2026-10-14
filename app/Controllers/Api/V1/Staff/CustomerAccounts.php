@@ -4,6 +4,7 @@ namespace App\Controllers\Api\V1\Staff;
 
 use App\Services\ApiSessionService;
 use App\Services\AuditService;
+use App\Services\ConfigurationService;
 use App\Services\PermissionService;
 use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
@@ -284,9 +285,10 @@ class CustomerAccounts extends Controller
         $input = $this->payload();
         $username = strtolower(trim((string) ($input['username'] ?? '')));
         $password = (string) ($input['password'] ?? '');
-        if (!preg_match('/^[a-z0-9._-]{3,80}$/', $username) || strlen($password) < 10) {
+        $passwordMinLength = (int) (new ConfigurationService())->resolve('password_min_length')['value'];
+        if (!preg_match('/^[a-z0-9._-]{3,80}$/', $username) || strlen($password) < $passwordMinLength) {
             return $this->response->setStatusCode(422)->setJSON([
-                'error' => ['code' => 'VALIDATION_FAILED', 'message' => 'Username must be 3–80 supported characters and password must be at least 10 characters.'],
+                'error' => ['code' => 'VALIDATION_FAILED', 'message' => 'Username must be 3–80 supported characters and password must be at least ' . $passwordMinLength . ' characters.'],
             ]);
         }
 
