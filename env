@@ -22,9 +22,9 @@ CI_ENVIRONMENT = development
 
 # Public base URL of the app; include the trailing slash.
 # Local example:
-app.baseURL = 'http://localhost:180/LPG/public/'
+app.baseURL = 'http://localhost:/LPG2.0public/'
 # Alternative spelling supported by CodeIgniter if dotted keys are awkward:
-app_baseURL = 'http://localhost:180/LPG/public/'
+app_baseURL = 'http://localhost:LPG2.0/public/'
 
 # Optional: force all requests to HTTPS. Enable only when HTTPS/proxy configuration is correct.
 # app.forceGlobalSecureRequests = false
@@ -32,7 +32,7 @@ app_baseURL = 'http://localhost:180/LPG/public/'
 # app.CSPEnabled = false
 
 # Company name displayed on the login page and browser title.
-app.companyName = 'Perfect LPG (Pvt.) LTD'
+app.companyName = 'Perfect LPG (Pvt.) LTD 2.0'
 
 #--------------------------------------------------------------------
 # DATABASE — STANDARD CODEIGNITER SETTINGS
