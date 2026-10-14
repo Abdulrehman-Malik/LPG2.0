@@ -864,7 +864,7 @@ class CustomerOrderService
                 $orderId,
                 (float) $order['delivery_fee']
             );
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), 'ORDER_PRICE_RECONFIRMATION_REQUIRED')) {
                 return $this->refreshQuoteForReconfirmation(
                     $userId,
@@ -915,7 +915,7 @@ class CustomerOrderService
                 'message' => 'The selected physical cylinder changed before posting. A revised quote was saved; customer reconfirmation and shop acceptance are required.',
                 'order' => $this->orderById($orderId, null),
             ];
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $this->db->transRollback();
             throw $e;
         }
