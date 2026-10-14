@@ -76,13 +76,13 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 - Head Office defines the business product catalog; each shop activates/deactivates products based on what it currently sells.
 - Customer chooses delivery or collection; delivery requires an address and any configured fee/condition is shown before submission.
 - The server calculates prices and saves a cloud-order price snapshot; changes require customer review/reconfirmation, never silent repricing.
-- Both apps are multilingual with language selection at login.
+- English is the only initial UI language in both apps; keep the UI localization-ready so more languages can be added later.
 - MVP order is pending until accepted by authorized staff.
 - No online payment, automated deposit, or automatic cylinder custody in the first release unless separately approved.
 
 ## Decisions to validate before production implementation
 
-- Initial supported language list and translated UI content; the login-time language selector and localization support are confirmed.
+- Future language additions and translations. A language selector should be introduced when a second language is added.
 - Whether one staff user may be assigned to multiple shops.
 - Exact cancellation window and status transitions.
 - Final per-shop delivery settings, including optional fee/service-area/slot rules; the customer choice between delivery and collection is confirmed.
