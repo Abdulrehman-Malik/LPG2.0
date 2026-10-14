@@ -66,7 +66,7 @@ Review [Module 10 — Centralized Configuration Management](10-configuration-man
 
 Implementation is underway only on `feature/mobile-multishop-ordering`. Keep all changes off `main`; do not merge without explicit approval. Do not build legacy customer mapping/backfill tooling for this deployment.
 
-The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment reconciliation (delivery-fee component groundwork added; atomic posting and reconciliation remain blocked) → two-shop pilot and release.
+The ordered work is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval → order data/state machine → backend API/security (underway) → separate Customer App → separate Business/Staff App → transaction-safe POS fulfilment backend (initial implementation and CI smoke checks complete; integration edge-case review remains) → Customer and Business/Staff Flutter apps → two-shop pilot and release.
 
 ## Decisions already fixed
 
