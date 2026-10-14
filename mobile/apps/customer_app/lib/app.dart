@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lpg_mobile_core/lpg_mobile_core.dart';
 
 import 'home_screen.dart';
+import 'signup_screen.dart';
 
 class CustomerApp extends StatefulWidget {
   const CustomerApp({
@@ -21,6 +22,7 @@ class CustomerApp extends StatefulWidget {
 
 class _CustomerAppState extends State<CustomerApp> {
   late Future<bool> _session;
+  bool _showSignup = false;
 
   @override
   void initState() {
@@ -58,11 +60,18 @@ class _CustomerAppState extends State<CustomerApp> {
             if (snapshot.data == true) {
               return CustomerHomeScreen(client: widget.client, onLogout: _loggedOut);
             }
+            if (_showSignup) {
+              return CustomerSignupScreen(
+                client: widget.client,
+                onBack: () => setState(() => _showSignup = false),
+              );
+            }
             return LpgLoginScreen(
               appName: 'LPG Customer',
               audience: 'customer',
               authService: widget.authService,
               onLoggedIn: _loggedIn,
+              onSignUp: () => setState(() => _showSignup = true),
             );
           },
         ),
