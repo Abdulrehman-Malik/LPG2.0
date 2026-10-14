@@ -115,6 +115,14 @@ $groups=[
             ['permission'=>'SUPPLIER_MANAGE','url'=>'suppliers','label'=>'Suppliers','icon'=>'bi-truck'],
         ],
     ],
+    'mobile_operations'=>[
+        'label'=>'Mobile Ordering Setup',
+        'icon'=>'bi-phone',
+        'items'=>[
+            ['permission'=>'CUSTOMER_ACCOUNT_MANAGE','url'=>'customer-app-accounts','label'=>'Customer App Accounts','icon'=>'bi-person-check'],
+            ['permission'=>['BUSINESS_CATALOG_VIEW','BUSINESS_CATALOG_MANAGE','SHOP_SETTINGS_VIEW','SHOP_SETTINGS_MANAGE'],'url'=>'mobile-catalog','label'=>'Customer Ordering Catalog','icon'=>'bi-basket2'],
+        ],
+    ],
     'ordering'=>[
         'label'=>'Customer Ordering',
         'icon'=>'bi-basket2',
