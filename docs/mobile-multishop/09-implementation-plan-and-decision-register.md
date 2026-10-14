@@ -10,10 +10,10 @@ This document is the execution plan for the mobile app and multi-shop ordering f
 
 ## 1. Project outcome
 
-Deliver one Flutter app for Android and iOS, backed by the existing CodeIgniter/PHP and MySQL system, supporting:
-- Customers linked to existing LPG customer master records and assigned to exactly one shop.
-- Shop staff who can receive and process orders only for assigned shop(s).
-- Business owners who can view permitted records across shops owned by their business without gaining global system-admin privileges.
+Deliver two separate Flutter mobile apps for Android and iOS, backed by the existing CodeIgniter/PHP and MySQL system:
+- **Customer App:** Customers linked to existing LPG customer master records and assigned to exactly one shop can place and track their own orders.
+- **Business/Staff App:** Shop staff can receive and process orders only for assigned shop(s); Head Office users can access permitted records across shops owned by their business without gaining global system-admin privileges.
+- Both apps use the same secure, versioned cloud API where appropriate, but have separate app experiences, navigation, release packages and authorization-aware workflows.
 - A browser-based Order Management workflow in the existing LPG web app.
 - An authenticated, versioned API shared by web/mobile domain services where appropriate.
 - Safe creation, acceptance, rejection, cancellation, status tracking and eventual sale fulfilment without bypassing existing POS rules.
@@ -173,8 +173,10 @@ Exit criteria:
 - Unauthenticated calls return JSON errors.
 - No endpoint exposes another customer's profile/order or another shop's operational data.
 
-### WP-7 — Flutter app: customer experience
-**Goal:** Allow a linked customer to place and track a shop-specific order.
+### WP-7 — Customer App (Flutter)
+**Goal:** Deliver a dedicated customer-only mobile app that allows a linked customer to place and track a shop-specific order.
+
+This is a separate app from the Business/Staff App. Customer and staff identities, navigation, app distribution and workflows must not be combined into a single app package.
 
 Screens:
 - Phone verification/sign-in and account recovery.
@@ -197,8 +199,10 @@ Exit criteria:
 - Android/iOS customer flows pass against the same API.
 - Customer can access only the account and orders linked to their authenticated identity.
 
-### WP-8 — Flutter app: staff and business-owner experiences
-**Goal:** Support authorized order handling in one app package without privilege mixing.
+### WP-8 — Business/Staff App (Flutter)
+**Goal:** Deliver a separate app for shop staff and Head Office users to handle authorized operational workflows.
+
+This is a separate app package from the Customer App. Within the Business/Staff App, available screens and actions are determined by server-granted capabilities and business/shop scope.
 
 Screens:
 - Staff sign-in and server-derived permissions.
@@ -293,7 +297,7 @@ The feature is not ready unless all of these are true:
 - Actual fulfilment reuses existing POS rules and is reconcilable.
 - Existing web POS, customer/supplier ledgers, receipts, deposits, custody, cash, inventory, rates and reporting pass regression.
 - API auth, scope, request validation, rate limiting, logging and failure responses pass automated security tests.
-- Android and iOS use the same documented API and pass the agreed test cases.
+- The separate Customer App and Business/Staff App for Android and iOS use the documented API and pass their respective test cases.
 - Upgrade and fresh-install database paths are tested.
 - Runtime QA is current to the commit under test, with no claim of success without evidence.
 - Backup, support, monitoring and recovery plans are documented.
@@ -320,7 +324,7 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Shop isolation:** Each shop has its own employees and operational data. Shop employees can access only their assigned shop, unless a separately approved explicit multi-shop assignment is granted. Role capability and data scope must both be checked.
 - **Shop roles:** Manager, Cashier, Operations Manager, and Shop Admin are supported shop-level roles. Their capabilities are permission-driven; role names alone are not authorization. Shop Admin has full access to data and administration within their own shop, including managing that shop's employees and settings, but cannot access other shops or businesses unless separately assigned and permitted.
 - **Customer ownership:** Each customer belongs to exactly one shop. A customer mobile account links to that existing customer record; it must not create a duplicate financial customer. The project starts with no existing business/customer transactional data to migrate, so no legacy customer-to-shop mapping or historical-data backfill is required. Fresh-install schema and seed setup must create the required structure.
-- **Mobile application:** One Flutter application for Android and iOS serves customers and shop/Head Office staff. The signed-in identity and server-granted permissions determine the appropriate experience and available actions.
+- **Mobile applications:** Build two separate Flutter applications for Android and iOS: (1) a Customer App for customers to place and track their own orders, and (2) a Business/Staff App for shop employees and Head Office users. They may share approved API contracts and reusable technical components, but must remain separate app experiences/packages with distinct authentication flows, navigation and permission boundaries. Staff/Head Office access is always server-authorized and scoped to the user's business and assigned shop(s). Do not combine customer and staff experiences into one mobile app.
 - **Authentication:** SMS/OTP is out of scope for the initial release. Implement secure non-SMS authentication appropriate to the approved deployment and threat model. Keep authentication extensible so SMS/OTP can be introduced later without redesigning customer ownership or authorization.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
@@ -377,7 +381,8 @@ This section records the owner's clarified requirement for the customer mobile a
 
 ### 7.1 Applications and responsibilities
 
-- **Customer mobile app (Android/iOS):** Used by customers to browse the assigned shop's approved orderable items, prepare and submit orders, and view order status. It keeps a durable local queue of orders that have not yet been accepted by the cloud.
+- **Customer App (Android/iOS):** A dedicated customer-only app used to browse the assigned shop's approved orderable items, prepare and submit orders, and view order status. It keeps a durable local queue of orders that have not yet been accepted by the cloud.
+- **Business/Staff App (Android/iOS):** A separate app for shop staff and Head Office users. It exposes only the operational screens and actions authorized for the signed-in user and their permitted business/shop scope.
 - **Central cloud API and database:** The authoritative endpoint for customer order submission, identity/shop authorization, order IDs, status, and synchronization. The mobile app must never connect directly to MySQL.
 - **Shop web app:** Receives and displays orders after they have successfully reached the central cloud database. Staff process them through the existing permission-controlled Order Management workflow.
 - **Head Office:** Views orders across shops in its own business only where the signed-in user has the required permissions. It can see a customer's pending local-only order only after that order has synchronized to the cloud.
