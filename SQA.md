@@ -507,4 +507,5 @@ Before considering the application release-ready, explicitly execute and record:
 - With Security Deposit / Issue Cylinder selected, a blank or zero payment amount is permitted when the gas/cylinder charge is being posted to customer credit.
 - Credit eligibility and credit-limit validation remain the same as Gas Sale: projected customer OS must remain within the applicable limit.
 - A positive Security Deposit Amount still requires an actual non-credit deposit payment; deposit liability is never converted into gas-sale revenue.
+- Negative Security Deposit Amount must be rejected by the server (not silently changed to zero); verify no sale, payment, deposit-ledger, custody, cash, or inventory records are created.
 - The payment collection row remains compact, the delete button is reduced in size, and Reference / Note remains after Add Payment.
