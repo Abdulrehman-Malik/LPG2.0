@@ -1,0 +1,396 @@
+<?php
+
+namespace App\Controllers\Api\V1\Staff;
+
+use App\Services\ApiSessionService;
+use App\Services\AuditService;
+use App\Services\PermissionService;
+use App\Services\ShopScopeService;
+use CodeIgniter\Controller;
+use Config\Database;
+
+class CustomerAccounts extends Controller
+{
+    protected function payload(): array
+    {
+        $json = $this->request->getJSON(true);
+        if (is_array($json)) {
+            return $json;
+        }
+        $post = $this->request->getPost();
+        return is_array($post) ? $post : [];
+    }
+
+    protected function principal(): ?array
+    {
+        $header = trim($this->request->getHeaderLine('Authorization'));
+        if (!preg_match('/^Bearer\s+([a-f0-9]{64})$/i', $header, $match)) {
+            return null;
+        }
+        return (new ApiSessionService())->authenticateAccessToken($match[1], 'staff');
+    }
+
+    protected function selectedShop(int $userId): ?int
+    {
+        $scope = new ShopScopeService();
+        $requested = trim($this->request->getHeaderLine('X-Shop-Id'));
+        $shopId = $requested !== '' && ctype_digit($requested)
+            ? (int) $requested
+            : (int) ($scope->defaultShopIdForUser($userId) ?? 0);
+
+        return $scope->canAccessShop($shopId, $userId) ? $shopId : null;
+    }
+
+    protected function guard(string $permission = 'CUSTOMER_ACCOUNT_MANAGE'): array
+    {
+        $principal = $this->principal();
+        if (!$principal) {
+            return ['response' => $this->response->setStatusCode(401)->setJSON([
+                'error' => ['code' => 'INVALID_OR_EXPIRED_TOKEN', 'message' => 'A valid staff access token is required.'],
+            ])];
+        }
+
+        $userId = (int) $principal['user_id'];
+        if (!PermissionService::allowsForUser($permission, $userId)) {
+            return ['response' => $this->response->setStatusCode(403)->setJSON([
+                'error' => ['code' => 'PERMISSION_DENIED', 'message' => 'You do not have permission to manage customer app accounts.'],
+            ])];
+        }
+
+        $shopId = $this->selectedShop($userId);
+        if ($shopId === null) {
+            return ['response' => $this->response->setStatusCode(403)->setJSON([
+                'error' => ['code' => 'SHOP_ACCESS_DENIED', 'message' => 'Select a shop assigned to your staff account.'],
+            ])];
+        }
+
+        return ['principal' => $principal, 'user_id' => $userId, 'shop_id' => $shopId];
+    }
+
+    public function signupRequests()
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $rows = Database::connect()->table('customer_signup_requests')
+            ->select('id,username,customer_name,phone,city,address,vehicle_no,status,created_at')
+            ->where(['requested_location_id' => $guard['shop_id'], 'status' => 'pending_approval'])
+            ->orderBy('created_at', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->response->setJSON(['data' => ['shop_id' => $guard['shop_id'], 'requests' => $rows]]);
+    }
+
+    public function approveSignup(int $requestId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $input = $this->payload();
+        $chosenCustomerId = (int) ($input['customer_id'] ?? 0);
+        $db = Database::connect();
+        $db->transBegin();
+
+        try {
+            $request = $db->query(
+                'SELECT * FROM customer_signup_requests
+                 WHERE id=? AND requested_location_id=? AND status=?
+                 LIMIT 1 FOR UPDATE',
+                [$requestId, (int) $guard['shop_id'], 'pending_approval']
+            )->getRowArray();
+
+            if (!$request) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'SIGNUP_REQUEST_NOT_FOUND', 'message' => 'Pending signup request was not found for the selected shop.'],
+                ]);
+            }
+
+            if (empty($request['password_hash'])) {
+                throw new \RuntimeException('The signup request has no valid password credential.');
+            }
+
+            $usernameTaken = $db->table('customer_app_accounts')
+                ->where('username', (string) $request['username'])
+                ->countAllResults() > 0;
+            if ($usernameTaken) {
+                throw new \RuntimeException('The requested username is already assigned to an app account.');
+            }
+
+            if ($chosenCustomerId > 0) {
+                $customer = $db->table('customers')
+                    ->where([
+                        'id' => $chosenCustomerId,
+                        'location_id' => (int) $guard['shop_id'],
+                        'is_active' => 1,
+                    ])
+                    ->get()->getRowArray();
+                if (!$customer) {
+                    throw new \RuntimeException('Select an active financial customer from this shop.');
+                }
+            } else {
+                $db->table('customers')->insert([
+                    'location_id' => (int) $guard['shop_id'],
+                    'code' => null,
+                    'name' => (string) $request['customer_name'],
+                    'phone' => $request['phone'] ?: null,
+                    'city' => $request['city'] ?: null,
+                    'address' => $request['address'] ?: null,
+                    'vehicle_no' => $request['vehicle_no'] ?: null,
+                    'credit_limit' => 0,
+                    'allow_credit_sale' => 0,
+                    'opening_balance' => 0,
+                    'is_active' => 1,
+                ]);
+                $chosenCustomerId = (int) $db->insertID();
+                $customer = $db->table('customers')->where('id', $chosenCustomerId)->get()->getRowArray();
+            }
+
+            $alreadyLinked = $db->table('customer_app_accounts')
+                ->where('customer_id', $chosenCustomerId)
+                ->countAllResults() > 0;
+            if ($alreadyLinked) {
+                throw new \RuntimeException('This financial customer already has an app account. Link the request to a different customer.');
+            }
+
+            $db->table('customer_app_accounts')->insert([
+                'customer_id' => $chosenCustomerId,
+                'username' => (string) $request['username'],
+                'password_hash' => (string) $request['password_hash'],
+                'status' => 'approved',
+                'approved_by' => (int) $guard['user_id'],
+                'approved_at' => date('Y-m-d H:i:s'),
+                'password_changed_at' => date('Y-m-d H:i:s'),
+            ]);
+            $accountId = (int) $db->insertID();
+
+            $db->table('customer_signup_requests')->where('id', $requestId)->update([
+                'status' => 'approved',
+                'linked_customer_id' => $chosenCustomerId,
+                'reviewed_by' => (int) $guard['user_id'],
+                'reviewed_at' => date('Y-m-d H:i:s'),
+                'password_hash' => null,
+                'rejection_reason' => null,
+            ]);
+
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Approval could not be saved.');
+            }
+            $db->transCommit();
+
+            AuditService::log(
+                'CUSTOMER_APP_SIGNUP_APPROVED',
+                'customer_app_account',
+                $accountId,
+                ['signup_request_id' => $requestId, 'status' => 'pending_approval'],
+                ['signup_request_id' => $requestId, 'customer_id' => $chosenCustomerId, 'username' => $request['username']],
+                (int) $guard['user_id'],
+                (int) $guard['shop_id']
+            );
+
+            return $this->response->setStatusCode(201)->setJSON(['data' => [
+                'signup_request_id' => $requestId,
+                'customer_app_account_id' => $accountId,
+                'customer_id' => $chosenCustomerId,
+                'shop_id' => (int) $guard['shop_id'],
+                'status' => 'approved',
+                'message' => 'Customer app account approved. The customer can now sign in.',
+            ]]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer signup approval failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'APPROVAL_FAILED', 'message' => $e->getMessage()],
+            ]);
+        }
+    }
+
+    public function rejectSignup(int $requestId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $input = $this->payload();
+        $reason = trim((string) ($input['reason'] ?? ''));
+        if ($reason === '') {
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'REJECTION_REASON_REQUIRED', 'message' => 'Provide a reason for rejecting the registration.'],
+            ]);
+        }
+
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            $request = $db->query(
+                'SELECT id,username,status FROM customer_signup_requests
+                 WHERE id=? AND requested_location_id=? AND status=?
+                 LIMIT 1 FOR UPDATE',
+                [$requestId, (int) $guard['shop_id'], 'pending_approval']
+            )->getRowArray();
+
+            if (!$request) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'SIGNUP_REQUEST_NOT_FOUND', 'message' => 'Pending signup request was not found for the selected shop.'],
+                ]);
+            }
+
+            $db->table('customer_signup_requests')->where('id', $requestId)->update([
+                'status' => 'rejected',
+                'reviewed_by' => (int) $guard['user_id'],
+                'reviewed_at' => date('Y-m-d H:i:s'),
+                'rejection_reason' => mb_substr($reason, 0, 500),
+                'password_hash' => null,
+            ]);
+
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Rejection could not be saved.');
+            }
+            $db->transCommit();
+
+            AuditService::log(
+                'CUSTOMER_APP_SIGNUP_REJECTED',
+                'customer_signup_request',
+                $requestId,
+                ['status' => 'pending_approval'],
+                ['status' => 'rejected', 'reason' => $reason],
+                (int) $guard['user_id'],
+                (int) $guard['shop_id']
+            );
+
+            return $this->response->setJSON(['data' => ['signup_request_id' => $requestId, 'status' => 'rejected']]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer signup rejection failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'REJECTION_FAILED', 'message' => 'The signup request could not be rejected.'],
+            ]);
+        }
+    }
+
+    public function createAccount(int $customerId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $input = $this->payload();
+        $username = strtolower(trim((string) ($input['username'] ?? '')));
+        $password = (string) ($input['password'] ?? '');
+        if (!preg_match('/^[a-z0-9._-]{3,80}$/', $username) || strlen($password) < 10) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'VALIDATION_FAILED', 'message' => 'Username must be 3–80 supported characters and password must be at least 10 characters.'],
+            ]);
+        }
+
+        $db = Database::connect();
+        $db->transBegin();
+        try {
+            $customer = $db->query(
+                'SELECT id,name,location_id,is_active FROM customers WHERE id=? AND location_id=? AND is_active=1 FOR UPDATE',
+                [$customerId, (int) $guard['shop_id']]
+            )->getRowArray();
+            if (!$customer) {
+                $db->transRollback();
+                return $this->response->setStatusCode(404)->setJSON([
+                    'error' => ['code' => 'CUSTOMER_NOT_FOUND', 'message' => 'Active financial customer was not found in the selected shop.'],
+                ]);
+            }
+
+            if ($db->table('customer_app_accounts')->where('customer_id', $customerId)->countAllResults() > 0) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => ['code' => 'ACCOUNT_EXISTS', 'message' => 'This customer already has an app account.'],
+                ]);
+            }
+            if ($db->table('customer_app_accounts')->where('username', $username)->countAllResults() > 0
+                || $db->table('customer_signup_requests')->where('pending_username', $username)->countAllResults() > 0) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => ['code' => 'USERNAME_UNAVAILABLE', 'message' => 'This username is already in use or awaiting approval.'],
+                ]);
+            }
+
+            $db->table('customer_app_accounts')->insert([
+                'customer_id' => $customerId,
+                'username' => $username,
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                'status' => 'approved',
+                'approved_by' => (int) $guard['user_id'],
+                'approved_at' => date('Y-m-d H:i:s'),
+                'password_changed_at' => date('Y-m-d H:i:s'),
+            ]);
+            $accountId = (int) $db->insertID();
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Customer app account could not be saved.');
+            }
+            $db->transCommit();
+
+            AuditService::log(
+                'CUSTOMER_APP_ACCOUNT_CREATED',
+                'customer_app_account',
+                $accountId,
+                null,
+                ['customer_id' => $customerId, 'username' => $username],
+                (int) $guard['user_id'],
+                (int) $guard['shop_id']
+            );
+
+            return $this->response->setStatusCode(201)->setJSON(['data' => [
+                'customer_app_account_id' => $accountId,
+                'customer_id' => $customerId,
+                'username' => $username,
+                'status' => 'approved',
+            ]]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Customer app account creation failed: {message}', ['message' => $e->getMessage()]);
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => ['code' => 'ACCOUNT_CREATION_FAILED', 'message' => $e->getMessage()],
+            ]);
+        }
+    }
+
+    public function disableAccount(int $accountId)
+    {
+        $guard = $this->guard();
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        $db = Database::connect();
+        $account = $db->table('customer_app_accounts ca')
+            ->select('ca.id,ca.customer_id,c.location_id,ca.status')
+            ->join('customers c', 'c.id=ca.customer_id', 'inner')
+            ->where(['ca.id' => $accountId, 'c.location_id' => (int) $guard['shop_id']])
+            ->get()->getRowArray();
+
+        if (!$account) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'error' => ['code' => 'ACCOUNT_NOT_FOUND', 'message' => 'Customer app account was not found in the selected shop.'],
+            ]);
+        }
+
+        $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'disabled']);
+        (new ApiSessionService())->revokeAllForCustomer($accountId);
+
+        AuditService::log(
+            'CUSTOMER_APP_ACCOUNT_DISABLED',
+            'customer_app_account',
+            $accountId,
+            ['status' => $account['status']],
+            ['status' => 'disabled'],
+            (int) $guard['user_id'],
+            (int) $guard['shop_id']
+        );
+
+        return $this->response->setJSON(['data' => ['customer_app_account_id' => $accountId, 'status' => 'disabled']]);
+    }
+}
