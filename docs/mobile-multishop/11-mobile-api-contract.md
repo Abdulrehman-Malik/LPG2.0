@@ -84,10 +84,11 @@ The configuration endpoints reuse `ConfigurationService` and enforce capability 
 
 ## Implementation status and next gates
 
-1. **Backend API foundation:** auth, customer catalog/order APIs, staff order/catalog APIs, business/shop provisioning and scoped configuration APIs are present on this feature branch.
-2. **Verification:** run the repository's PHP syntax, database/schema smoke and PHPUnit workflow after the latest commit; successful earlier runs do not replace checking the current head.
-3. **POS fulfillment backend:** the staff route and service now connect customer orders to existing mixed-cart POS posting with explicit physical cylinder selection, delivery-fee accounting, price reconfirmation, payment validation and a unique recoverable order-to-sale link. Run the current PHP/schema smoke and PHPUnit workflow and review edge cases before treating this as release-ready.
-4. **Then:** build the two separate Flutter applications (Customer and Business/Staff) against this contract, using secure platform token storage and role-aware navigation.
-5. **Release gate:** no merge to `main` until permissions, migrations, tests, fulfillment atomicity and both apps have been reviewed.
+1. **Backend API foundation:** customer/staff authentication, token session lifecycle, customer catalog/order endpoints, staff business/shop/catalog/customer-account/order endpoints and scoped configuration endpoints are implemented on this feature branch.
+2. **Browser operations:** the web app now has Business & Shops administration, Customer Ordering Catalog, Customer App Accounts and Customer Orders queue/detail/fulfillment routes. These use the same server-side shop/business permissions and existing order/POS services.
+3. **Database contract:** fresh-install schema contains the current mobile-order tables and links. CI applies and asserts migrations 037–039 for delivery-fee accounting, unique order-to-sale linkage and physical-cylinder selections.
+4. **Verification:** check the latest PHP syntax, MySQL schema/migration and PHPUnit workflow after each change. Playwright smoke tests and the SQA APISEC/BIZWEB/CATWEB/ACCWEB/OWEB cases still need execution against a running disposable QA environment; do not infer PASS from CI alone.
+5. **Flutter apps:** the two independent Flutter apps (Customer and Business/Staff) remain a separate development scope. This web/backend request does not claim that those apps have been built or packaged.
+6. **Release gate:** no merge to `main` until role/tenant isolation, session lifecycle, browser usability, financial/inventory atomicity, duplicate fulfillment and two-shop pilot checks have actual evidence.
 
 Initial UI language is English only. Keep user-facing strings localization-ready; language support must only be enabled once translations are implemented and tested.
