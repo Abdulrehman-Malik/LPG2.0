@@ -125,11 +125,21 @@
                     <td><?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-success">Enabled</span><?php else: ?><span class="badge text-bg-secondary"><?= esc(ucfirst($account['status'])) ?><?= (int)$account['customer_active'] !== 1 ? ' · customer inactive' : '' ?></span><?php endif; ?></td>
                     <td><?= esc($account['last_login_at'] ?: 'Never') ?></td>
                     <td class="text-end">
-                        <?php if ($account['status'] === 'approved'): ?>
-                        <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/disable') ?>" onsubmit="return confirm('Disable this Customer App account and revoke its existing sessions?');">
-                            <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-danger">Disable</button>
-                        </form>
-                        <?php else: ?><span class="text-muted small">Disabled</span><?php endif; ?>
+                        <?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?>
+                            <details class="text-start mb-2">
+                                <summary class="small text-primary">Reset password</summary>
+                                <form class="mt-2" method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/reset-password') ?>" onsubmit="return confirm('Reset this customer password and revoke all active app sessions?');">
+                                    <?= csrf_field() ?>
+                                    <label class="form-label small" for="reset-password-<?= (int)$account['account_id'] ?>">New password</label>
+                                    <input class="form-control form-control-sm mb-2" type="password" id="reset-password-<?= (int)$account['account_id'] ?>" name="password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required>
+                                    <div class="form-text mb-2">Minimum <?= (int)$passwordMinimum ?> characters.</div>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary w-100">Set password</button>
+                                </form>
+                            </details>
+                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/disable') ?>" onsubmit="return confirm('Disable this Customer App account and revoke its existing sessions?');">
+                                <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-danger">Disable</button>
+                            </form>
+                        <?php else: ?><span class="text-muted small">Disabled or inactive</span><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -138,32 +148,5 @@
         </table>
     </div>
 </div>
-<script>
-(() => {
-    const customer = document.getElementById('account-customer');
-    const username = document.getElementById('account-username');
-    const password = document.getElementById('account-password');
-    const submit = document.getElementById('show-account-form');
-    if (!customer || !username || !password || !submit) return;
-    const sync = () => { submit.disabled = !(customer.value && username.value.trim() && password.value.length >= <?= (int)$passwordMinimum ?>); };
-    [customer, username, password].forEach(el => el.addEventListener('input', sync));
-    submit.addEventListener('click', () => {
-        if (!customer.value || !username.value.trim() || password.value.length < <?= (int)$passwordMinimum ?>) return;
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = <?= json_encode(site_url('customer-app-accounts/customer')) ?> + '/' + encodeURIComponent(customer.value) + '/create';
-        const values = {<?= json_encode(csrf_token()) ?>: <?= json_encode(csrf_hash()) ?>, username: username.value.trim().toLowerCase(), password: password.value};
-        Object.entries(values).forEach(([name, value]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            form.appendChild(input);
-        });
-        document.body.appendChild(form);
-        form.submit();
-    });
-    sync();
-})();
-</script>
+
 <?= $this->endSection() ?>
