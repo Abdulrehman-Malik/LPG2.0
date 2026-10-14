@@ -266,6 +266,78 @@ class Auth extends Controller
         return $this->logoutAudience('staff');
     }
 
+    public function customerChangePassword()
+    {
+        return $this->changePasswordAudience('customer');
+    }
+
+    public function staffChangePassword()
+    {
+        return $this->changePasswordAudience('staff');
+    }
+
+    protected function changePasswordAudience(string $audience)
+    {
+        $token = $this->bearerToken();
+        $principal = $token !== ''
+            ? (new ApiSessionService())->authenticateAccessToken($token, $audience)
+            : null;
+
+        if (!$principal) {
+            return $this->errorResponse(401, 'INVALID_OR_EXPIRED_TOKEN', 'The session is invalid or expired.');
+        }
+
+        $input = $this->payload();
+        $currentPassword = (string) ($input['current_password'] ?? '');
+        $newPassword = (string) ($input['new_password'] ?? '');
+        if ($currentPassword === '' || strlen($newPassword) < 10) {
+            return $this->errorResponse(422, 'VALIDATION_FAILED', 'Current password is required and the new password must be at least 10 characters.');
+        }
+        if (hash_equals($currentPassword, $newPassword)) {
+            return $this->errorResponse(422, 'PASSWORD_UNCHANGED', 'Choose a new password different from the current password.');
+        }
+
+        $db = Database::connect();
+        if ($audience === 'customer') {
+            $accountId = (int) $principal['customer_app_account_id'];
+            $account = $db->table('customer_app_accounts')
+                ->select('id,password_hash,status')
+                ->where('id', $accountId)
+                ->get()->getRowArray();
+
+            if (!$account || $account['status'] !== 'approved' || !password_verify($currentPassword, (string) $account['password_hash'])) {
+                return $this->errorResponse(401, 'CURRENT_PASSWORD_INVALID', 'Current password is incorrect.');
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update([
+                'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+                'password_changed_at' => date('Y-m-d H:i:s'),
+            ]);
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
+        } else {
+            $userId = (int) $principal['user_id'];
+            $user = $db->table('users')->select('id,password_hash')
+                ->where(['id' => $userId, 'is_active' => 1])
+                ->get()->getRowArray();
+
+            if (!$user || !password_verify($currentPassword, (string) $user['password_hash'])) {
+                return $this->errorResponse(401, 'CURRENT_PASSWORD_INVALID', 'Current password is incorrect.');
+            }
+
+            $db->table('users')->where('id', $userId)->update([
+                'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+            ]);
+            (new ApiSessionService())->revokeAllForStaff($userId);
+        }
+
+        return $this->response->setJSON([
+            'data' => [
+                'status' => 'password_changed',
+                'message' => 'Password changed successfully. All mobile sessions have been revoked; sign in again.',
+            ],
+        ]);
+    }
+
     protected function logoutAudience(string $audience)
     {
         $token = $this->bearerToken();
