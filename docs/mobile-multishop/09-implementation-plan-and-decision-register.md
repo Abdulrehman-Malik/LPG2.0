@@ -167,7 +167,7 @@ Proposed API groups (final routes must follow repository conventions):
 - Platform responses: stable JSON error schema, pagination, request/correlation ID and no HTML login redirects for API requests.
 
 Tasks:
-- Use TLS-only login and API access. Target a 15-minute access-token lifetime and rotating refresh sessions with a 30-day maximum lifetime; keep sessions separately revocable per app/device. Logout revokes the current session; password reset, account disablement, or removal of signup approval revokes all sessions. Verify framework support in WP-0 before implementation and document any required adjustment.
+- Use TLS-only login and API access. Recommended defaults: access token expires after 15 minutes; refresh tokens rotate on every use; refresh session expires after 30 days of inactivity or 90 days absolute age, whichever comes first. Refresh sessions are separately revocable per app/device; reject refresh-token reuse and revoke the affected token family. Logout revokes the current session; password reset, account disablement or removal of signup approval revokes all sessions. Verify framework support in WP-0 before implementation and document any required adjustment.
 - Add request validation, payload-size limits, rate limits, safe logging, error handling and audit.
 - Enforce authentication, capability, business/shop scope, record ownership and state transition on every protected endpoint.
 - Validate every identifier against authenticated server-side scope.
@@ -292,7 +292,7 @@ The register below contains both owner-confirmed choices and remaining choices f
 | D-17 | Completed status meaning | Completed only after the agreed fulfilment step and successful authoritative POS posting when a sale is required | WP-4, WP-9 |
 | D-18 | Staff/customer using one phone | Keep customer identities separate from staff identities; require explicit account switch and re-authentication if both modes are later supported | WP-3, WP-8 |
 | D-19 | Notifications | In-app/order-list refresh first; choose SMS/push provider and templates after reliable core order lifecycle | WP-5, WP-7 |
-| D-20 | Language support | Both mobile apps support multiple languages and show a language selector at login. Remember the selection as a device preference and account preference after sign-in; supported languages and translations must be agreed before UI content freeze | WP-7, WP-8 |
+| D-20 | Language support | English is the only supported UI language in the initial release. Keep UI strings localization-ready so additional languages can be added later without changing business logic. No language selector is needed while only English is available; add a selector when a second language is introduced | WP-7, WP-8 |
 | D-21 | First rollout | One business, two shops in test/pilot; production rollout only after owner sign-off and all gates pass | WP-10 |
 
 ## 5. Cross-cutting acceptance criteria
@@ -323,7 +323,7 @@ Planning is complete when:
 - Onboarding/approval, username/password API authentication, session revocation, product controls, price-change handling, delivery/collection and multilingual login are defined.
 - The owner approves decisions that affect customer behavior, data ownership, security or financial workflows.
 
-**The owner-confirmed product and architecture decisions are recorded in the approved-hierarchy section and the corresponding decision-register rows.** The remaining initial language list/translation content and framework-specific session details must be finalized in the relevant work packages. Implementation remains paused until the owner explicitly approves the consolidated plan.
+**The owner-confirmed product and architecture decisions are recorded in the approved-hierarchy section and the corresponding decision-register rows.** The language decision is fixed to English-only for the initial release. The recommended session lifetimes below must be verified against the existing framework in WP-0 before implementation. Implementation remains paused until the owner explicitly approves the consolidated plan.
 
 
 ## 7. Approved hierarchy and confirmed decisions (2026-10-14)
@@ -341,7 +341,7 @@ The following decisions have been confirmed by the business owner and supersede 
 - **Catalog and shop availability:** Head Office defines the business product catalog. Each shop may activate/deactivate products it is or is not currently selling. The server validates active shop products and existing effective-rate logic on each quote and order.
 - **Price integrity:** Cloud orders save a server-calculated price snapshot. Never reprice silently. If a queued offline order encounters a changed price/availability before synchronization, require customer review before creating the cloud order; if price differs before POS fulfilment, obtain customer reconfirmation or cancel/re-quote.
 - **Fulfilment:** Customers choose delivery or collection at checkout. Both choices are supported; delivery requires an address and any fee/condition must be shown before submission.
-- **Languages:** Both apps are multilingual and offer a language selector at login. Remember the choice on the device and, after sign-in, in the account preference. Agree on supported language list and translations before UI content freeze.
+- **Languages:** English is the only UI language in the initial release. Keep UI strings localization-ready for future languages. Add a login-time language selector when a second language is introduced.
 - **Order and POS boundary:** Orders are requests, not sales. Creating, accepting, rejecting, or cancelling an order must not independently post revenue, customer OS, receipts, cash movement, deposits, cylinder custody, or inventory changes. Final sale fulfilment must use existing validated POS/services, with idempotency and a unique order-to-sale association.
 - **Main branch protection:** Implementation and planning changes for this initiative stay on a dedicated feature/documentation branch until reviewed. No application code, schema, configuration, or production data changes are authorized by these planning decisions.
 
