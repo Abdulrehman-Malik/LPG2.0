@@ -44,6 +44,7 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 030 | `030_20261009_pak_operations_user.sql` | Creates the `pak` account and limited `PAK_OPS` role for dashboard, sales/receipts, inventory, customer ledger, cash, expenses and rates |
 | 031 | `031_20261009_default_gas_entry_mode.sql` | Adds the default Gas Entry mode for Gas Sale / Refill |
 | 032 | `032_20261014_business_shop_ownership.sql` | Additive business/shop ownership foundations and assignment tables; leaves existing customer/shop ownership unassigned for a separately reviewed upgrade plan |
+| 033 | `033_20261014_customer_accounts_orders_and_catalog.sql` | Adds business catalog/shop availability, customer signup and account tables, API token/session storage, order lines/status history and composite ownership constraints |
 
 ## Deployment rules
 
@@ -54,7 +55,7 @@ Execution results are recorded in `lpg_migration_history`, including status, che
 
 1. Run `database/schema.sql` only for a fresh database.
 2. For an existing database, run only the migration scripts that have not already been applied.
-3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 030 → 031 → 032**.
+3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 030 → 031 → 032 → 033**.
 4. Migration **011** is not a normal upgrade migration. It is a controlled, destructive refresh intended for disposable staging/test databases. It clears transactional records plus customers, suppliers, cylinder types, rate cards, and rate-change history. Users, roles, permissions, locations, shop settings, cash registers, inventory policies, and other application configuration remain. Whenever a later migration introduces a new transactional table, update the controlled refresh service/script so that table is reset too.
 5. Do not automatically run migration 011 during production deployment.
 6. Do not rename or reorder an already released migration. Add a new sequence number for every future migration.
@@ -108,3 +109,4 @@ Never reuse an existing sequence number.
 
 - `031_20261009_default_gas_entry_mode.sql` — adds the branch-level default Gas Entry option (KG, Amount, or Cylinders) for Gas Sale / Refill.
 - `032_20261014_business_shop_ownership.sql` — creates the business parent and explicit business/shop assignment tables. It does not infer ownership for pre-existing locations or customers; a populated-install upgrade requires a separate reviewed mapping/recovery plan.
+- `033_20261014_customer_accounts_orders_and_catalog.sql` — adds customer signup/account, API session/token storage, business catalog, shop product availability, and customer order/state-history tables with matching business/shop/customer/account constraints.
