@@ -134,5 +134,15 @@ jobs:
             cat /tmp/lpg-playwright-server.log
             exit 1
           fi
+          mkdir -p writable/runtime-qa
           cd tests/e2e
-          npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]' --reporter=line,json
+
+      - name: Upload Playwright runtime QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ordering-playwright-runtime-qa
+          path: writable/runtime-qa/playwright-results.json
+          if-no-files-found: warn
+          retention-days: 14
