@@ -102,7 +102,8 @@ class Businesses extends Controller
             return $guard['response'];
         }
         $userId = (int) $guard['user_id'];
-        if (!PermissionService::allowsForUser('APPLICATION_SETTINGS_MANAGE', $userId)) {
+        if (!PermissionService::allowsForUser('APPLICATION_SETTINGS_MANAGE', $userId)
+            || !(new ShopScopeService())->isSystemAdministrator($userId)) {
             return $this->fail(403, 'SYSTEM_ADMIN_REQUIRED', 'Only a System Administrator can create a new business.');
         }
 
