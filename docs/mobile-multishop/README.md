@@ -1,6 +1,6 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Backend implementation in progress. The isolated feature branch contains the API foundation and initial POS delivery-fee persistence; the two Flutter apps and transaction-safe POS fulfillment are not yet complete.
+**Status:** Backend implementation in progress. The isolated feature branch now includes a guarded staff POS-fulfillment endpoint, physical-cylinder quote snapshots, delivery-fee accounting and a unique order-to-sale link. Current CI and integration verification are required before release; both Flutter apps remain unbuilt.
 **Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
@@ -49,7 +49,7 @@ These are source-code observations, not runtime test results.
 | 01 | Product scope and target architecture | Documented |
 | 02 | Business, shops, staff roles and permission/scope model | Documented |
 | 03 | Customer records, mobile identity and single-shop assignment | Documented |
-| 04 | Order lifecycle and safe POS integration | Documented |
+| 04 | Order lifecycle and safe POS integration | Backend in progress; CI verification pending |
 | 05 | API contracts, authentication and security | Documented |
 | 06 | Flutter app experience and role-based navigation | Documented |
 | 07 | Database migration and legacy-data plan | Documented |
