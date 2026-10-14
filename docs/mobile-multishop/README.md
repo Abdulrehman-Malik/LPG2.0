@@ -1,8 +1,8 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Development planning pack complete; implementation has not started. Business decisions and legacy data mapping remain approval gates. This branch currently contains documentation-only changes.
-**Working branch:** `feature/mobile-multishop-ordering-requirements`
-**Baseline:** current `main` as of 2026-10-13. Do not merge or modify `main` as part of this work.
+**Status:** Owner decisions incorporated into the planning docs; implementation has not started. This branch remains documentation-only.
+**Working branch:** `docs/mobile-multishop-final-plan`
+**Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
 ## Product goal
 
