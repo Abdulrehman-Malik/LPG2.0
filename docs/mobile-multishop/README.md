@@ -39,6 +39,7 @@ These are source-code observations, not runtime test results.
 ## First read
 
 - [Current-state gap report](00-current-state-gap-report.md) — reviewed existing roles/permissions, customer/location schema gaps, POS boundaries and safe first implementation work package.
+- [Centralized Configuration Management](10-configuration-management.md) — scope inheritance, Application Login & Session settings, security guardrails and audit requirements.
 
 ## Module index and delivery sequence
 
@@ -53,10 +54,13 @@ These are source-code observations, not runtime test results.
 | 07 | Database migration and legacy-data plan | Documented |
 | 08 | QA, rollout and release gates | Documented |
 | 09 | Dependency-ordered implementation plan and decision register | Documented |
+| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Documented |
 
 ## Implementation sequence for the coding agent
 
 Read [the detailed implementation plan and decision register](09-implementation-plan-and-decision-register.md) before starting any coding. It defines work packages WP-0 through WP-10, dependencies, exit criteria, acceptance requirements and release gates.
+
+Review [Module 10 — Centralized Configuration Management](10-configuration-management.md) alongside role/scope and API-security requirements.
 
 Implementation is **not authorized yet**. First review and approve the consolidated plan. Do not build legacy customer mapping/backfill tooling for this deployment. Do not make application/schema changes until the owner explicitly approves implementation.
 
@@ -77,6 +81,7 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 - Customer chooses delivery or collection; delivery requires an address and any configured fee/condition is shown before submission.
 - The server calculates prices and saves a cloud-order price snapshot; changes require customer review/reconfirmation, never silent repricing.
 - English is the only initial UI language in both apps; keep the UI localization-ready so more languages can be added later.
+- Important settings are managed in one Configuration area with Application, Head Office/Business and Shop scopes; settings inherit only where explicitly allowed, and Login & Session policy is Application-owned by default.
 - MVP order is pending until accepted by authorized staff.
 - No online payment, automated deposit, or automatic cylinder custody in the first release unless separately approved.
 
