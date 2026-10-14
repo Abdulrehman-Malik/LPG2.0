@@ -18,6 +18,11 @@ $routes->group('api/v1', static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::staffLogout');
         $routes->get('me','Api\\V1\\Staff\\Me::show');
         $routes->get('shops','Api\\V1\\Staff\\Me::shops');
+        $routes->get('customer-signups','Api\\V1\\Staff\\CustomerAccounts::signupRequests');
+        $routes->post('customer-signups/(:num)/approve','Api\\V1\\Staff\\CustomerAccounts::approveSignup/$1');
+        $routes->post('customer-signups/(:num)/reject','Api\\V1\\Staff\\CustomerAccounts::rejectSignup/$1');
+        $routes->post('customers/(:num)/app-account','Api\\V1\\Staff\\CustomerAccounts::createAccount/$1');
+        $routes->post('customer-app-accounts/(:num)/disable','Api\\V1\\Staff\\CustomerAccounts::disableAccount/$1');
     });
 });
 
