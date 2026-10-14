@@ -4,6 +4,7 @@ use CodeIgniter\Router\RouteCollection;
 $routes->get('/','Auth::showLogin'); $routes->get('login','Auth::showLogin'); $routes->post('login','Auth::attemptLogin'); $routes->get('installation','Installation::index'); $routes->post('installation/run','Installation::run'); $routes->post('migrations/run','Migrations::run'); $routes->get('logout','Auth::logout'); $routes->get('database-backup','DatabaseBackup::index'); $routes->get('database-backup/download','DatabaseBackup::download'); $routes->post('database-backup/create','DatabaseBackup::create'); $routes->post('database-backup/restore','DatabaseBackup::restore'); $routes->post('database-backup/email-settings/save','DatabaseBackup::saveEmailSettings'); $routes->post('database-backup/email-settings/test','DatabaseBackup::testEmail'); $routes->post('database-backup/delete-selected','DatabaseBackup::deleteSelected'); $routes->post('database-backup/email-selected','DatabaseBackup::emailSelected');
 $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollection $routes){
     $routes->get('health', static fn() => service('response')->setJSON(['status'=>'ok','api_version'=>'v1']));
+    $routes->get('customer/auth/shops','Api\\V1\\Auth::registrationShops');
     $routes->post('customer/auth/signup','Api\\V1\\Auth::customerSignup');
     $routes->post('customer/auth/login','Api\\V1\\Auth::customerLogin');
     $routes->post('customer/auth/refresh','Api\\V1\\Auth::customerRefresh');
