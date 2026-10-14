@@ -21,10 +21,12 @@ $transitions = [
     'out_for_delivery' => ['unable_to_fulfil' => 'Unable to fulfil'],
 ];
 $needsReason = ['rejected', 'cancelled', 'unable_to_fulfil'];
-$unitOptionsAvailable = false;
+$unitOptionsAvailable = !empty($fulfillment['lines']);
 foreach (($fulfillment['lines'] ?? []) as $fulfillmentLine) {
-    if (!empty($fulfillmentLine['cylinders'])) {
-        $unitOptionsAvailable = true;
+    $available = count($fulfillmentLine['cylinders'] ?? []);
+    $required = ($fulfillmentLine['sale_mode'] ?? '') === 'sell_gas_only' ? 1 : (int) ($fulfillmentLine['quantity_required'] ?? 0);
+    if ($available < max(1, $required)) {
+        $unitOptionsAvailable = false;
         break;
     }
 }
