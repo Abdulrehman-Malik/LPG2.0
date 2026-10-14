@@ -14,12 +14,25 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->post('auth/logout','Api\\V1\\Auth::customerLogout');
         $routes->post('auth/change-password','Api\\V1\\Auth::customerChangePassword');
         $routes->get('me','Api\\V1\\Customer\\Me::show');
+        $routes->get('products','Api\\V1\\Customer\\Products::index');
+        $routes->get('orders','Api\\V1\\Customer\\Orders::index');
+        $routes->post('orders','Api\\V1\\Customer\\Orders::create');
+        $routes->get('orders/(:num)','Api\\V1\\Customer\\Orders::show/$1');
+        $routes->post('orders/(:num)/cancel','Api\\V1\\Customer\\Orders::cancel/$1');
+        $routes->post('orders/(:num)/reconfirm-price','Api\\V1\\Customer\\Orders::reconfirmPrice/$1');
     });
     $routes->group('staff', ['filter'=>'api-auth:staff'], static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::staffLogout');
         $routes->post('auth/change-password','Api\\V1\\Auth::staffChangePassword');
         $routes->get('me','Api\\V1\\Staff\\Me::show');
         $routes->get('shops','Api\\V1\\Staff\\Me::shops');
+        $routes->get('orders','Api\\V1\\Staff\\Orders::index');
+        $routes->get('orders/(:num)','Api\\V1\\Staff\\Orders::show/$1');
+        $routes->post('orders/(:num)/status','Api\\V1\\Staff\\Orders::updateStatus/$1');
+        $routes->get('businesses/(:num)/catalog','Api\\V1\\Staff\\Catalog::businessCatalog/$1');
+        $routes->post('businesses/(:num)/catalog','Api\\V1\\Staff\\Catalog::saveBusinessProduct/$1');
+        $routes->get('shops/(:num)/products','Api\\V1\\Staff\\Catalog::shopProducts/$1');
+        $routes->post('shops/(:num)/products/(:num)/availability','Api\\V1\\Staff\\Catalog::setShopProductAvailability/$1/$2');
         $routes->get('customer-signups','Api\\V1\\Staff\\CustomerAccounts::signupRequests');
         $routes->post('customer-signups/(:num)/approve','Api\\V1\\Staff\\CustomerAccounts::approveSignup/$1');
         $routes->post('customer-signups/(:num)/reject','Api\\V1\\Staff\\CustomerAccounts::rejectSignup/$1');
