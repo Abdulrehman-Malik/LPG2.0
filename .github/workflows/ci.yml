@@ -61,6 +61,7 @@ jobs:
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/010_20261004_purchase_inventory_integrity.sql
           printf "SET @lpg_refresh_transactional_data = 0;\\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/030_20261009_pak_operations_user.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/032_20261014_business_shop_ownership.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/033_20261014_customer_accounts_orders_and_catalog.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/034_20261014_pending_signup_username_guard.sql
@@ -94,3 +95,44 @@ jobs:
           else
             echo "No PHPUnit test files are currently defined; PHP and database smoke checks completed."
           fi
+
+      - name: Setup Node for Playwright browser QA
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright browser test dependencies
+        run: npm --prefix tests/e2e install --no-audit --no-fund
+
+      - name: Install Chromium for Playwright
+        run: cd tests/e2e && npx playwright install --with-deps chromium
+
+      - name: Run live web smoke tests for mobile-ordering administration
+        env:
+          CI_ENVIRONMENT: development
+          LPG_DB_HOST: 127.0.0.1
+          LPG_DB_PORT: 3306
+          LPG_DB_USER: root
+          LPG_DB_PASS: root
+          LPG_DB_NAME: perfect_lpg
+          LPG_QA_BASE_URL: http://127.0.0.1:8080
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup php spark serve --host 127.0.0.1 --port 8080 > /tmp/lpg-playwright-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 40); do
+            if curl --silent --show-error --fail http://127.0.0.1:8080/login >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/lpg-playwright-server.log
+            exit 1
+          fi
+          cd tests/e2e
+          npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]' --reporter=line,json
