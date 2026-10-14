@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\UserModel;
 use App\Services\MigrationRunnerService;
 use App\Services\InstallationSetupService;
+use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
 use CodeIgniter\HTTP\RedirectResponse;
 
@@ -77,10 +78,25 @@ class Auth extends Controller
             return redirect()->back()->withInput()->with('error','This account has been disabled. Contact an administrator.');
         }
 
+        $scope = new ShopScopeService();
+        $userId = (int) $user['id'];
+        $locationId = (int) ($user['location_id'] ?? 0);
+
+        if ($locationId <= 0 || !$scope->canAccessShop($locationId, $userId)) {
+            $allowedShopIds = $scope->accessibleShopIds($userId);
+            if (!$allowedShopIds) {
+                return redirect()->back()->withInput()->with(
+                    'error',
+                    'This account is not assigned to an active shop. Contact an administrator.'
+                );
+            }
+            $locationId = $allowedShopIds[0];
+        }
+
         session()->regenerate();
         session()->set([
-            'user_id'=>(int)$user['id'],
-            'location_id'=>$user['location_id'] !== null ? (int)$user['location_id'] : null,
+            'user_id'=>$userId,
+            'location_id'=>$locationId,
             'full_name'=>$user['full_name'],
             'username'=>$user['username'],
             'role'=>$user['role'],
