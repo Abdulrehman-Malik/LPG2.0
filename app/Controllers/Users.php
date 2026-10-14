@@ -131,6 +131,11 @@ class Users extends Controller
                     'is_default' => 1,
                 ]);
             }
+
+            // Password changes and account disablement invalidate all mobile sessions.
+            if ($password !== '' || (int) $data['is_active'] !== 1) {
+                (new \App\Services\ApiSessionService())->revokeAllForStaff($targetUserId);
+            }
         } catch (\Throwable $e) {
             return redirect()->back()->withInput()->with('error','User could not be saved. Username or email may already exist.');
         }
