@@ -30,6 +30,8 @@ class Customers extends Controller
     public function importExcel()
     {
         if($r=$this->guard()) return $r;
+        $locationId=(int)(session()->get('location_id')??0);
+        if($locationId<=0) return $this->response->setStatusCode(403)->setBody('A shop context is required.');
         $file=$this->request->getFile('customer_excel');
         if(!$file || !$file->isValid()) return redirect()->back()->with('error','Please select a valid .xlsx customer file.');
         if(strtolower($file->getExtension())!=='xlsx') return redirect()->back()->with('error','Only .xlsx Excel files are supported.');
@@ -43,7 +45,7 @@ class Customers extends Controller
                 if($code!=='') { $key=strtoupper($code); if(isset($seenCodes[$key])) throw new \RuntimeException('Row '.$row['excel_row'].': duplicate customer code '.$code.' in the uploaded file.'); $seenCodes[$key]=true; if($this->model->where('code',$code)->first()) throw new \RuntimeException('Row '.$row['excel_row'].': customer code '.$code.' already exists. Existing customers are not overwritten.'); }
                 foreach([['credit_limit','Credit Limit'],['opening_balance','Opening Balance']] as [$field,$label]){ if($row[$field]===''||!is_numeric($row[$field])||(float)$row[$field]<0) throw new \RuntimeException('Row '.$row['excel_row'].': '.$label.' must be a number greater than or equal to 0.'); }
                 foreach([['allow_credit_sale','Allow Credit Sale'],['is_active','Active']] as [$field,$label]) if(!in_array($row[$field],['0','1'],true)) throw new \RuntimeException('Row '.$row['excel_row'].': '.$label.' must be 0 or 1.');
-                $data=['code'=>$code?:null,'name'=>$name,'phone'=>$row['phone']?:null,'city'=>$row['city']?:null,'address'=>$row['address']?:null,'vehicle_no'=>$row['vehicle_no']?:null,'credit_limit'=>(float)$row['credit_limit'],'allow_credit_sale'=>(int)$row['allow_credit_sale'],'opening_balance'=>(float)$row['opening_balance'],'is_active'=>(int)$row['is_active']];
+                $data=['location_id'=>$locationId,'code'=>$code?:null,'name'=>$name,'phone'=>$row['phone']?:null,'city'=>$row['city']?:null,'address'=>$row['address']?:null,'vehicle_no'=>$row['vehicle_no']?:null,'credit_limit'=>(float)$row['credit_limit'],'allow_credit_sale'=>(int)$row['allow_credit_sale'],'opening_balance'=>(float)$row['opening_balance'],'is_active'=>(int)$row['is_active']];
                 $id=$this->model->insert($data,true); if(!$id) throw new \RuntimeException('Row '.$row['excel_row'].': customer could not be created.');
                 AuditService::log('excel_import','customer',(int)$id,null,$data,$userId,(int)(session()->get('location_id')??0)); $created++;
             }
@@ -55,7 +57,15 @@ class Customers extends Controller
     public function index()
     {
         if($r=$this->guard()) return $r;
-        $editId=(int)$this->request->getGet('edit'); return view('customers/index',['title'=>'Customers / Parties','customers'=>$this->model->orderBy('name')->findAll(),'edit'=>$editId?$this->model->find($editId):null]);
+        $locationId=(int)(session()->get('location_id')??0);
+        if($locationId<=0) return $this->response->setStatusCode(403)->setBody('A shop context is required.');
+        $editId=(int)$this->request->getGet('edit');
+        $edit=$editId?$this->model->findForLocation($editId,$locationId):null;
+        return view('customers/index',[
+            'title'=>'Customers / Parties',
+            'customers'=>$this->model->where('location_id',$locationId)->orderBy('name')->findAll(),
+            'edit'=>$edit,
+        ]);
     }
 
     public function ledger(int $id)
@@ -138,7 +148,7 @@ class Customers extends Controller
             $depositHeld+=(($depositRow['entry_type']??'')==='hold'?1:-1)*(float)($depositRow['amount']??0);
         }
         $customer['security_deposit_held']=max(0,$depositHeld);
-        $custody=$db->table('cylinder_custody cc')->select('cc.*,cu.unit_code,cu.gas_weight_kg,ct.code cylinder_code,ct.name cylinder_name')->join('cylinder_units cu','cu.id=cc.cylinder_unit_id')->join('cylinder_types ct','ct.id=cu.cylinder_type_id')->where(['cc.customer_id'=>$id,'cc.status'=>'issued'])->orderBy('cc.id')->get()->getResultArray();
+        $custody=$db->table('cylinder_custody cc')->select('cc.*,cu.unit_code,cu.gas_weight_kg,ct.code cylinder_code,ct.name cylinder_name')->join('cylinder_units cu','cu.id=cc.cylinder_unit_id')->join('cylinder_types ct','ct.id=cu.cylinder_type_id')->where(['cc.location_id'=>$locationId,'cc.customer_id'=>$id,'cc.status'=>'issued'])->orderBy('cc.id')->get()->getResultArray();
         return view('customers/ledger',['title'=>'Customer Ledger — '.$customer['name'],'customer'=>$customer,'sales'=>$sales,'receipts'=>$receipts,'deposits'=>$deposits,'custody'=>$custody]);
     }
 
@@ -146,7 +156,11 @@ class Customers extends Controller
     {
         if($r=$this->guard()) return $r;
         $id=(int)$this->request->getPost('id');
+        $locationId=(int)(session()->get('location_id')??0);
+        if($locationId<=0) return $this->response->setStatusCode(403)->setBody('A shop context is required.');
+        if($id && !$this->model->findForLocation($id,$locationId)) return $this->response->setStatusCode(404)->setBody('Customer not found.');
         $data=[
+            'location_id'=>$locationId,
             'code'=>trim((string)$this->request->getPost('code')) ?: null,
             'name'=>trim((string)$this->request->getPost('name')),
             'phone'=>trim((string)$this->request->getPost('phone')) ?: null,
