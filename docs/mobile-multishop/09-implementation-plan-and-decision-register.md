@@ -161,7 +161,7 @@ Exit criteria:
 **Goal:** Expose the approved order workflow safely to native clients.
 
 Proposed API groups (final routes must follow repository conventions):
-- Auth: `POST /api/v1/auth/login` with username/password, logout, refresh/session renewal, password change/recovery as approved, and `GET /api/v1/me`; no SMS/OTP endpoints in MVP.
+- Auth: separate customer and staff username/password login endpoints, shared logout/refresh mechanics bound to the app audience, password change, approved recovery flow and `GET /api/v1/me`; no SMS/OTP endpoints in MVP. Customer-issued sessions must not be accepted by staff endpoints, or vice versa.
 - Customer: assigned shop, catalog, availability/quote, create/list/read/cancel own orders.
 - Staff/owner: authorized shops, scoped order list/detail, accept/reject/status and approved fulfilment handoff.
 - Platform responses: stable JSON error schema, pagination, request/correlation ID and no HTML login redirects for API requests.
