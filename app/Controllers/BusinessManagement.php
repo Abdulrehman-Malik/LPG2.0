@@ -87,33 +87,40 @@ class BusinessManagement extends Controller
                         ->orderBy('u.full_name')
                         ->get()->getResultArray();
                 } elseif ($shopIdsForBusiness) {
-                    // Business managers may reuse staff already scoped to this business or staff not yet assigned to any business/shop.
-                    // Do not offer users explicitly assigned only to another business.
-                    $assignedUserIds = array_values(array_unique(array_map(
+                    // Business managers may reuse staff already scoped to this business or staff not yet scoped anywhere.
+                    // Users with an explicit mapping only to another business are not offered for assignment.
+                    $currentBusinessUserIds = array_values(array_unique(array_map(
                         'intval',
                         array_column($business['assignments'], 'user_id')
                     )));
-                    $business['staff_options'] = $db->table('users u')
-                        ->select('u.id,u.full_name,u.username')
-                        ->where('u.is_active', 1)
-                        ->groupStart()
-                            ->whereIn('u.id', $assignedUserIds ?: [0])
-                            ->orWhereIn('u.location_id', $shopIdsForBusiness)
-                            ->orGroupStart()
-                                ->whereNotIn('u.id', static function ($subQuery) {
-                                    $subQuery->select('user_id')->from('user_business_access');
-                                })
-                                ->whereNotIn('u.id', static function ($subQuery) {
-                                    $subQuery->select('user_id')->from('user_shop_access');
-                                })
-                                ->groupStart()
-                                    ->where('u.location_id IS NULL', null, false)
-                                    ->orWhereIn('u.location_id', $shopIdsForBusiness)
-                                ->groupEnd()
-                            ->groupEnd()
-                        ->groupEnd()
-                        ->orderBy('u.full_name')
+                    $businessMappings = $db->table('user_business_access')->select('user_id')->get()->getResultArray();
+                    $shopMappings = $db->table('user_shop_access')->select('user_id')->get()->getResultArray();
+                    $mappedUserIds = array_fill_keys(array_map(
+                        'intval',
+                        array_unique(array_merge(array_column($businessMappings, 'user_id'), array_column($shopMappings, 'user_id')))
+                    ), true);
+
+                    $eligible = [];
+                    $staffCandidates = $db->table('users')
+                        ->select('id,full_name,username,location_id')
+                        ->where('is_active', 1)
+                        ->orderBy('full_name')
                         ->get()->getResultArray();
+                    foreach ($staffCandidates as $candidate) {
+                        $candidateId = (int) $candidate['id'];
+                        $candidateShopId = (int) ($candidate['location_id'] ?? 0);
+                        $alreadyInBusiness = in_array($candidateId, $currentBusinessUserIds, true);
+                        $unassigned = !isset($mappedUserIds[$candidateId])
+                            && ($candidateShopId === 0 || in_array($candidateShopId, $shopIdsForBusiness, true));
+                        if ($alreadyInBusiness || $unassigned) {
+                            $eligible[] = [
+                                'id' => $candidateId,
+                                'full_name' => (string) $candidate['full_name'],
+                                'username' => (string) $candidate['username'],
+                            ];
+                        }
+                    }
+                    $business['staff_options'] = $eligible;
                 }
             }
         }
