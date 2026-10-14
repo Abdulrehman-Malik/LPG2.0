@@ -6,7 +6,7 @@
 
 ## Product goal
 
-Deliver one Flutter app for Android and iOS with role-based Customer and Shop Staff/Owner experiences. A single business may own multiple shops/locations. Each customer is assigned to exactly one shop; one shop can have many customers. Customers can order only from their assigned shop. A business owner can oversee all shops within their business; shop managers and order staff are limited to explicitly assigned shops.
+Deliver two separate Flutter apps for Android and iOS: a Customer App and a Business/Staff App, with separate packages, navigation and authorization boundaries. A single business may own multiple shops/locations. Each customer is assigned to exactly one shop; one shop can have many customers. Customers can order only from their assigned shop. A business owner can oversee all shops within their business; shop managers and order staff are limited to explicitly assigned shops.
 
 The existing CodeIgniter/PHP application and MySQL database remain the business system of record. The mobile app must use a versioned, authenticated API and must not connect directly to MySQL.
 
