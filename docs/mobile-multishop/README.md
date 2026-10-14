@@ -85,8 +85,7 @@ The ordered work is: source inventory → fresh-install schema and ownership →
 - Initial supported language list and translated UI content; the login-time language selector and localization support are confirmed.
 - Whether one staff user may be assigned to multiple shops.
 - Exact cancellation window and status transitions.
-- Delivery fee, service area and delivery-slot rules.
-- Whether customer-facing rates use shop-specific rate cards or a business-level default with shop override.
+- Final per-shop delivery settings, including optional fee/service-area/slot rules; the customer choice between delivery and collection is confirmed.
+- During WP-0, verify and document the application's existing effective-rate precedence and shop/global fallback behavior. The API must reuse it; price snapshot/reconfirmation behavior is already fixed.
 - Whether owner role should be a new role code or an existing configurable role with business-wide scope.
-- No legacy customer-to-shop mapping/backfill is required for this fresh deployment. If a populated existing installation is later selected for upgrade, handle it through a separate approved upgrade plan.
 
