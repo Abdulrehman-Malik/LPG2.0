@@ -18,7 +18,7 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 4. Every order belongs to exactly one business, one shop/location and one customer. The customer's assigned shop must equal the order's shop.
 5. Enforce permissions and business/shop data scope on the server for every request. Hiding UI controls is not authorization.
 6. Keep existing role/permission tables and PermissionService. Extend them; do not replace them with a second authorization system.
-7. Use backward-compatible migrations, with explicit legacy-data mapping and rollback/recovery instructions. Never drop or silently reassign existing data.
+7. Design repeatable fresh-install schema/seeds and a reviewed upgrade path. The owner confirmed no existing business/customer transactional data needs migration for this initiative, so no legacy customer-to-shop mapping/backfill is required. Never drop or silently reassign existing data.
 8. Keep work on the feature branch; do not merge to `main` without explicit approval.
 9. Follow `agent.md`, `TESTING.md`, and `SQA.md`. Execute impacted runtime QA after screen changes; do not claim QA passed without evidence.
 
