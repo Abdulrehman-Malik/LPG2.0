@@ -97,7 +97,7 @@ Legend:
 **Implementation branch:** `feature/mobile-multishop-ordering`  
 **Planning branch:** `docs/mobile-multishop-final-plan`  
 **Main baseline:** `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`  
-**Current status:** WP-0 source inventory in progress; implementation branch created; `main` remains untouched.
+**Current status:** Web administration and the mobile backend/API foundation are implemented on this feature branch. CI validation is being extended for the newest changes; browser/database regression and two-shop pilot remain pending. `main` remains untouched.
 
 ### Confirmed product decisions
 
@@ -114,24 +114,34 @@ Legend:
 ### Work package status
 
 - [x] Requirements modules 01–10 and decision register documented.
-- [/] WP-0 — source inventory, framework/test review, existing Shop Settings inventory and technical decisions.
-- [ ] WP-1 — fresh-install business/shop/customer ownership schema and seed setup.
-- [ ] WP-2 — business/shop scope resolver and permission integration.
-- [ ] WP-3 — customer app identity, signup approval and account lifecycle.
-- [ ] WP-4 — order tables, state machine, status history and idempotency.
-- [ ] WP-5 — backend order services, web Order Management and centralized Configuration.
-- [ ] WP-6 — versioned API, authentication/session lifecycle and security tests.
-- [ ] WP-7 — separate Customer App.
-- [ ] WP-8 — separate Business/Staff App.
-- [ ] WP-9 — validated POS fulfilment and financial/inventory regression.
-- [ ] WP-10 — two-shop pilot, release validation and rollback plan.
+- [x] WP-0 — source inventory, framework/test review, Shop Settings inventory and technical decisions. Source inventory complete; runtime verification remains a separate gate.
+- [x] WP-1 — fresh-install business/shop/customer ownership schema and seed setup. Migrations 032–039 are included and final mobile-order schema is present in `database/schema.sql`.
+- [x] WP-2 — business/shop scope resolver, explicit user/business/shop assignments, standard-role permission integration and scope checks in browser/API paths. Cross-shop runtime cases remain pending in `SQA.md`.
+- [x] WP-3 — customer app identity, pending self-registration, approval/rejection, account creation/disablement and revocable customer/staff API sessions. Browser administration screens are now present.
+- [x] WP-4 — order tables, state machine, status history, request idempotency, price reconfirmation, selected physical-cylinder snapshots and unique order-to-sale linkage.
+- [x] WP-5 — backend order/catalog/configuration services plus browser Order Management, Business/Shop administration, Customer App Account review and Catalog/Shop Availability pages.
+- [x] WP-6 — versioned Customer/Staff API, authentication/session lifecycle, permission/scope checks and CI schema assertions. Dedicated security/isolation runtime cases remain pending.
+- [ ] WP-7 — separate Customer App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
+- [ ] WP-8 — separate Business/Staff App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
+- [x] WP-9 — POS fulfilment service integration uses the existing validated sale/cash/inventory/ledger posting path with idempotent order linkage. Financial/inventory regression execution remains pending in `SQA.md`.
+- [ ] WP-10 — two-shop pilot, release validation, owner acceptance and rollback plan.
+
+
+### Web/backend delivery completed on this branch
+
+- Browser **Businesses & Shops** administration: create businesses (System Administrator only), provision shops with their default shop settings/cash register/inventory-policy records, and manage staff shop/Head Office scope without granting global ADMIN permissions.
+- Browser **Customer Orders** queue/detail: filter orders, validate legal state transitions, display price-reconfirmation state and status history, select physical cylinders and post fulfilment through the existing POS service.
+- Browser **Customer App Accounts**: review pending signups, link an existing financial customer or create a new one with credit disabled by default, reject with a reason, create app credentials for existing customers, and disable/revoke sessions.
+- Browser **Customer Ordering Catalog**: maintain the business-level product catalog and activate/deactivate products per authorized shop.
+- Versioned customer/staff API and services include account/session lifecycle, catalogue, centralized settings, order creation/cancellation/reconfirmation, shop order queue/status, physical-cylinder fulfilment and idempotent POS sale linkage.
+- These are implementation statuses, not runtime test results. Follow the page-by-page workflow and SQA execution register before release.
 
 ### Development safety gates
 
 - All work stays on `feature/mobile-multishop-ordering`; no direct commits to `main`.
 - No production database is queried or modified by this development workflow.
 - Preserve current POS, ledgers, receipts, deposits, cylinder custody, cash, inventory and custom-role behavior.
-- Do not report tests as PASS without execution evidence. The repository has a MySQL 8 CI smoke workflow, one small PHPUnit test set and Playwright runtime tests; WP-0 will define how these are run against the current commit.
+- Do not report tests as PASS without execution evidence. CI covers PHP syntax, Composer, MySQL 8 schema/migration smoke checks and PHPUnit. Playwright browser tests and customer/staff API security scenarios must still be run against an explicitly provisioned safe QA environment; a green CI run is not browser/runtime proof.
 - Do not merge or deploy until all security, isolation, POS-regression and owner-acceptance gates pass.
 
 See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the detailed implementation plan](docs/mobile-multishop/09-implementation-plan-and-decision-register.md), and [centralized configuration requirements](docs/mobile-multishop/10-configuration-management.md).
