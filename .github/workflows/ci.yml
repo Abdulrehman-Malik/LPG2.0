@@ -61,6 +61,7 @@ jobs:
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/010_20261004_purchase_inventory_integrity.sql
           printf "SET @lpg_refresh_transactional_data = 0;\\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/028_20261007_sale_history_permission.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/030_20261009_pak_operations_user.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/032_20261014_business_shop_ownership.sql
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/033_20261014_customer_accounts_orders_and_catalog.sql
