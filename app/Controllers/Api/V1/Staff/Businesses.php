@@ -279,21 +279,19 @@ class Businesses extends Controller
             return $this->fail(403, 'BUSINESS_ACCESS_DENIED', 'You do not have permission to manage access for this business.');
         }
 
-        $rows = Database::connect()->query(
-            'SELECT u.id AS user_id,u.full_name,u.username,u.is_active,
-                    ''head_office'' AS access_type,NULL AS shop_id,NULL AS shop_name,uba.is_default
+        $sql = "SELECT u.id AS user_id,u.full_name,u.username,u.is_active,
+                    'head_office' AS access_type,NULL AS shop_id,NULL AS shop_name,uba.is_default
              FROM user_business_access uba JOIN users u ON u.id=uba.user_id
              WHERE uba.business_id=?
              UNION ALL
              SELECT u.id AS user_id,u.full_name,u.username,u.is_active,
-                    ''shop'' AS access_type,l.id AS shop_id,l.name AS shop_name,usa.is_default
+                    'shop' AS access_type,l.id AS shop_id,l.name AS shop_name,usa.is_default
              FROM user_shop_access usa
              JOIN users u ON u.id=usa.user_id
              JOIN locations l ON l.id=usa.location_id
              WHERE l.business_id=?
-             ORDER BY full_name,user_id',
-            [$businessId, $businessId]
-        )->getResultArray();
+             ORDER BY full_name,user_id";
+        $rows = Database::connect()->query($sql, [$businessId, $businessId])->getResultArray();
 
         return $this->response->setJSON(['data' => ['business_id' => $businessId, 'assignments' => $rows]]);
     }
