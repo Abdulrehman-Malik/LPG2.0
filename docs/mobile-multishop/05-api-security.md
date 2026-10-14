@@ -12,9 +12,10 @@
 ## Suggested initial endpoints
 
 ### Authentication
-- `POST /api/v1/auth/login` — username/password; only approved, active accounts may receive a session.
+- `POST /api/v1/auth/customer/login` — username/password for Customer App accounts; only approved, active customer accounts may receive a session.
+- `POST /api/v1/auth/staff/login` — username/password for Business/Staff App accounts.
 - `POST /api/v1/auth/logout` — revoke the current app/device refresh session.
-- `POST /api/v1/auth/refresh` — rotate the refresh token and issue a new short-lived access token.
+- `POST /api/v1/auth/refresh` — rotate the refresh token and issue a new short-lived access token for the same app audience.
 - `POST /api/v1/auth/change-password` — authenticated password change and session invalidation policy.
 - `GET /api/v1/me` — authenticated account status, account type, capabilities and allowed scope.
 - `POST /api/v1/customer/signup` — public signup request only; creates a pending approval request and does not grant ordering access or an authenticated session.
