@@ -16,8 +16,12 @@ The existing web application continues to support POS and back-office workflows.
 
 ## MVP scope
 
-- Customer authentication and account-to-existing-customer linking.
-- Customer sees only their assigned shop, its orderable products, applicable prices and permitted availability.
+- Username/password login through the API over TLS; SMS/OTP is out of scope for MVP.
+- Customer account creation by authorized Admin/Manager or customer self-registration followed by Admin/Manager approval; pending accounts cannot log in to order.
+- Customer identity links to one financial customer master and one assigned shop.
+- Head Office defines the business product catalog; each shop can activate/deactivate products it is not currently selling.
+- Customer sees only their assigned shop's active orderable products, applicable server-calculated prices and permitted availability.
+- Both apps support multiple languages with a login-time language selector.
 - Place one-shop order for delivery or collection.
 - Shop staff receive, inspect, accept/reject, prepare and complete/cancel orders according to permissions.
 - Customer sees their own order history and status.
