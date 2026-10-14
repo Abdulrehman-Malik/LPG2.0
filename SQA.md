@@ -509,3 +509,41 @@ Before considering the application release-ready, explicitly execute and record:
 - A positive Security Deposit Amount still requires an actual non-credit deposit payment; deposit liability is never converted into gas-sale revenue.
 - Negative Security Deposit Amount must be rejected by the server (not silently changed to zero); verify no sale, payment, deposit-ledger, custody, cash, or inventory records are created.
 - The payment collection row remains compact, the delete button is reduced in size, and Reference / Note remains after Add Payment.
+
+## Customer-order duplicate fulfillment / idempotency regression
+
+**Execution status: NOT EXECUTED — run against a disposable MySQL 8+ test database. Do not mark PASS from code inspection alone.**
+
+### DPF01 — Sequential retry after a successful fulfillment
+1. Create and accept a customer order with known lines, payment, and available physical cylinders.
+2. Fulfill it once through the staff order API/POS and record the returned sale ID/number.
+3. Submit the exact same fulfillment request again, including the same order ID and payload.
+4. Verify the retry returns the existing completed order/sale or a safe “already fulfilled” response; it must not post a second sale.
+
+**Expected:** exactly one `sales` row for the `customer_order_id`; the order is `completed` and its `pos_sale_id` matches that sale. There is only one set of sale items, sale payments/settlements, cash movements, and inventory movements for the order. Cylinder statuses and gas weight change only once.
+
+### DPF02 — Two concurrent fulfillment requests for the same order
+1. Prepare a fresh accepted order and record the baseline row counts and balances for `sales`, `sale_items`, `sale_payments` (or the payment table used by the schema), `inventory_movements`, cash movements, customer balance, and selected cylinder units.
+2. From two independent authenticated requests/connections, submit fulfillment for the same order as nearly simultaneously as possible.
+3. Wait for both responses, then query the database and reconcile the order, POS sale, payment, cash, customer ledger, and inventory records.
+
+**Expected:** at most one request creates the POS sale; the other safely returns the already-posted result or a controlled retry/error. There is exactly one sale linked to the order and no duplicate financial or inventory effects. No selected cylinder is consumed twice, and the final order points to the one posted sale.
+
+### DPF03 — Idempotency after a response interruption
+1. Fulfill an order successfully, but simulate a client/network interruption after the server commits and before the client receives the response.
+2. Retry the same fulfillment request.
+3. Verify the retry discovers the committed sale and does not post any new records.
+
+**Expected:** the existing sale is returned/recovered; no second sale or duplicate side effects are created.
+
+### DPF04 — Inconsistent link / duplicate protection
+1. In a disposable test database only, test a completed order whose `pos_sale_id` conflicts with the sale linked by `sales.customer_order_id`, and separately test an order link pointing to a missing sale.
+2. Retry fulfillment and inspect the response and all records.
+
+**Expected:** reject with a controlled manual-review/integrity error; do not create another sale, change inventory, or post payments/cash to “repair” the mismatch automatically.
+
+### Implementation review notes
+- `SalesService::postForCustomerOrder()` checks for an existing sale and validates the order/shop/customer association.
+- The posting transaction locks the `customer_orders` row with `SELECT ... FOR UPDATE`; if a competing request has already completed the order and linked a sale, the second request follows the idempotent replay path.
+- `database/schema.sql` defines a unique key on `sales.customer_order_id`, preventing more than one non-NULL sale link per order at the database level.
+- These are code/schema safeguards, not runtime proof. DPF01–DPF04 remain **NOT EXECUTED** until the concurrency and recovery scenarios are run and evidence is recorded.
