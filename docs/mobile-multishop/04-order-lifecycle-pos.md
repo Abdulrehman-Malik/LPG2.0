@@ -34,15 +34,15 @@ Order header should capture:
 
 Order items should capture product/cylinder type, requested quantity, agreed or quoted price snapshot, line total and notes. Validate all product IDs, quantity, rate, fees and totals on the server.
 
-## Shop acceptance
+## Shop acceptance and price integrity
 
 On acceptance:
-1. Confirm customer belongs to the selected shop.
-2. Revalidate product is active/orderable, current rate policy, shop stock/availability, and delivery/collection constraints.
-3. Recalculate authoritative amounts server-side.
-4. Apply any explicit reservation policy only if designed with expiry, cancellation/rejection release and concurrency control. MVP default: do not reserve/deduct inventory merely because an order is pending.
-5. Save status transition and audit record atomically.
-6. Notify customer only after the transaction commits.
+1. Confirm the order/customer belongs to the processing shop and business.
+2. Revalidate that every product remains active/orderable and check current availability, rate policy and delivery/collection constraints.
+3. Do not silently overwrite the customer's saved price snapshot when a rate changes. If current price differs from the cloud order quote and the change affects the amount due, pause fulfilment until the customer reconfirms the revised price or the order is cancelled/requoted.
+4. For an offline order still stored only on the phone, the quote is not a price guarantee. If price or availability changed before synchronization, require customer review before creating the cloud order.
+5. Use server-calculated values. Apply a reservation policy only if later approved with expiry, cancellation/rejection release and concurrency controls. MVP default: do not reserve/deduct inventory merely because an order is pending.
+6. Save status transition and audit record atomically. Notify customer only after the transaction commits.
 
 ## Existing POS integration
 
