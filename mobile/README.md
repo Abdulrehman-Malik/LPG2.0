@@ -20,4 +20,10 @@ The configured URL must end in `/api/v1`. For local development, use the reachab
 
 ## Current stage
 
-This is the initial Dart source workspace: API/auth plumbing, login and first home/order-list screens are being wired to the existing API. Android/iOS runner projects, catalog/cart/checkout, the staff physical-cylinder/payment fulfillment UI, localization generation, and device builds remain subsequent work. Do not treat these sources as store-ready applications yet.
+The Dart source now includes:
+- Separate customer/staff login audiences and secure token storage.
+- Customer catalog browsing, cart quantities, delivery/collection checkout, idempotent order submission, order history, price reconfirmation and eligible cancellation.
+- Staff shop selection, order status actions, physical-cylinder/source selection, payment entry and the guarded POS fulfillment endpoint.
+- Shared authenticated API client with refresh-token rotation and consistent API error handling.
+
+Remaining release work includes Android/iOS runner projects and application IDs/signing, signup/approval UX, richer profile/catalog administration, integration/device testing, offline/network resilience, localization generation, and store builds. These source clients are **not yet store-ready**; successful static analysis is not a substitute for device-level end-to-end QA.
