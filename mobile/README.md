@@ -22,7 +22,7 @@ The configured URL must end in `/api/v1`. For local development, use the reachab
 
 The Dart source now includes:
 - Separate customer/staff login audiences and secure token storage.
-- Customer catalog browsing, cart quantities, delivery/collection checkout, idempotent order submission, order history, price reconfirmation and eligible cancellation.
+- Customer self-registration with shop selection and a pending-approval state; catalog browsing, cart quantities, delivery/collection checkout, idempotent order submission, order history, price reconfirmation and eligible cancellation.
 - Staff shop selection, order status actions, physical-cylinder/source selection, payment entry and the guarded POS fulfillment endpoint.
 - Shared authenticated API client with refresh-token rotation and consistent API error handling.
 
