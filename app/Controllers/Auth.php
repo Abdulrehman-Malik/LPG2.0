@@ -83,14 +83,14 @@ class Auth extends Controller
         $locationId = (int) ($user['location_id'] ?? 0);
 
         if ($locationId <= 0 || !$scope->canAccessShop($locationId, $userId)) {
-            $allowedShopIds = $scope->accessibleShopIds($userId);
-            if (!$allowedShopIds) {
+            $defaultShopId = $scope->defaultShopIdForUser($userId);
+            if ($defaultShopId === null) {
                 return redirect()->back()->withInput()->with(
                     'error',
                     'This account is not assigned to an active shop. Contact an administrator.'
                 );
             }
-            $locationId = $allowedShopIds[0];
+            $locationId = $defaultShopId;
         }
 
         session()->regenerate();
