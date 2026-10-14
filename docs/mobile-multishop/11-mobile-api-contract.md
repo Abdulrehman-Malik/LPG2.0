@@ -49,6 +49,7 @@ Customer ownership is checked server-side. Creating, cancelling or reconfirming 
 | GET | `/staff/orders` | List orders within the selected authorized shop |
 | GET | `/staff/orders/{orderId}` | View order detail and status history |
 | POST | `/staff/orders/{orderId}/status` | Advance/reject/cancel within the allowed order state machine |
+| GET | `/staff/orders/{orderId}/fulfillment-options` | List eligible physical cylinders per order line within the authorized shop |
 | POST | `/staff/orders/{orderId}/fulfill` | Select physical cylinders, confirm the current quote, collect payment details and post the order through the existing POS service |
 | GET | `/staff/configuration/application` | Read application settings if authorized |
 | GET | `/staff/configuration/businesses/{businessId}` | Read effective business configuration if authorized |
