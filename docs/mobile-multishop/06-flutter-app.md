@@ -30,14 +30,14 @@ Both apps use English as the only supported UI language in the initial release. 
 2. Shop/business context.
 3. Pending customer signup approval queue and permissioned account create/reset actions.
 4. Business catalog administration and per-shop product activation/deactivation.
-5. Permission-aware Configuration entry for settings this staff member may view/manage. Show only the user's authorized business/shop scope; do not expose Application Login & Session editing to ordinary business or shop users.
 5. Pending order queue with filters and refresh.
-4. Order details including customer contact, item/quantity, address or collection, notes, price snapshot and timeline.
-5. Accept/reject with reason as required.
-6. Update allowed fulfilment status.
-7. Owner cross-shop view, only where authorized.
-8. Error/retry states and network connectivity feedback.
+6. Order details including customer contact, item/quantity, address or collection, notes, price snapshot and timeline.
+7. Accept/reject with reason as required.
+8. Update allowed fulfilment status.
+9. Owner cross-shop view, only where authorized.
+10. Error/retry states and network connectivity feedback.
 
+The central Configuration editor remains in the authenticated web application for the MVP, preserving one source of truth. The Business/Staff App may display a permission-filtered entry or read-only effective-setting summary where useful, but must not duplicate configuration storage or expose Application Login & Session editing to ordinary business/shop users.
 ## UX requirements
 
 - Clear distinction between order status and sale/payment status.
