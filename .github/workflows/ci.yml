@@ -82,6 +82,16 @@ jobs:
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='sales' AND COLUMN_NAME='delivery_fee_amount') OR (TABLE_NAME='sales' AND COLUMN_NAME='customer_order_id') OR (TABLE_NAME='customer_order_items' AND COLUMN_NAME='selected_cylinder_unit_ids'))" | grep -qx 3
           mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sales' AND INDEX_NAME='uq_sales_customer_order' AND NON_UNIQUE=0" | grep -qx 1
 
+      - name: Run the application migration gate against the disposable CI database
+        env:
+          CI_ENVIRONMENT: development
+          LPG_DB_HOST: 127.0.0.1
+          LPG_DB_PORT: 3306
+          LPG_DB_USER: root
+          LPG_DB_PASS: root
+          LPG_DB_NAME: perfect_lpg
+        run: php spark migrations:run
+
       - name: CodeIgniter smoke check
         env:
           CI_ENVIRONMENT: testing
