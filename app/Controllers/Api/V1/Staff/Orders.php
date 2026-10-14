@@ -96,6 +96,37 @@ class Orders extends Controller
         return $this->response->setJSON(['data' => ['order' => $order]]);
     }
 
+    public function fulfillmentOptions(int $orderId)
+    {
+        $guard = $this->guard('ORDER_MANAGE');
+        if (isset($guard['response'])) {
+            return $guard['response'];
+        }
+
+        try {
+            return $this->response->setJSON(['data' => [
+                'options' => (new CustomerOrderService())->fulfillmentOptions(
+                    $guard['user_id'],
+                    $guard['shop_id'],
+                    $orderId
+                ),
+            ]]);
+        } catch (\\Throwable $e) {
+            $message = $e->getMessage();
+            if (str_contains($message, 'not found')) {
+                return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
+            }
+            if (str_contains($message, 'You do not have access')) {
+                return $this->apiError(403, 'SHOP_ACCESS_DENIED', 'You do not have access to this shop.');
+            }
+            if (str_contains($message, 'no available fulfillment options')) {
+                return $this->apiError(409, 'ORDER_NOT_FULFILLABLE', 'This order is not available for fulfillment.');
+            }
+            log_message('error', 'Staff fulfillment options failed: {message}', ['message' => $message]);
+            return $this->apiError(503, 'FULFILLMENT_OPTIONS_UNAVAILABLE', 'Physical-cylinder options are temporarily unavailable.');
+        }
+    }
+
     public function fulfill(int $orderId)
     {
         $guard = $this->guard('ORDER_MANAGE');
