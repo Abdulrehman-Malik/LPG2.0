@@ -11,7 +11,7 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 - Admin/Manager-created app accounts link to a customer master without duplication.
 - Customer signup remains pending and cannot authenticate or order until an authorized Admin/Manager approves it.
 - Approval/rejection is limited to the responsible shop and is audited.
-- Username/password API login, logout, refresh rotation, recovery/reset, and session revocation behave as specified.
+- Username/password API login, 15-minute access-token expiry, refresh rotation, 30-day inactivity expiry, 90-day absolute expiry, refresh-token reuse rejection, logout, recovery/reset and session revocation behave as specified.
 - Invalid, inactive or blocked customer cannot order.
 - Customer A cannot read Customer B's order, even when IDs are changed.
 - Customer cannot submit an order for another shop.
@@ -58,7 +58,7 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 8. Sign in as business owner; confirm cross-shop overview only within the owner's business.
 9. Fulfil one accepted order through the approved POS integration and reconcile sale, inventory and payment records.
 10. Repeat with network interruption/retry, cancellation, stock/rate change, product activation/deactivation and price reconfirmation.
-11. Test signup pending state, Admin/Manager approval and rejection, account recovery, and login-time language selection in both apps.
+11. Test signup pending state, Admin/Manager approval and rejection, account recovery, English-only UI and localization-ready string handling in both apps.
 12. Run Android and iOS functional tests against the same API.
 13. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
 
