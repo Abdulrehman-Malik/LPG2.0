@@ -305,7 +305,7 @@ class CustomerAppAccounts extends Controller
                 'password_changed_at' => date('Y-m-d H:i:s'),
             ]);
             if (!$db->transStatus()) {
-                throw new \\RuntimeException('Customer App password could not be updated.');
+                throw new \RuntimeException('Customer App password could not be updated.');
             }
             $db->transCommit();
 
@@ -316,7 +316,7 @@ class CustomerAppAccounts extends Controller
                 $userId, $shopId);
 
             return redirect()->to(site_url('customer-app-accounts'))->with('success', 'Customer App password reset. All existing app sessions were revoked.');
-        } catch (\\Throwable $e) {
+        } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Web Customer App password reset failed: {message}', ['message' => $e->getMessage()]);
             return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App password could not be reset.');
