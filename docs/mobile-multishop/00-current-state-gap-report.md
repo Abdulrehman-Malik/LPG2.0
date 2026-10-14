@@ -61,6 +61,14 @@ The owner confirmed that there is no existing business/customer transactional da
 
 This does not mean a mobile signup can create a duplicate financial customer. The customer app identity must link to one existing customer master in the deployed application; if no suitable master record exists, an authorized Admin/Manager must explicitly select or create the correct customer master as a separate reviewed step before approving the app account. Any future plan to upgrade a populated deployment requires a separate approved data-handling and recovery plan.
 
+## 2A. Configuration management target
+
+The owner requires important settings to be managed through a centralized, permission-aware Configuration area, building on the existing Shop Settings experience. The target has three scopes: Application (System Administrator only), Head Office/Business (limited to that business), and Shop (limited to assigned shop(s)). A Login & Session group belongs at Application scope by default.
+
+This is a target requirement, not a complete source inventory. During WP-0, inspect the existing Shop Settings UI, routes, controllers, models/tables, consumers and tests. Classify settings before moving them. Resolve permitted overrides as Shop → Business → Application; settings that are not explicitly overridable remain at their owning scope. Keep security guardrails at Application scope; lower scopes cannot extend session limits or weaken authentication controls. Audit changes and never return deployment secrets to a client.
+
+See [Module 10 — Centralized Configuration Management](10-configuration-management.md) for the full target design.
+
 ## 3. POS and financial integrity
 
 The existing architecture assigns posting logic to application services and uses location-aware transaction records. Mobile ordering must not bypass this.
@@ -93,7 +101,8 @@ The first implementation step is a code/schema inventory and fresh-install desig
 - Head Office manages the business product catalog; individual shops can activate/deactivate products according to what they currently sell.
 - The server applies existing effective-rate rules and snapshots prices for cloud orders. A changed price is never silently applied to an existing order; offline queued orders require review if price/availability changed before synchronization.
 - Customer chooses delivery or collection at checkout; delivery requires an address and any fee/condition must be shown before submission.
-- Both apps are multilingual with a language selector at login. The exact initial language list and translated strings remain to be agreed before UI content freeze.
+- English is the only supported UI language in the initial release; keep strings localization-ready. Add a language selector when a second language is introduced.
+- Important settings are managed through one Configuration area at Application, Head Office/Business and Shop scopes, with application-level Login & Session policy and audited, validated override rules.
 - The customer app can persist offline queued orders and retry when connectivity returns; a queued local-only order is not visible to a shop until the cloud confirms it.
 
 ## 6. Verification limits
