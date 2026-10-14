@@ -30,7 +30,7 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 - `roles`, `permissions`, and `role_permissions` implement database-backed role permissions.
 - `PermissionService::allows()` checks capability permissions, and `syncStandardRolePermissions()` maintains standard permissions for ADMIN, MANAGER and CASHIER while leaving custom roles alone.
 - The current permission model is capability-oriented; business-wide versus shop-specific data scope is not yet a complete authorization layer.
-- Current `customers` schema/model has no `location_id`; assigning each customer to exactly one shop therefore requires a planned schema migration and legacy-data backfill.
+- Current `customers` schema/model has no `location_id`; the fresh-install schema must add required customer-to-shop ownership. No legacy customer mapping/backfill is required for this initiative.
 - Current `locations` schema has no business/company parent; business ownership requires a planned schema extension.
 - Current routes are browser/session-oriented and do not yet expose the planned customer mobile API.
 
@@ -58,9 +58,9 @@ These are source-code observations, not runtime test results.
 
 Read [the detailed implementation plan and decision register](09-implementation-plan-and-decision-register.md) before starting any coding. It defines work packages WP-0 through WP-10, dependencies, exit criteria, acceptance requirements and release gates.
 
-Implementation is **not authorized yet**. First review and approve the decision register, then complete WP-1 legacy data discovery using a safe non-production database copy. Do not make application/schema changes until the required business decisions and customer-to-shop mapping are approved.
+Implementation is **not authorized yet**. First review and approve the consolidated plan. Do not build legacy customer mapping/backfill tooling for this deployment. Do not make application/schema changes until the owner explicitly approves implementation.
 
-The ordered work is: source inventory and decisions → legacy customer/shop mapping → business/shop scope and customer identity → order data/state machine → backend services and web Order Management → versioned API/security → Flutter customer experience → Flutter staff/owner experience → POS fulfilment reconciliation → two-shop pilot and release.
+The ordered work is: source inventory → fresh-install schema and ownership → business/shop authorization → customer identity/signup approval → order data/state machine → backend services and web Order Management → versioned API/security → separate Customer App → separate Business/Staff App → POS fulfilment reconciliation → two-shop pilot and release.
 
 ## Decisions already fixed
 
