@@ -1,4 +1,4 @@
-# Module 07 — Database Model, Migrations and Legacy Data
+# Module 07 — Database Model, Fresh Install and Schema Upgrade
 
 ## Existing schema observations
 
@@ -13,8 +13,8 @@
 ## Target data model (logical, names to finalize after code review)
 
 - `businesses`: business identity, name, status and timestamps.
-- `locations.business_id`: required parent business after a safe backfill; one business has many shops.
-- `customers.location_id`: required assigned shop after all existing customers have been mapped; one shop has many customers.
+- `locations.business_id`: required business parent for every shop in the fresh-install schema; one business has many shops. The model must support multiple businesses from the start.
+- `customers.location_id`: required assigned shop for newly created customer masters in the fresh-install schema; one shop has many customers.
 - Staff-shop assignment table (for example `user_location_assignments`) if users need access to multiple shops; preserve existing `users.location_id` for compatibility/default shop as appropriate.
 - Customer mobile-account identity/session mapping table with unique constraints preventing duplicate links.
 - `customer_orders`: business, location, customer, public order number, status, fulfilment details, snapshots and timestamps.
@@ -34,23 +34,25 @@
 - Add indexes for shop/status/created date, customer/order history, and relevant foreign keys.
 - Use InnoDB, transactions, appropriate FK constraints and unique keys. Application checks supplement but do not replace database integrity.
 
-## Migration stages — non-destructive
+## Fresh-install schema and optional existing-install upgrade
 
-1. Inspect all existing locations, customers, users and historical customer transactions by location. Produce a report before schema changes.
-2. Create businesses and assign current locations to an explicitly approved legacy business (or map multiple known businesses accurately).
-3. Add nullable `customers.location_id` first. Backfill only from a verified customer ownership source; do not infer from whichever shop the admin is logged into.
-4. Identify customers whose historic transactions span locations or whose shop cannot be established. Put them in a review report and block mobile ordering for unresolved records until an owner resolves them.
-5. Add constraints only after data-quality checks pass. Keep migrations restart-safe and record migration completion using the project's migration runner.
-6. Add customer-account, staff-shop assignment and order tables.
-7. Add API and application code after schema migration tests pass.
-8. Verify upgrade path on a copy of an existing database and fresh installation from `database/schema.sql`.
-9. Document rollback and backup requirements. If a migration has begun creating order data, prefer forward repair over destructive rollback.
+The owner confirmed that there is no existing business/customer transactional data to migrate for this initiative. Therefore, no historic customer-location mapping report or customer transaction backfill is required.
+
+1. Update `database/schema.sql` so a clean install creates the business entity, business-owned shops, required customer-to-shop relationship, customer identity/session tables, permissions and order tables consistently.
+2. Ensure installation/setup seeds create or select the intended business and its shops explicitly; the schema must support multiple businesses and must not assume every shop belongs to one global business.
+3. Create repeatable seed/setup rules for products and permissions. Seed logic must not silently grant new capabilities to custom roles.
+4. Test fresh installation, foreign keys, unique constraints, indexes and repeat execution of approved seed operations.
+5. If an existing installation is later selected for upgrade, define and review a separate schema-upgrade/data-handling plan first. Any existing shop row must be assigned to an explicitly identified business before enforcing a required `business_id`; do not infer ownership from the active staff session.
+6. Add customer identity, staff-shop assignment and order tables according to the approved logical model. Existing financial customer masters remain distinct from customer app identities.
+7. Keep `database/schema.sql` and incremental migrations consistent, restart-safe and recorded using the repository's migration runner.
+8. Test the selected upgrade path on a safe database copy, separately from the fresh-install test.
+9. Document backup, recovery and forward-repair procedures. Do not perform production data changes as part of planning.
 
 ## Important cautions
 
 - Do not move historical sales, receipts, deposits, custody, cash or inventory records just to match the new ownership model.
-- Do not assign all old customers to one default shop without explicit approval.
-- Do not make `customers.location_id` NOT NULL until every legacy record is mapped and verified.
+- Do not invent historic customer ownership or silently reassign existing transaction history.
+- Do not require a legacy mapping/backfill process for the planned clean deployment. A populated upgrade is a separate, explicitly approved scope.
 - Keep `database/schema.sql` and incremental migration scripts consistent.
 - No destructive data refresh/reset is part of this feature.
 
