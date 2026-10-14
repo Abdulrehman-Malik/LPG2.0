@@ -42,6 +42,41 @@ class Auth extends Controller
         return preg_match('/^Bearer\s+([a-f0-9]{64})$/i', $header, $match) ? $match[1] : '';
     }
 
+    public function registrationShops()
+    {
+        try {
+            $db = Database::connect();
+            $configuration = new ConfigurationService();
+            $rows = $db->table('locations l')
+                ->select('l.id,l.name,l.business_id,b.name AS business_name')
+                ->join('businesses b', 'b.id=l.business_id', 'inner')
+                ->where(['l.is_active' => 1, 'b.is_active' => 1])
+                ->orderBy('b.name')
+                ->orderBy('l.name')
+                ->get()->getResultArray();
+
+            $shops = [];
+            foreach ($rows as $row) {
+                $businessId = (int) $row['business_id'];
+                $shopId = (int) $row['id'];
+                if (!(bool) $configuration->resolve('customer_ordering_feature_enabled', $businessId, $shopId)['value']
+                    || !(bool) $configuration->resolve('customer_self_registration_enabled', $businessId, $shopId)['value']) {
+                    continue;
+                }
+                $shops[] = [
+                    'id' => $shopId,
+                    'name' => (string) $row['name'],
+                    'business_name' => (string) $row['business_name'],
+                ];
+            }
+
+            return $this->response->setJSON(['data' => ['shops' => $shops]]);
+        } catch (\\Throwable $e) {
+            log_message('error', 'Customer registration shop list failed: {message}', ['message' => $e->getMessage()]);
+            return $this->errorResponse(503, 'REGISTRATION_SHOPS_UNAVAILABLE', 'Registration shops are temporarily unavailable.');
+        }
+    }
+
     public function customerSignup()
     {
         $input = $this->payload();
