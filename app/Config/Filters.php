@@ -14,6 +14,7 @@ use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 use App\Controllers\Filters\AuthFilter;
 use App\Controllers\Filters\ApiAuthFilter;
+use App\Controllers\Filters\ApiReadyFilter;
 
 class Filters extends BaseFilters
 {
@@ -38,6 +39,7 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'auth'          => AuthFilter::class,
         'api-auth'      => ApiAuthFilter::class,
+        'api-ready'     => ApiReadyFilter::class,
     ];
 
     /**
