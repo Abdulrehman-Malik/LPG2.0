@@ -56,6 +56,20 @@ Endpoint names are a proposed contract and must be reconciled with existing API 
 - Do not log access/refresh tokens or sensitive identity values.
 - Store mobile credentials/session material in platform-secure storage; never embed backend secrets in the Flutter bundle.
 
+## Configuration access and policy
+
+Configuration writes should use the authenticated web Configuration area and a single backend configuration resolver/service. Add versioned API access only where a mobile client needs client-safe effective settings; it must be read-only for platform/business/shop policy and must not accept arbitrary setting keys or return secrets.
+
+- Application Login & Session settings are managed by System Administrators only and validated against approved security guardrails.
+- Head Office/Business and Shop settings require separate capability permissions plus explicit business/shop scope checks.
+- Resolve permitted overrides server-side: Shop override, then Business override, then Application default. Settings marked Application-only or otherwise non-overridable must never accept lower-scope changes.
+- Do not allow business/shop settings to extend token lifetime beyond Application limits, weaken password/login controls, disable refresh rotation/reuse detection, bypass approval or disable revocation.
+- Log all configuration changes with actor, scope, timestamp, setting key, outcome and non-secret before/after values. Redact credentials and tokens.
+- Do not expose environment variables, signing keys, raw provider credentials, passwords or session tokens to any application client.
+- Authorization and session/security policy values are never trusted from the mobile request body or local app preferences.
+
+See [Module 10 — Centralized Configuration Management](10-configuration-management.md) for setting ownership, inheritance and the audit model.
+
 ## Authorization and data isolation
 
 Every endpoint must validate:
