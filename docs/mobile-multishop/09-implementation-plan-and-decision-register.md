@@ -3,10 +3,10 @@
 **Plan version:** 1.0  
 **Prepared:** 2026-10-13  
 **Status:** Planning decisions confirmed; implementation deliberately not started.  
-**Target branch:** `feature/mobile-multishop-ordering-requirements`  
-**Baseline:** `main` at `9abc7d9a417d0508ebc8afd04da3e3d7a15d9038`
+**Target branch:** `docs/mobile-multishop-final-plan` for this documentation-only update; implementation branch to be created after planning approval  
+**Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14)
 
-This document is the execution plan for the mobile app and multi-shop ordering feature. It consolidates the module requirements into dependency-ordered work packages, defines their entry/exit criteria, and records the business decisions that need owner approval. It authorizes planning only; it does not authorize code, schema, data, or configuration changes.
+This document is the execution plan for the mobile app and multi-shop ordering feature. It consolidates the module requirements into dependency-ordered work packages, defines their entry/exit criteria, and records the confirmed business decisions and remaining implementation gates. It authorizes planning only; it does not authorize code, schema, data, or configuration changes.
 
 ## 1. Project outcome
 
