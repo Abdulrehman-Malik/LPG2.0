@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep important business and application settings in a clear, permission-aware **Configuration** area instead of scattering them across unrelated screens. Reuse the existing Shop Configuration/Shop Settings behavior as the starting point, then add Head Office/Business settings and Application-level settings. This module is a planning specification only; implementation remains paused until the consolidated plan is explicitly approved.
+Keep important business and application settings in a clear, permission-aware **Configuration** area instead of scattering them across unrelated screens. Reuse the existing Shop Configuration/Shop Settings behavior as the starting point, then add Head Office/Business settings and Application-level settings. Implementation is underway on the isolated `feature/mobile-multishop-ordering` branch. The existing web Configuration area uses the central resolver; staff mobile API endpoints are being added against the same service. This work does not imply that either Flutter app UI is complete.
 
 ## Configuration scopes and ownership
 
@@ -69,6 +69,22 @@ Changing policy must have a defined effective time. At minimum, new values must 
 
 This table is a target policy matrix. WP-0 must map it to the application's real existing fields/services, and the owner must approve any new setting that changes business behavior.
 
+## Current implementation status
+
+The web Configuration area currently provides application, business and shop scopes, effective-value source labels, allowed override resets, permission checks and audit entries. The central `ConfigurationService` currently defines customer-ordering feature guardrails, order/delivery/collection switches, delivery fee, customer self-registration, supported language, access/refresh session lifetime and minimum password length.
+
+The staff API now exposes these scope-specific routes for the Business/Staff App to consume:
+
+- `GET /api/v1/staff/configuration/application`
+- `GET /api/v1/staff/configuration/businesses/{businessId}`
+- `GET /api/v1/staff/configuration/shops/{shopId}`
+- `POST /api/v1/staff/configuration/save` with `scope`, `owner_id`, `key`, and typed JSON `value`
+- `POST /api/v1/staff/configuration/reset` for business/shop overrides
+
+These API routes reuse the existing configuration definitions and resolver; they do not make the mobile client authoritative for permissions or configuration precedence. Application settings require the corresponding application-level capability. Business/shop requests must pass both the capability check and the assigned business/shop scope check. Values are validated server-side and changes are audited.
+
+This is not yet a claim that all possible operational settings have been migrated into this central area. Additional settings must be added only after their current source of truth and consumers are mapped, and mobile screens must only expose settings appropriate to the signed-in role.
+
 ## Audit, validation and operational behavior
 
 - Log actor, timestamp, setting key, scope/owner ID, old and new non-secret values, outcome and request/correlation ID. Redact sensitive values; never log passwords or tokens.
@@ -99,4 +115,4 @@ Acceptance tests must prove:
 - Existing Shop Settings and affected operational flows continue to work.
 - Customer and Business/Staff API audiences receive only safe, relevant configuration values.
 
-No code, schema, environment configuration, deployment secret or production data is changed by this documentation update.
+The implementation is isolated to the feature branch. Do not merge it into `main` until the mobile API, POS/order fulfillment boundary, permissions, migrations and tests have been reviewed and accepted.
