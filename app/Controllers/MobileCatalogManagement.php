@@ -44,6 +44,15 @@ class MobileCatalogManagement extends Controller
         $context = $this->context();
         if (isset($context['error'])) return $context['error'];
 
+        $hasReadOrManagePermission =
+            PermissionService::allows('BUSINESS_CATALOG_VIEW')
+            || PermissionService::allows('BUSINESS_CATALOG_MANAGE')
+            || PermissionService::allows('SHOP_SETTINGS_VIEW')
+            || PermissionService::allows('SHOP_SETTINGS_MANAGE');
+        if (!$hasReadOrManagePermission) {
+            return $this->response->setStatusCode(403)->setBody('You do not have permission to view or manage the customer ordering catalog.');
+        }
+
         $userId = (int) $context['user_id'];
         $shopId = (int) $context['shop_id'];
         $businessId = (int) $context['business_id'];
@@ -124,7 +133,11 @@ class MobileCatalogManagement extends Controller
         $mode = trim((string) $this->request->getPost('sale_mode'));
         $name = trim((string) $this->request->getPost('display_name'));
         $description = trim((string) $this->request->getPost('description'));
-        $active = $this->request->getPost('is_active') === '1';
+        $activeRaw = (string) $this->request->getPost('is_active');
+        if (!in_array($activeRaw, ['0', '1'], true)) {
+            return redirect()->to(site_url('mobile-catalog?shop_id=' . (int)$context['shop_id']))->withInput()->with('error', 'Choose a valid catalog product status.');
+        }
+        $active = $activeRaw === '1';
         $minimumRaw = trim((string) $this->request->getPost('min_quantity'));
         $stepRaw = trim((string) $this->request->getPost('quantity_step'));
         $minimum = is_numeric($minimumRaw) ? round((float) $minimumRaw, 3) : 0.0;
@@ -201,7 +214,11 @@ class MobileCatalogManagement extends Controller
             return $this->response->setStatusCode(403)->setBody('You do not have permission to change availability for this shop.');
         }
 
-        $active = $this->request->getPost('is_active') === '1';
+        $activeRaw = (string) $this->request->getPost('is_active');
+        if (!in_array($activeRaw, ['0', '1'], true)) {
+            return redirect()->to(site_url('mobile-catalog?shop_id=' . $shopId))->with('error', 'Choose a valid availability state.');
+        }
+        $active = $activeRaw === '1';
         $db = Database::connect();
         $product = $db->table('business_catalog_products')
             ->where(['id' => $productId, 'business_id' => $businessId, 'is_active' => 1])
