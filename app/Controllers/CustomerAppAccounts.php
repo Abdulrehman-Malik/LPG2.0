@@ -377,21 +377,36 @@ class CustomerAppAccounts extends Controller
         $userId = (int) $context['user_id'];
         $shopId = (int) $context['shop_id'];
         $db = Database::connect();
-        $account = $db->table('customer_app_accounts ca')
-            ->select('ca.id,ca.customer_id,ca.status,c.location_id')
-            ->join('customers c', 'c.id=ca.customer_id', 'inner')
-            ->where(['ca.id' => $accountId, 'c.location_id' => $shopId])
-            ->get()->getRowArray();
-        if (!$account) return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account was not found in this shop.');
+        $db->transBegin();
 
-        $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'disabled']);
-        if (!$db->affectedRows() && (string) $account['status'] !== 'disabled') {
+        try {
+            $account = $db->query(
+                'SELECT ca.id,ca.customer_id,ca.status,c.location_id
+                 FROM customer_app_accounts ca
+                 JOIN customers c ON c.id=ca.customer_id
+                 WHERE ca.id=? AND c.location_id=?
+                 LIMIT 1 FOR UPDATE',
+                [$accountId, $shopId]
+            )->getRowArray();
+            if (!$account) {
+                $db->transRollback();
+                return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account was not found in this shop.');
+            }
+
+            $db->table('customer_app_accounts')->where('id', $accountId)->update(['status' => 'disabled']);
+            (new ApiSessionService())->revokeAllForCustomer($accountId);
+            if (!$db->transStatus()) {
+                throw new \RuntimeException('Customer App account could not be disabled.');
+            }
+            $db->transCommit();
+
+            AuditService::log('CUSTOMER_APP_ACCOUNT_DISABLED', 'customer_app_account', $accountId,
+                ['status' => $account['status']], ['status' => 'disabled', 'sessions_revoked' => true], $userId, $shopId);
+            return redirect()->to(site_url('customer-app-accounts'))->with('success', 'Customer App account disabled and all its sessions revoked.');
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Web Customer App account disable failed: {message}', ['message' => $e->getMessage()]);
             return redirect()->to(site_url('customer-app-accounts'))->with('error', 'Customer App account could not be disabled.');
         }
-        (new ApiSessionService())->revokeAllForCustomer($accountId);
-
-        AuditService::log('CUSTOMER_APP_ACCOUNT_DISABLED', 'customer_app_account', $accountId,
-            ['status' => $account['status']], ['status' => 'disabled'], $userId, $shopId);
-        return redirect()->to(site_url('customer-app-accounts'))->with('success', 'Customer App account disabled and all its sessions revoked.');
     }
 }
