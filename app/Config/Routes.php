@@ -29,7 +29,14 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
 });
 
 $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
-    $routes->get('dashboard','Dashboard::index'); $routes->post('shop-context/select','ShopContext::select'); $routes->post('database-backup/transactional-refresh','DatabaseBackup::refreshTransactionalData');
+    $routes->get('dashboard','Dashboard::index');
+    $routes->get('configuration','Configuration::index');
+    $routes->get('configuration/application','Configuration::application');
+    $routes->get('configuration/business/(:num)','Configuration::business/$1');
+    $routes->get('configuration/shop/(:num)','Configuration::shop/$1');
+    $routes->post('configuration/save','Configuration::save');
+    $routes->post('configuration/reset','Configuration::reset');
+    $routes->post('shop-context/select','ShopContext::select'); $routes->post('database-backup/transactional-refresh','DatabaseBackup::refreshTransactionalData');
     $routes->get('shop-settings','ShopSettings::index'); $routes->post('shop-settings/save','ShopSettings::save');
     $routes->get('sales','Sales::index'); $routes->get('sales/customer-balance/(:num)','Sales::customerBalance/$1'); $routes->get('sales/history','Sales::historyPage'); $routes->get('sales/history/data','Sales::historyData'); $routes->get('sales/details/(:num)','Sales::details/$1'); $routes->post('sales/save','Sales::save'); $routes->get('sales/custody/(:num)','Sales::custody/$1'); $routes->get('sales/receipt/(:num)','Sales::receipt/$1'); $routes->post('sales/void/(:num)','Sales::void/$1');
     $routes->get('cash','Cash::index'); $routes->get('cash/history','Cash::history'); $routes->post('cash/open','Cash::open'); $routes->post('cash/close','Cash::close'); $routes->post('cash/move','Cash::move');
