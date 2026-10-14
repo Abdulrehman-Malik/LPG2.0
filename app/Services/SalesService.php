@@ -180,8 +180,10 @@ class SalesService
         }
 
         $discount=max(0,(float)($payload['discount_amount']??0));
+        $deliveryFee=max(0,(float)($payload['delivery_fee_amount']??0));
+        if($deliveryFee>0 && empty($payload['order_id'])) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
         if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-        $total=$subtotal-$discount;$paymentTotal=0;$credit=0;$cashAmount=0;
+        $total=round($subtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
         foreach($payments as $p){
             $mode=(string)($p['payment_mode']??'');$amount=(float)($p['amount']??0);
             if(!in_array($mode,['cash','cheque','online','credit'],true)||$amount<=0) throw new RuntimeException('Invalid payment.');
@@ -288,7 +290,9 @@ class SalesService
 
             $preparedSubtotal=array_sum(array_map(static fn($r)=>(float)$r['line_total'],$prepared));
             $discount=max(0,(float)($payload['discount_amount']??0));if($discount>$preparedSubtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-            $total=$preparedSubtotal-$discount;$paymentTotal=0;$credit=0;$cashAmount=0;
+            $deliveryFee=max(0,(float)($payload['delivery_fee_amount']??0));
+            if($deliveryFee>0 && empty($payload['order_id'])) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
+            $total=round($preparedSubtotal-$discount+$deliveryFee,2);$paymentTotal=0;$credit=0;$cashAmount=0;
             foreach($payments as $p){
                 $mode=(string)$p['payment_mode'];$amount=(float)$p['amount'];$paymentTotal+=$amount;
                 if($mode==='credit')$credit+=$amount;if($mode==='cash')$cashAmount+=$amount;
@@ -307,7 +311,7 @@ class SalesService
                 'sell_gas_only'=>'refill_service','replace_same'=>'cylinder_exchange','sell_filled'=>'filled_cylinder',
                 'replace_different'=>'mixed','sell_empty'=>'empty_sale'
             };
-            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
+            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'delivery_fee_amount'=>$deliveryFee,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
             $saleId=(int)$this->db->insertID();
 
             foreach($prepared as $row){
