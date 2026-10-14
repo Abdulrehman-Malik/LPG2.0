@@ -217,6 +217,7 @@ class CustomerOrderService
             $gasRateSnapshot = 0.0;
             $cylinderRateSnapshot = 0.0;
             $lineTotal = 0.0;
+            $selectedUnitIds = [];
 
             if ($mode === 'sell_gas_only') {
                 if ($gasRate === null || $gasRate <= 0) {
@@ -577,10 +578,12 @@ class CustomerOrderService
 
     protected function decodeSelectedUnitIds($value): array
     {
-        if (!is_string($value) || trim($value) === '') return [];
-        $decoded = json_decode($value, true);
-        if (!is_array($decoded)) return [];
-        $ids = array_values(array_unique(array_map('intval', $decoded)));
+        if (is_string($value)) {
+            if (trim($value) === '') return [];
+            $value = json_decode($value, true);
+        }
+        if (!is_array($value)) return [];
+        $ids = array_values(array_unique(array_map('intval', $value)));
         sort($ids, SORT_NUMERIC);
         return $ids;
     }
@@ -604,7 +607,7 @@ class CustomerOrderService
                 || abs((float) $old['gas_rate_snapshot'] - (float) $new['gas_rate_snapshot']) > 0.0001
                 || abs((float) $old['cylinder_rate_snapshot'] - (float) $new['cylinder_rate_snapshot']) > 0.0001
                 || abs((float) $old['line_total'] - (float) $new['line_total']) > 0.009
-                || $this->decodeSelectedUnitIds($old['selected_cylinder_unit_ids'] ?? null) !== array_values(array_map('intval', $new['selected_cylinder_unit_ids'] ?? []))) {
+                || $this->decodeSelectedUnitIds($old['selected_cylinder_unit_ids'] ?? null) !== $this->decodeSelectedUnitIds($new['selected_cylinder_unit_ids'] ?? null)) {
                 return true;
             }
         }
