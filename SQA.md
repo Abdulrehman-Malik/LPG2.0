@@ -616,3 +616,26 @@ Run separate cases for: partial gas-only sale; gas-only sale that empties a cyli
 - The standard five-mode POS posting path previously enforced the customer's numeric credit limit unconditionally. This contradicted the existing configuration semantics: a zero customer limit is treated as unlimited, and the shop-level mode should validate total shop exposure instead.
 - Updated `SalesService::post()` to honor `credit_limit_validation_mode`, preserve the positive customer-limit behavior in `none` mode, and use the shop-scoped advisory lock plus shop outstanding calculation in `shop` mode.
 - This is a source-level fix only. CRL01/CRL02 remain **NOT EXECUTED** until the customer and shop-limit scenarios (including concurrent requests) pass against a disposable database.
+
+## Page-by-page runtime execution register
+
+Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the required checks per page. The workflow must be executed in a running browser against the current commit and disposable SQA database; static inspection and CI are not substitutes.
+
+**Current status: NOT EXECUTED as a complete page-by-page runtime suite.**
+
+| ID | Scope | Required execution | Actual result | Evidence / issue | Status |
+|---|---|---|---|---|---|
+| PQA01 | Login, installation, session and access control | Test successful/failed login, logout, direct URL protection and restricted-role denial | | | NOT EXECUTED |
+| PQA02 | Dashboard and configuration | Verify displayed totals, filters, shop context, save/reload and role visibility | | | NOT EXECUTED |
+| PQA03 | POS and sale history/details/receipt | Exercise all supported transaction types, validation, payment, duplicate submit and linked history | | | NOT EXECUTED |
+| PQA04 | Cash and payment pages | Open/close, IN/OUT, receipts, supplier payments, cash totals and ledger links | | | NOT EXECUTED |
+| PQA05 | Customers, suppliers and ledgers | CRUD/validation, balances, receipts/payments, credit/deposit and history | | | NOT EXECUTED |
+| PQA06 | Inventory, physical cylinders, adjustments and wastage | Validate stock/gas KG, unit state, permissions, history, limits and movements | | | NOT EXECUTED |
+| PQA07 | Purchases, expenses and reversals | Posting, validation, void/reversal, cash and stock/payable reconciliation | | | NOT EXECUTED |
+| PQA08 | Rates, cylinder types, users and permissions | CRUD, effective rates, capacity validation and unauthorized access attempts | | | NOT EXECUTED |
+| PQA09 | Reports, audit and backup/admin pages | Filter accuracy, source reconciliation, audit trail and admin-only operations | | | NOT EXECUTED |
+| PQA10 | Customer/staff mobile API and multi-shop scope | Auth/token lifecycle, order flows, price reconfirmation, duplicate protection and cross-shop denial | | | NOT EXECUTED |
+| PQA11 | Responsive/browser quality | Desktop/mobile viewport, navigation, modals, tables, browser console, network and server logs | | | NOT EXECUTED |
+| PQA12 | Full end-to-end regression | Execute complete retail-day scenario and reconcile inventory, ledgers, cash, reports and audit | | | NOT EXECUTED |
+
+For each PQA row, link the detailed individual page/case IDs and evidence in the result comments. Split a row into multiple entries when individual pages have different outcomes. A page must not be marked PASS merely because its controller or route exists.
