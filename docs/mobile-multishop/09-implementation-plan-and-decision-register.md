@@ -185,7 +185,7 @@ Exit criteria:
 This is a separate app from the Business/Staff App. Customer and staff identities, navigation, app distribution and workflows must not be combined into a single app package.
 
 Screens:
-- Login-time language selector; username/password sign-in; customer self-registration with pending-approval state; account recovery/help and password change.
+- English UI; username/password sign-in; customer self-registration with pending-approval state; account recovery/help and password change. Keep strings localization-ready; add language selection when another language is introduced.
 - Read-only assigned-shop context.
 - Head Office-defined catalog filtered by each shop's active product settings.
 - Server-calculated prices/availability and saved price snapshots; require review if an offline queued order encounters a changed price.
@@ -212,7 +212,7 @@ Exit criteria:
 This is a separate app package from the Customer App. Within the Business/Staff App, available screens and actions are determined by server-granted capabilities and business/shop scope.
 
 Screens:
-- Login-time language selector; staff username/password sign-in and server-derived permissions.
+- English UI; staff username/password sign-in and server-derived permissions. Keep strings localization-ready; add language selection when another language is introduced.
 - Authorized shop selection only for accounts with multiple shop assignments.
 - Pending customer signups needing approval, plus pending orders, filters, order details, status timeline and reason capture.
 - Business catalog administration and shop-level product activation/deactivation, limited by permissions and business/shop scope.
