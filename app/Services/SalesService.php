@@ -484,8 +484,30 @@ class SalesService
             if(!$customerId && abs($paymentTotal-$total)>0.01) throw new RuntimeException('Walk-in sale must be fully paid. Received amount must equal sale total.');
             if($customerId && $credit>0.01){
                 if(!(int)($customer['allow_credit_sale']??0)) throw new RuntimeException('Credit sale is not allowed for this customer. Enable Allow Credit Sale on the customer record before posting a credit sale.');
-                $newBalance=$this->customerBalance($customerId)+$credit;
-                if($newBalance>(float)$customer['credit_limit']+0.01) throw new RuntimeException('Customer credit limit exceeded.');
+
+                // Keep standard five-mode POS credit validation aligned with the header-sale
+                // payment planner: a configured customer limit applies in customer mode, and
+                // remains authoritative in "none" mode only when a positive customer limit
+                // is configured. Shop mode must serialize and check the whole shop exposure.
+                $creditMode=(string)($shopSettings['credit_limit_validation_mode']??'none');
+                $customerCreditLimit=(float)($customer['credit_limit']??0);
+                if($creditMode==='customer' || ($creditMode==='none' && $customerCreditLimit>0)){
+                    $newBalance=$this->customerBalance($customerId)+$credit;
+                    if($customerCreditLimit>0 && $newBalance>$customerCreditLimit+0.01){
+                        throw new RuntimeException('Customer credit limit exceeded.');
+                    }
+                }elseif($creditMode==='shop'){
+                    $this->acquireCreditLimitLock($locationId);
+                    $shopOs=$this->shopOutstanding($locationId);
+                    $previousGasOs=$this->customerGasBalance($customerId);
+                    $advanceApplied=min($credit,max(0,-$previousGasOs));
+                    $projectedShopOs=max(0,$shopOs+$credit-$advanceApplied);
+                    $shopLimit=(float)($shopSettings['shop_credit_limit']??0);
+                    if($projectedShopOs>$shopLimit+0.01){
+                        $available=max(0,$shopLimit-$shopOs);
+                        throw new RuntimeException('Shop credit limit exceeded. Current shop OS Rs. '.number_format($shopOs,2).'; available additional credit Rs. '.number_format($available,2).'.');
+                    }
+                }
             }
 
             $saleNo=$this->nextSaleNo($transactionAt,$locationId);
