@@ -6,9 +6,16 @@ Each customer belongs to exactly one shop. A shop may have many customers. This 
 
 The customer's assigned shop is the authoritative shop for mobile ordering. The customer cannot choose a different shop from the app.
 
-## Current gap
+## Feature-branch implementation status
 
-The current `customers` table and `CustomerModel::$allowedFields` do not include `location_id`. The existing ledger derives a location filter from the current session in some paths, but this is not a durable customer ownership relationship. Add explicit customer-to-shop ownership through a backward-compatible migration.
+The customer/staff API already supports approved customer login, refresh/logout/password change, profile, shop-specific catalog, idempotent order create/list/detail/cancel, price reconfirmation, and staff-side signup approval/rejection/account creation/disablement. Browser administration is available at `/customer-app-accounts`; staff API-mediated password reset is implemented at `POST /api/v1/staff/customer-app-accounts/{accountId}/reset-password` and revokes active customer sessions. These paths use the existing financial customer master; they do not create a second ledger identity.
+
+The business/customer constraints and flows are implemented in source, but account lifecycle, race conditions, and cross-shop isolation remain **NOT EXECUTED** runtime cases in `SQA.md` (ACCWEB01 and APISEC01).
+
+
+## Historical baseline gap (resolved on the feature branch)
+
+The main-branch baseline lacked a durable customer-to-shop relationship. On `feature/mobile-multishop-ordering`, `customers.location_id`, customer mobile-account mapping and shop-scoped signup/order services are present in the fresh-install schema and migration set. Do not treat this historical paragraph as the current feature-branch schema.
 
 ## Identity design
 
@@ -16,28 +23,28 @@ The current `customers` table and `CustomerModel::$allowedFields` do not include
 - Add a separate customer mobile-account mapping or identity table; do not duplicate the financial customer record.
 - Enforce one active mobile identity mapping to one customer, and one customer-to-shop assignment.
 - Allow multiple authenticated sessions/devices for one account without creating duplicate customer records.
-- Phone number verification is required before linking a mobile identity.
-- Never auto-link solely because an unverified phone string matches a customer record.
-- Define safe recovery/relinking for changed phone numbers, duplicate phone numbers, shared family phones, inactive customers and blocked accounts.
-- Store password hashes or use a trusted OTP identity provider; never store plaintext passwords or OTP values.
+- Customer and staff identities are separate; customer login uses username/password through the versioned API over TLS.
+- Store strong password hashes server-side; never store plaintext passwords or log passwords.
+- A customer mobile identity links to one financial customer master and one assigned shop; never auto-link based only on a matching contact number.
+- Customer usernames must be unique within the customer-account namespace. Phone number is contact information, not an SMS/OTP login credential in MVP.
+- For MVP, Admin/Manager-mediated password recovery is the default. Self-service reset remains off until a verified recovery channel is approved.
+- Disable active customer sessions when the account is disabled or signup approval is revoked; password reset revokes existing sessions.
 
 ## Registration and account linking
 
-1. Customer enters phone number and completes verification.
-2. Backend checks whether the phone/account is already linked.
-3. If a known customer exists, use a safe verification-and-link process; do not expose another customer's private details.
-4. If the customer is new, create the customer under an explicitly selected/assigned shop only after the shop-selection policy is satisfied. For the first release, a business-approved registration link/code or shop-created invitation is safer than arbitrary public shop/customer creation.
-5. Persist the customer's shop assignment and account mapping atomically.
-6. Return only the authenticated customer's allowed profile and shop context.
+Two onboarding paths are supported:
 
-The product owner must decide if public self-registration is allowed and how the first shop assignment is made. The default requirement is not to let customers freely switch shops.
+1. **Admin/Manager-created account:** An authorized Admin/Manager creates an app account for a customer within their permitted shop and links it to the correct financial customer master. Shop scope is enforced server-side.
+2. **Customer self-registration:** The customer submits a username/password signup request and the minimum details needed for the shop to identify the customer. The account is created in `pending_approval` state. An authorized Admin/Manager reviews it, links it to an existing financial customer master (or explicitly creates the master as a separate reviewed step), then approves or rejects the request.
 
-## Ledger and legacy-data rules
+A pending/rejected account cannot log in to the ordering experience or submit orders. The customer cannot choose or change the shop by editing the client payload. Approval, customer-master linking and the shop assignment must be atomic and auditable. Return no private customer/ledger details before approval. Successful login returns only that customer's allowed profile and assigned-shop context.
+
+## Ledger and data-setup rules
 
 - Customer ledger, outstanding balance, security deposit, receipts, sales and custody history must remain correct.
-- Adding `customers.location_id` requires a mapping plan for existing records. Do not assume the current browser session identifies the correct historical owner.
-- Where legacy customers have transactions in multiple locations, flag for manual reconciliation or document an explicit migration rule; do not silently assign or move ledger history.
-- Define whether customer ledgers are shop-local or show historic transactions across locations after a customer transfer. Default: no automatic transfer; preserve historic transaction locations and require an audited transfer policy.
+- The owner confirmed that there is no existing business/customer transactional data to migrate for this initiative. Do not build legacy customer-to-shop mapping or historic backfill tooling as a prerequisite.
+- Fresh-install schema and seed/setup logic must establish shop ownership correctly from the start. Every customer belongs to exactly one shop.
+- A future upgrade of a populated installation needs a separately approved upgrade/data-handling plan; this is not a requirement to map legacy customer data for the planned deployment.
 - A customer transfer between shops is an explicit administrative action with audit history. It must not rewrite old sales, receipts, deposits or cylinder custody.
 
 ## Acceptance criteria
@@ -47,4 +54,4 @@ The product owner must decide if public self-registration is allowed and how the
 - Customer's order shop is derived from the trusted account/customer mapping, not accepted from request JSON.
 - Customer account linking does not create duplicate customer records.
 - Inactive/blocked customer accounts cannot submit orders.
-- Legacy customer mapping is reviewed and reversible before production rollout.
+- Fresh-install customer ownership and account-linking constraints are tested; there is no legacy mapping/backfill release gate.

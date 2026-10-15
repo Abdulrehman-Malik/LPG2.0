@@ -1,0 +1,16 @@
+name: lpg_mobile_core
+description: Shared authenticated API client and session utilities for LPG mobile apps.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^9.2.4
+  http: ^1.2.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true

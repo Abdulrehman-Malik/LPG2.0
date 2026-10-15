@@ -1,12 +1,12 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
-**Status:** Development planning pack complete; implementation has not started. Business decisions and legacy data mapping remain approval gates. This branch currently contains documentation-only changes.
-**Working branch:** `feature/mobile-multishop-ordering-requirements`
-**Baseline:** current `main` as of 2026-10-13. Do not merge or modify `main` as part of this work.
+**Status:** The feature branch contains the customer/staff API foundation, scoped business/shop services, browser Business & Shops administration, Customer Ordering Catalog, Customer App Accounts and Customer Orders/fulfilment screens, plus initial Flutter client source flows. CI now verifies PHP/schema/PHPUnit checks and selected live Playwright browser/API flows for account approval, token lifecycle, idempotent ordering and cross-shop denial. Full route-by-route SQA, mobile/device testing and owner two-shop pilot remain required. Android/iOS runner projects/signing and store builds are not complete.
+**Working branch:** `feature/mobile-multishop-ordering`
+**Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.
 
 ## Product goal
 
-Deliver one Flutter app for Android and iOS with role-based Customer and Shop Staff/Owner experiences. A single business may own multiple shops/locations. Each customer is assigned to exactly one shop; one shop can have many customers. Customers can order only from their assigned shop. A business owner can oversee all shops within their business; shop managers and order staff are limited to explicitly assigned shops.
+Deliver two separate Flutter apps for Android and iOS: a Customer App and a Business/Staff App, with separate packages, navigation and authorization boundaries. The system supports multiple independent businesses, each with its own Head Office and shops. Each customer is assigned to exactly one shop; one shop can have many customers. Customers can order only from their assigned shop. A business owner can oversee all shops within their business; shop managers and order staff are limited to explicitly assigned shops.
 
 The existing CodeIgniter/PHP application and MySQL database remain the business system of record. The mobile app must use a versioned, authenticated API and must not connect directly to MySQL.
 
@@ -18,7 +18,7 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 4. Every order belongs to exactly one business, one shop/location and one customer. The customer's assigned shop must equal the order's shop.
 5. Enforce permissions and business/shop data scope on the server for every request. Hiding UI controls is not authorization.
 6. Keep existing role/permission tables and PermissionService. Extend them; do not replace them with a second authorization system.
-7. Use backward-compatible migrations, with explicit legacy-data mapping and rollback/recovery instructions. Never drop or silently reassign existing data.
+7. Design repeatable fresh-install schema/seeds and a reviewed upgrade path. The owner confirmed no existing business/customer transactional data needs migration for this initiative, so no legacy customer-to-shop mapping/backfill is required. Never drop or silently reassign existing data.
 8. Keep work on the feature branch; do not merge to `main` without explicit approval.
 9. Follow `agent.md`, `TESTING.md`, and `SQA.md`. Execute impacted runtime QA after screen changes; do not claim QA passed without evidence.
 
@@ -29,16 +29,18 @@ The existing CodeIgniter/PHP application and MySQL database remain the business 
 - `shop_settings.location_id`, `rate_cards.location_id`, sales and other operational records are location-aware.
 - `roles`, `permissions`, and `role_permissions` implement database-backed role permissions.
 - `PermissionService::allows()` checks capability permissions, and `syncStandardRolePermissions()` maintains standard permissions for ADMIN, MANAGER and CASHIER while leaving custom roles alone.
-- The current permission model is capability-oriented; business-wide versus shop-specific data scope is not yet a complete authorization layer.
-- Current `customers` schema/model has no `location_id`; assigning each customer to exactly one shop therefore requires a planned schema migration and legacy-data backfill.
+- The current permission model is capability-oriented; business-wide versus shop-specific data scope is implemented in the feature API layer but still requires end-to-end authorization review.
+- Current `customers` schema/model has no `location_id`; the fresh-install schema must add required customer-to-shop ownership. No legacy customer mapping/backfill is required for this initiative.
 - Current `locations` schema has no business/company parent; business ownership requires a planned schema extension.
-- Current routes are browser/session-oriented and do not yet expose the planned customer mobile API.
+- The mobile API route contract is now implemented under `/api/v1`; see [the actual route contract](11-mobile-api-contract.md). Token/session, cross-shop and concurrent fulfillment behavior still requires runtime verification.
 
 These are source-code observations, not runtime test results.
 
 ## First read
 
 - [Current-state gap report](00-current-state-gap-report.md) — reviewed existing roles/permissions, customer/location schema gaps, POS boundaries and safe first implementation work package.
+- [Centralized Configuration Management](10-configuration-management.md) — scope inheritance, Application Login & Session settings, security guardrails and audit requirements.
+- [Mobile API Contract](11-mobile-api-contract.md) — implemented route inventory and the remaining POS fulfillment safety gate.
 
 ## Module index and delivery sequence
 
@@ -47,40 +49,50 @@ These are source-code observations, not runtime test results.
 | 01 | Product scope and target architecture | Documented |
 | 02 | Business, shops, staff roles and permission/scope model | Documented |
 | 03 | Customer records, mobile identity and single-shop assignment | Documented |
-| 04 | Order lifecycle and safe POS integration | Documented |
-| 05 | API contracts, authentication and security | Documented |
-| 06 | Flutter app experience and role-based navigation | Documented |
+| 04 | Order lifecycle and safe POS integration | Backend + web queue/fulfillment implemented; CI checks pass on recent commits; live integration tests pending |
+| 05 | API contracts, authentication and security | Versioned API/session implementation and actual route contract documented; security runtime tests pending |
+| 06 | Flutter app experience and role-based navigation | Initial customer/staff flows implemented in Dart; runner projects and device QA pending |
 | 07 | Database migration and legacy-data plan | Documented |
 | 08 | QA, rollout and release gates | Documented |
 | 09 | Dependency-ordered implementation plan and decision register | Documented |
+| 10 | Centralized Configuration across Application, Head Office/Business and Shop scopes | Central resolver, web UI and staff API routes implemented; inheritance/permissions require runtime QA |
+| 11 | Mobile API contract and implementation status | Documented |
 
 ## Implementation sequence for the coding agent
 
 Read [the detailed implementation plan and decision register](09-implementation-plan-and-decision-register.md) before starting any coding. It defines work packages WP-0 through WP-10, dependencies, exit criteria, acceptance requirements and release gates.
 
-Implementation is **not authorized yet**. First review and approve the decision register, then complete WP-1 legacy data discovery using a safe non-production database copy. Do not make application/schema changes until the required business decisions and customer-to-shop mapping are approved.
+Review [Module 10 — Centralized Configuration Management](10-configuration-management.md) alongside role/scope and API-security requirements.
 
-The ordered work is: source inventory and decisions → legacy customer/shop mapping → business/shop scope and customer identity → order data/state machine → backend services and web Order Management → versioned API/security → Flutter customer experience → Flutter staff/owner experience → POS fulfilment reconciliation → two-shop pilot and release.
+Implementation is underway only on `feature/mobile-multishop-ordering`. Keep all changes off `main`; do not merge without explicit approval. Do not build legacy customer mapping/backfill tooling for this deployment.
+
+The delivered web/backend scope is: source inventory and fresh-install schema → business/shop authorization → customer identity/signup approval + account password reset → order data/state machine → versioned customer/staff API → browser catalogue, accounts, businesses/shops and order fulfillment → validated POS fulfilment integration. Remaining release gates are live security/financial regression, two-shop pilot, Flutter runner/signing/device verification, and owner acceptance.
 
 ## Decisions already fixed
 
-- One mobile app, Flutter, Android and iOS.
-- One business may own multiple shops.
+- Two separate Flutter apps for Android and iOS: Customer App and Business/Staff App; shared components do not merge their packages or authorization boundaries.
+- Multiple independent businesses are supported; each has its own Head Office and shops.
 - A customer belongs to exactly one shop and can order only from that shop.
 - One order belongs to one shop; no split order across shops in the MVP.
-- Business owner can oversee all shops in their business.
+- Head Office can view/manage permitted functions for its own business; Shop Admin has full shop-level access only within their shop.
 - Shop manager/order staff can access only assigned shop(s), as permitted.
 - Existing LPG web application remains the system of record.
+- Username/password login is via the API over TLS; SMS/OTP is out of scope for the first release.
+- Admin/Manager may create a customer account; customers may self-register, but an Admin/Manager must approve the signup before login/order access.
+- Head Office defines the business product catalog; each shop activates/deactivates products based on what it currently sells.
+- Customer chooses delivery or collection; delivery requires an address and any configured fee/condition is shown before submission.
+- The server calculates prices and saves a cloud-order price snapshot; changes require customer review/reconfirmation, never silent repricing.
+- English is the only initial UI language in both apps; keep the UI localization-ready so more languages can be added later.
+- Important settings are managed in one Configuration area with Application, Head Office/Business and Shop scopes; settings inherit only where explicitly allowed, and Login & Session policy is Application-owned by default.
 - MVP order is pending until accepted by authorized staff.
 - No online payment, automated deposit, or automatic cylinder custody in the first release unless separately approved.
 
 ## Decisions to validate before production implementation
 
-- OTP/SMS provider and account-recovery process.
+- Future language additions and translations. A language selector should be introduced when a second language is added.
 - Whether one staff user may be assigned to multiple shops.
 - Exact cancellation window and status transitions.
-- Delivery fee, service area and delivery-slot rules.
-- Whether customer-facing rates use shop-specific rate cards or a business-level default with shop override.
+- Final per-shop delivery settings, including optional fee/service-area/slot rules; the customer choice between delivery and collection is confirmed.
+- During WP-0, verify and document the application's existing effective-rate precedence and shop/global fallback behavior. The API must reuse it; price snapshot/reconfirmation behavior is already fixed.
 - Whether owner role should be a new role code or an existing configurable role with business-wide scope.
-- How existing customers are mapped to shops during migration. Never guess this mapping silently.
 

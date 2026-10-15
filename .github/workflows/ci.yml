@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - qa/workflow-cleanup
+      - 'feature/**'
   pull_request:
     branches: [main]
 
@@ -60,6 +61,261 @@ jobs:
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/010_20261004_purchase_inventory_integrity.sql
           printf "SET @lpg_refresh_transactional_data = 0;\\nSOURCE database/migrations/011_20261003_refresh_transactional_data.sql;\\n" | mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg
           mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/025_20261007_independent_deposit_payments.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/028_20261007_sale_history_permission.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/030_20261009_pak_operations_user.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/032_20261014_business_shop_ownership.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/033_20261014_customer_accounts_orders_and_catalog.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/034_20261014_pending_signup_username_guard.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/035_20261014_centralized_configuration_storage.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/036_20261014_order_idempotency_price_reconfirmation.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/037_20261014_sale_delivery_fee_component.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/038_20261014_customer_order_sale_idempotency.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < database/migrations/039_20261014_order_physical_cylinder_selection.sql
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('businesses','user_business_access','user_shop_access')" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('business_catalog_products','shop_product_availability','customer_app_accounts','customer_signup_requests','api_sessions','api_access_tokens','api_refresh_tokens','customer_orders','customer_order_items','customer_order_status_history')" | grep -qx 10
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customer_signup_requests' AND COLUMN_NAME='pending_username'" | grep -qx 1
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customer_signup_requests' AND INDEX_NAME='uq_customer_signup_pending_username'" | grep -qx 1
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('application_settings','business_settings','shop_setting_overrides')" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM application_settings WHERE setting_key IN ('customer_ordering_feature_enabled','orders_enabled','delivery_enabled','collection_enabled','delivery_fee','customer_self_registration_enabled','supported_languages','access_token_ttl_seconds','refresh_idle_ttl_seconds','refresh_absolute_ttl_seconds','password_min_length')" | grep -qx 11
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customer_orders' AND COLUMN_NAME IN ('request_fingerprint','price_revision','price_reconfirmation_required','price_reconfirmed_at')" | grep -qx 4
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='locations' AND COLUMN_NAME='business_id') OR (TABLE_NAME='customers' AND COLUMN_NAME='location_id') OR (TABLE_NAME='users' AND COLUMN_NAME='is_system_admin'))" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='sales' AND COLUMN_NAME='delivery_fee_amount') OR (TABLE_NAME='sales' AND COLUMN_NAME='customer_order_id') OR (TABLE_NAME='customer_order_items' AND COLUMN_NAME='selected_cylinder_unit_ids'))" | grep -qx 3
+          mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sales' AND INDEX_NAME='uq_sales_customer_order' AND NON_UNIQUE=0" | grep -qx 1
+
+      - name: Run the application migration gate against the disposable CI database
+        env:
+          CI_ENVIRONMENT: development
+          LPG_DB_HOST: 127.0.0.1
+          LPG_DB_PORT: 3306
+          LPG_DB_USER: root
+          LPG_DB_PASS: root
+          LPG_DB_NAME: perfect_lpg
+        run: php spark migrations:run
+
+      - name: Seed disposable mobile API test catalog
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg <<'SQL'
+          INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+          SELECT l.id,'gas_per_kg',NULL,100.0000,'2026-01-01 00:00:00',NULL,u.id
+          FROM locations l JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+            AND NOT EXISTS (
+              SELECT 1 FROM rate_cards rc
+              WHERE rc.location_id=l.id AND rc.rate_type='gas_per_kg'
+                AND rc.cylinder_type_id IS NULL
+                AND rc.effective_from <= NOW()
+                AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
+            );
+
+          INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+          SELECT l.id,'cylinder_package',ct.id,250.0000,'2026-01-01 00:00:00',NULL,u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+            AND NOT EXISTS (
+              SELECT 1 FROM rate_cards rc
+              WHERE rc.location_id=l.id AND rc.rate_type='cylinder_package'
+                AND rc.cylinder_type_id=ct.id
+                AND rc.effective_from <= NOW()
+                AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
+            );
+
+          INSERT INTO business_catalog_products(
+            business_id,cylinder_type_id,sale_mode,display_name,description,
+            quantity_unit,min_quantity,quantity_step,is_active,sort_order,created_by,updated_by
+          )
+          SELECT l.business_id,ct.id,'sell_gas_only','QA Mobile Gas',
+                 'Disposable CI API smoke-test product','kg',1.000,1.000,1,999,u.id,u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE
+            display_name=VALUES(display_name),description=VALUES(description),
+            quantity_unit=VALUES(quantity_unit),min_quantity=1.000,
+            quantity_step=1.000,is_active=1,updated_by=VALUES(updated_by);
+
+          INSERT INTO shop_product_availability(business_id,location_id,business_catalog_product_id,is_active,updated_by)
+          SELECT l.business_id,l.id,p.id,1,u.id
+          FROM locations l
+          JOIN business_catalog_products p ON p.business_id=l.business_id
+          JOIN cylinder_types ct ON ct.id=p.cylinder_type_id AND ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN' AND p.sale_mode='sell_gas_only'
+          ON DUPLICATE KEY UPDATE is_active=1,updated_by=VALUES(updated_by);
+          INSERT INTO shop_product_availability(business_id,location_id,business_catalog_product_id,is_active,updated_by)
+          SELECT l.business_id,l.id,p.id,1,u.id
+          FROM locations l
+          JOIN business_catalog_products p ON p.business_id=l.business_id
+          JOIN cylinder_types ct ON ct.id=p.cylinder_type_id AND ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN' AND p.sale_mode='sell_gas_only'
+          ON DUPLICATE KEY UPDATE is_active=1,updated_by=VALUES(updated_by);
+
+          INSERT INTO businesses(code,name,city,is_active)
+          VALUES('QA-ISOLATION','QA Isolation Business','Lahore',1)
+          ON DUPLICATE KEY UPDATE name=VALUES(name),city=VALUES(city),is_active=1;
+
+          INSERT INTO locations(business_id,code,name,city,is_active)
+          SELECT b.id,'QA-OTHER','QA Other Shop','Lahore',1
+          FROM businesses b WHERE b.code='QA-ISOLATION'
+          ON DUPLICATE KEY UPDATE business_id=VALUES(business_id),name=VALUES(name),is_active=1;
+
+          INSERT INTO users(location_id,is_system_admin,role_id,full_name,username,email,password_hash,is_active)
+          SELECT l.id,0,r.id,'QA Scoped Manager','qa_scoped_manager','qa_scoped_manager@perfectlpg.local',
+                 admin.password_hash,1
+          FROM locations l
+          JOIN roles r ON r.code='MANAGER'
+          JOIN users admin ON admin.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE location_id=VALUES(location_id),is_system_admin=0,
+            password_hash=VALUES(password_hash),is_active=1;
+
+          INSERT INTO user_shop_access(user_id,location_id,is_default)
+          SELECT u.id,l.id,1 FROM users u JOIN locations l ON l.code='MAIN'
+          WHERE u.username='qa_scoped_manager'
+          ON DUPLICATE KEY UPDATE is_default=1;
+          SQL
+
+      - name: Seed disposable POS browser regression fixtures
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg <<'SQL'
+          INSERT INTO customers(location_id,code,name,phone,city,address,credit_limit,allow_credit_sale,opening_balance,is_active)
+          SELECT l.id,'QA-E2E-CUST','QA E2E Customer','03000000000','Lahore','QA Test Street',0,0,0,1
+          FROM locations l WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE name=VALUES(name),phone=VALUES(phone),city=VALUES(city),
+            address=VALUES(address),credit_limit=0,allow_credit_sale=0,opening_balance=0,is_active=1;
+
+          INSERT INTO customers(location_id,code,name,phone,city,address,credit_limit,allow_credit_sale,opening_balance,is_active)
+          SELECT l.id,'QA-E2E-CREDIT','QA E2E Credit Customer','03000000001','Lahore','QA Credit Test Street',50,1,0,1
+          FROM locations l WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE name=VALUES(name),phone=VALUES(phone),city=VALUES(city),
+            address=VALUES(address),credit_limit=50,allow_credit_sale=1,opening_balance=0,is_active=1;
+
+          INSERT INTO shop_settings(
+            location_id,individual_cylinder_tracking,allow_pos_source_cylinder_selection,
+            default_gas_entry_mode,credit_limit_validation_mode
+          )
+          SELECT l.id,1,1,'quantity','customer'
+          FROM locations l
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE
+            individual_cylinder_tracking=VALUES(individual_cylinder_tracking),
+            allow_pos_source_cylinder_selection=VALUES(allow_pos_source_cylinder_selection),
+            default_gas_entry_mode=VALUES(default_gas_entry_mode),
+            credit_limit_validation_mode=VALUES(credit_limit_validation_mode);
+
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-E2E-C6-001','filled',6.000,'qa_seed',u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
+            gas_weight_kg=6.000,source_type='qa_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_seed',cu.id,cu.id,u.id,
+            'Disposable Playwright QA opening cylinder'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-E2E-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'gas_kg',NULL,6.000,'in','qa_seed',cu.id,cu.id,u.id,
+            'Disposable Playwright QA opening gas weight'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-E2E-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
+
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-ORDER-C6-001','filled',6.000,'qa_order_seed',u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
+            gas_weight_kg=6.000,source_type='qa_order_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_order_seed',cu.id,cu.id,u.id,
+            'Disposable customer-order POS fulfillment cylinder'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'gas_kg',NULL,6.000,'in','qa_order_seed',cu.id,cu.id,u.id,
+            'Disposable customer-order POS fulfillment opening gas'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
+
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-ORDER-FILLED-C6-001','filled',5.500,'qa_order_filled_seed',u.id
+          FROM locations l JOIN cylinder_types ct ON ct.code='C6' JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
+            gas_weight_kg=5.500,source_type='qa_order_filled_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+            'Disposable filled-cylinder order QA fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_filled_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'gas_kg',NULL,5.500,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+            'Disposable filled-cylinder order QA gas fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_filled_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
+
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-ORDER-EMPTY-C6-001','empty',0.000,'qa_order_empty_seed',u.id
+          FROM locations l JOIN cylinder_types ct ON ct.code='C6' JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='empty',
+            gas_weight_kg=0.000,source_type='qa_order_empty_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'empty_cylinder',cu.cylinder_type_id,1,'in','qa_order_empty_seed',cu.id,cu.id,u.id,
+            'Disposable empty-cylinder order QA fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-EMPTY-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_empty_seed' AND im.source_id=cu.id AND im.inventory_type='empty_cylinder');
+
+          INSERT INTO cash_sessions(register_id,opened_by,opening_cash,status,notes)
+          SELECT cr.id,u.id,0,'open','Disposable Playwright POS regression session'
+          FROM cash_registers cr
+          JOIN locations l ON l.id=cr.location_id
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN' AND cr.code='REG-01'
+            AND NOT EXISTS (SELECT 1 FROM cash_sessions cs
+              WHERE cs.register_id=cr.id AND cs.status='open');
+          SQL
 
       - name: CodeIgniter smoke check
         env:
@@ -75,3 +331,117 @@ jobs:
           else
             echo "No PHPUnit test files are currently defined; PHP and database smoke checks completed."
           fi
+
+      - name: Setup Node for Playwright browser QA
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright browser test dependencies
+        run: npm --prefix tests/e2e install --no-audit --no-fund
+
+      - name: Install Chromium for Playwright
+        run: cd tests/e2e && npx playwright install --with-deps chromium
+
+      - name: Run live web smoke tests for mobile-ordering administration
+        env:
+          CI_ENVIRONMENT: development
+          LPG_DB_HOST: 127.0.0.1
+          LPG_DB_PORT: 3306
+          LPG_DB_USER: root
+          LPG_DB_PASS: root
+          LPG_DB_NAME: perfect_lpg
+          LPG_QA_BASE_URL: http://localhost:8080
+          LPG_QA_DEBUG_ERRORS: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup php spark serve --host 127.0.0.1 --port 8080 > /tmp/lpg-playwright-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 40); do
+            if curl --silent --show-error --fail http://127.0.0.1:8080/login >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/lpg-playwright-server.log
+            exit 1
+          fi
+          mkdir -p writable/runtime-qa
+          cd tests/e2e
+          if ! PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-9]|E2E-030' --reporter=line,json; then
+            echo '--- CodeIgniter application logs ---'
+            find writable/logs -maxdepth 1 -type f -name '*.log' -print -exec tail -n 250 {} \; 2>/dev/null || true
+            echo '--- PHP server log ---'
+            tail -n 250 /tmp/lpg-playwright-server.log || true
+            exit 1
+          fi
+
+      - name: Assert customer-order POS linkage integrity in disposable CI database
+        if: always()
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          set -euo pipefail
+          completed_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM customer_orders o
+            LEFT JOIN sales s ON s.id=o.pos_sale_id
+            WHERE o.status='completed'
+              AND (o.pos_sale_id IS NULL OR s.id IS NULL OR s.status<>'posted'
+                OR s.customer_order_id<>o.id OR s.location_id<>o.location_id
+                OR s.customer_id<>o.customer_id);
+          ")"
+          if [ "$completed_mismatches" != "0" ]; then
+            echo "Completed customer orders with missing or inconsistent POS sale links: $completed_mismatches"
+            exit 1
+          fi
+
+          linked_sale_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM sales s
+            LEFT JOIN customer_orders o ON o.id=s.customer_order_id
+            WHERE s.customer_order_id IS NOT NULL
+              AND (o.id IS NULL OR o.pos_sale_id IS NULL OR o.pos_sale_id<>s.id
+                OR o.status<>'completed' OR s.status<>'posted'
+                OR s.location_id<>o.location_id OR s.customer_id<>o.customer_id);
+          ")"
+          if [ "$linked_sale_mismatches" != "0" ]; then
+            echo "POS sales with inconsistent customer-order links: $linked_sale_mismatches"
+            exit 1
+          fi
+          echo "Customer-order / POS sale links are consistent."
+
+          line_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM customer_orders o
+            JOIN customer_order_items oi ON oi.order_id=o.id
+            LEFT JOIN sales s ON s.customer_order_id=o.id
+            LEFT JOIN sale_items si ON si.sale_id=s.id AND si.line_no=oi.line_no
+            WHERE o.status='completed'
+              AND (si.id IS NULL
+                OR ABS(si.quantity-oi.quantity)>0.001
+                OR ABS(si.gas_weight_kg-oi.estimated_gas_kg)>0.001
+                OR ABS(si.line_total-oi.line_total)>0.01);
+          ")"
+          if [ "$line_mismatches" != "0" ]; then
+            echo "Completed customer-order sale lines with quantity, gas-weight, or total mismatches: $line_mismatches"
+            exit 1
+          fi
+          echo "Customer-order POS line quantities, actual gas weights, and line totals reconcile."
+          
+      - name: Upload Playwright runtime QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ordering-playwright-runtime-qa
+          path: |
+            writable/runtime-qa/playwright-results.json
+            tests/e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 14

@@ -42,6 +42,15 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 028 | `028_20261007_sale_history_permission.sql` | Dedicated Sale History permission and default role mappings |
 | 029 | `029_20261007_security_deposit_first.sql` | Makes Security Deposit the default allocation target before Gas/Cylinder |
 | 030 | `030_20261009_pak_operations_user.sql` | Creates the `pak` account and limited `PAK_OPS` role for dashboard, sales/receipts, inventory, customer ledger, cash, expenses and rates |
+| 031 | `031_20261009_default_gas_entry_mode.sql` | Adds the default Gas Entry mode for Gas Sale / Refill |
+| 032 | `032_20261014_business_shop_ownership.sql` | Additive business/shop ownership foundations and assignment tables; leaves existing customer/shop ownership unassigned for a separately reviewed upgrade plan |
+| 033 | `033_20261014_customer_accounts_orders_and_catalog.sql` | Adds business catalog/shop availability, customer signup and account tables, API token/session storage, order lines/status history and composite ownership constraints |
+| 034 | `034_20261014_pending_signup_username_guard.sql` | Enforces uniqueness for pending signup usernames while freeing the username after approval/rejection |
+| 035 | `035_20261014_centralized_configuration_storage.sql` | Adds validated application defaults, per-business settings and per-shop overrides with one server-side resolver |
+| 036 | `036_20261014_order_idempotency_price_reconfirmation.sql` | Tracks order request fingerprints and whether the customer must reconfirm a revised quote |
+| 037 | `037_20261014_sale_delivery_fee_component.sql` | Adds a separate delivery-fee amount to POS sales so accepted mobile orders can be fulfilled without hiding the delivery charge from financial records |
+| 038 | `038_20261014_customer_order_sale_idempotency.sql` | Adds a unique nullable customer-order reference to POS sales so fulfillment retries can recover the same sale rather than duplicate it |
+| 039 | `039_20261014_order_physical_cylinder_selection.sql` | Persists selected physical cylinders on order lines so actual gas weight can be quoted and reconfirmed before posting |
 
 ## Deployment rules
 
@@ -52,7 +61,7 @@ Execution results are recorded in `lpg_migration_history`, including status, che
 
 1. Run `database/schema.sql` only for a fresh database.
 2. For an existing database, run only the migration scripts that have not already been applied.
-3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 029 → 030 → 031**.
+3. Always execute pending migrations in ascending sequence order: **001 → 002 → ... → 030 → 031 → 032 → 033 → 034 → 035 → 036 → 037 → 038 → 039**.
 4. Migration **011** is not a normal upgrade migration. It is a controlled, destructive refresh intended for disposable staging/test databases. It clears transactional records plus customers, suppliers, cylinder types, rate cards, and rate-change history. Users, roles, permissions, locations, shop settings, cash registers, inventory policies, and other application configuration remain. Whenever a later migration introduces a new transactional table, update the controlled refresh service/script so that table is reset too.
 5. Do not automatically run migration 011 during production deployment.
 6. Do not rename or reorder an already released migration. Add a new sequence number for every future migration.
@@ -105,3 +114,9 @@ Never reuse an existing sequence number.
 - These rules are enforced server-side; POS display/JavaScript is only an early user-feedback layer.
 
 - `031_20261009_default_gas_entry_mode.sql` — adds the branch-level default Gas Entry option (KG, Amount, or Cylinders) for Gas Sale / Refill.
+- `032_20261014_business_shop_ownership.sql` — creates the business parent and explicit business/shop assignment tables. It does not infer ownership for pre-existing locations or customers; a populated-install upgrade requires a separate reviewed mapping/recovery plan.
+- `033_20261014_customer_accounts_orders_and_catalog.sql` — adds customer signup/account, API session/token storage, business catalog, shop product availability, and customer order/state-history tables with matching business/shop/customer/account constraints.
+- `034_20261014_pending_signup_username_guard.sql` — enforces unique pending signup names through a generated key that automatically clears when the request is approved or rejected.
+- `035_20261014_centralized_configuration_storage.sql` — stores application defaults, per-business values and per-shop overrides. `ConfigurationService` is the only supported effective-value resolver; existing `shop_settings` remains intact.
+- `036_20261014_order_idempotency_price_reconfirmation.sql` — persists canonical request fingerprints so reused idempotency keys cannot create/confuse orders, and records quote revisions that need customer confirmation.
+- `037_20261014_sale_delivery_fee_component.sql` — stores delivery charges separately from item subtotal/discount while still including them in the posted sale total and payment plan.

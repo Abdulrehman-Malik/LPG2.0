@@ -373,3 +373,33 @@ The server must not report **“No effective gas/kg rate exists.”** when a val
 - [ ] Verify sale amount, KG, receipt/payment, customer OS, saved rate, and inventory movements reconcile.
 
 Status: **Code updated; runtime/browser/database regression not yet executed.**
+
+---
+
+## Mobile backend and browser administration verification
+
+The following web/backend surfaces have been implemented on the feature branch. Check the matching cases in SQA.md; none should be marked PASS before executing them against a running test deployment.
+
+| Web surface | Route | Required checks | Status |
+|---|---|---|---|
+| Business and shop administration | /business-management | System Administrator business creation, shop defaults (settings/register/inventory policy), staff business/shop scopes, default shop, revoked staff sessions, direct URL denial | NOT EXECUTED |
+| Customer Ordering Catalog | /mobile-catalog | Business catalog create/edit/deactivate, gas vs cylinder quantity validation, duplicate product rejection, shop-specific availability and cross-shop denial | NOT EXECUTED |
+| Customer App Accounts | /customer-app-accounts | Pending signup approval/rejection, link existing vs create customer master, username uniqueness, no credit enabled by default, password reset and disable both revoke sessions | NOT EXECUTED |
+| Web Customer Orders | /customer-orders and /customer-orders/{id} | Shop-scoped queue/detail/history, valid status transitions, reason validation, quote reconfirmation and physical unit selection | NOT EXECUTED |
+| Web order fulfillment | /customer-orders/{id}/fulfill | Existing POS posting path, payment total, delivery-fee component, sale idempotency, cash/customer-ledger/inventory reconciliation | NOT EXECUTED |
+| Customer / staff API | /api/v1 | Authentication/audience separation, refresh rotation/replay, customer password reset, account disable, shop/business scope, order idempotency, quote and fulfillment concurrency | NOT EXECUTED |
+
+The MySQL 8 CI job applies migrations through 039 and asserts delivery-fee, order-to-sale and physical-cylinder selection schema. This checks schema bootstrapping and PHP/test code; it does not replace the browser/API cases above.
+
+## Mandatory Page-by-Page Runtime QA
+
+Before a feature/screen change is considered complete, execute the workflow in **[PAGE_TEST_WORKFLOW.md](PAGE_TEST_WORKFLOW.md)** on the current commit.
+
+- Enumerate and test each impacted page, plus linked create/edit/detail/history/ledger/report flows.
+- Test navigation, permissions, direct URL/API access, browser console/network, validation, persistence, responsive layouts and server logs.
+- Reconcile downstream financial and inventory effects where relevant.
+- Run affected regression cases and repeat after fixes.
+- Record real outcomes and evidence in `SQA.md`. CI success is not proof that each page works.
+- If runtime browser/database execution is not available, mark cases **BLOCKED** or **NOT EXECUTED**; do not mark PASS from code review alone.
+
+**Full page smoke suite:** execute every row in the page inventory in `PAGE_TEST_WORKFLOW.md`, adding any newly introduced routes/menu pages. Run this full suite before release and run the impacted-page subset after each change.

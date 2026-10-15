@@ -13,6 +13,8 @@ use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 use App\Controllers\Filters\AuthFilter;
+use App\Controllers\Filters\ApiAuthFilter;
+use App\Controllers\Filters\ApiReadyFilter;
 
 class Filters extends BaseFilters
 {
@@ -36,6 +38,8 @@ class Filters extends BaseFilters
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
         'auth'          => AuthFilter::class,
+        'api-auth'      => ApiAuthFilter::class,
+        'api-ready'     => ApiReadyFilter::class,
     ];
 
     /**
@@ -72,7 +76,7 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
-            'csrf' => ['except' => ENVIRONMENT === 'testing' ? ['migrations/run'] : []],
+            'csrf' => ['except' => ENVIRONMENT === 'testing' ? ['migrations/run', 'api/v1/*'] : ['api/v1/*']],
         ],
         'after' => [
             // 'honeypot',

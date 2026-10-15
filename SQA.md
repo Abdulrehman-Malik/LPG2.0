@@ -507,4 +507,271 @@ Before considering the application release-ready, explicitly execute and record:
 - With Security Deposit / Issue Cylinder selected, a blank or zero payment amount is permitted when the gas/cylinder charge is being posted to customer credit.
 - Credit eligibility and credit-limit validation remain the same as Gas Sale: projected customer OS must remain within the applicable limit.
 - A positive Security Deposit Amount still requires an actual non-credit deposit payment; deposit liability is never converted into gas-sale revenue.
+- Negative Security Deposit Amount must be rejected by the server (not silently changed to zero); verify no sale, payment, deposit-ledger, custody, cash, or inventory records are created.
 - The payment collection row remains compact, the delete button is reduced in size, and Reference / Note remains after Add Payment.
+
+## Customer-order duplicate fulfillment / idempotency regression
+
+**Execution status: PARTIALLY EXECUTED — selected integration scenarios passed in disposable MySQL 8 CI on 2026-10-15. Full DPF04 fault injection and detailed payment/cash/customer-ledger cardinality checks remain open.**
+
+Evidence: [LPG CI run #356](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38724252049), commit `71781c722fef8d26941abd707831efeecb490495`. Playwright passed 26/26 tests. E2E-028 covers a valid POS fulfillment, payment-mismatch rejection, and replay returning the same completed sale. E2E-029 covers mixed gas/filled/empty lines, physical-cylinder overlap rejection and customer price reconfirmation. E2E-030 sends two concurrent fulfillment requests, verifies both return the same sale ID, and checks that the selected source cylinder gas is reduced once. CI SQL assertions reconcile order/sale links and item quantity, gas-weight and line-total snapshots.
+
+### DPF01 — Sequential retry after a successful fulfillment
+1. Create and accept a customer order with known lines, payment, and available physical cylinders.
+2. Fulfill it once through the staff order API/POS and record the returned sale ID/number.
+3. Submit the exact same fulfillment request again, including the same order ID and payload.
+4. Verify the retry returns the existing completed order/sale or a safe “already fulfilled” response; it must not post a second sale.
+
+**Expected:** exactly one `sales` row for the `customer_order_id`; the order is `completed` and its `pos_sale_id` matches that sale. There is only one set of sale items, sale payments/settlements, cash movements, and inventory movements for the order. Cylinder statuses and gas weight change only once.
+
+### DPF02 — Two concurrent fulfillment requests for the same order
+1. Prepare a fresh accepted order and record the baseline row counts and balances for `sales`, `sale_items`, `sale_payments` (or the payment table used by the schema), `inventory_movements`, cash movements, customer balance, and selected cylinder units.
+2. From two independent authenticated requests/connections, submit fulfillment for the same order as nearly simultaneously as possible.
+3. Wait for both responses, then query the database and reconcile the order, POS sale, payment, cash, customer ledger, and inventory records.
+
+**Expected:** at most one request creates the POS sale; the other safely returns the already-posted result or a controlled retry/error. There is exactly one sale linked to the order and no duplicate financial or inventory effects. No selected cylinder is consumed twice, and the final order points to the one posted sale.
+
+### DPF03 — Idempotency after a response interruption
+1. Fulfill an order successfully, but simulate a client/network interruption after the server commits and before the client receives the response.
+2. Retry the same fulfillment request.
+3. Verify the retry discovers the committed sale and does not post any new records.
+
+**Expected:** the existing sale is returned/recovered; no second sale or duplicate side effects are created.
+
+### DPF04 — Inconsistent link / duplicate protection
+1. In a disposable test database only, test a completed order whose `pos_sale_id` conflicts with the sale linked by `sales.customer_order_id`, and separately test an order link pointing to a missing sale.
+2. Retry fulfillment and inspect the response and all records.
+
+**Expected:** reject with a controlled manual-review/integrity error; do not create another sale, change inventory, or post payments/cash to “repair” the mismatch automatically.
+
+### Implementation review notes
+- `SalesService::postForCustomerOrder()` checks for an existing sale and validates the order/shop/customer association.
+- The posting transaction locks the `customer_orders` row with `SELECT ... FOR UPDATE`; if a competing request has already completed the order and linked a sale, the second request follows the idempotent replay path.
+- `database/schema.sql` defines a unique key on `sales.customer_order_id`, preventing more than one non-NULL sale link per order at the database level.
+- The CI evidence above validates selected sequential retry, concurrent retry and sale-line reconciliation paths; it is not exhaustive financial audit evidence.
+- **Still open:** DPF04 corruption/fault-injection for conflicting or missing links; explicit before/after row-count checks for sale payments and cash transactions; full customer-ledger reconciliation; and a true network interruption between server commit and response delivery.
+
+
+## Financial posting, inventory concurrency, credit-limit and reversal regression
+
+**Execution status: NOT EXECUTED — requires a disposable MySQL 8+ database and two independent application requests/connections where concurrency is specified.** Code inspection below is not a substitute for runtime evidence.
+
+### FIP01 — Atomic rollback after a late posting failure
+1. Record baseline counts and values for the sale, sale items, payments, inventory movements, cash transactions, customer ledger/balance, cylinder unit(s), and (for an order) order status/link.
+2. Prepare a valid transaction that reaches posting but fails late, for example a cash sale with no open counter session or an intentionally induced failure on a dependent insert in a disposable test database.
+3. Verify the operation returns an error and compare every baseline value.
+
+**Expected:** no partial sale/payment/ledger/cash/inventory records remain; cylinder status and gas weight are unchanged; customer balance is unchanged; customer order remains fulfillable and unlinked if fulfillment did not commit. All posting side effects must commit together or roll back together.
+
+### INV01 — Competing requests for the same physical cylinder
+1. Prepare one filled cylinder and submit two near-simultaneous transactions that select the same unit (e.g. two gas-only sales, or a sale competing with an issue-to-custody request).
+2. Repeat for one empty cylinder selected by two empty-cylinder sale / custody operations.
+3. Reconcile the physical unit row and its inventory movements after both requests finish.
+
+**Expected:** the same physical unit cannot be consumed, sold, or issued twice. One operation may succeed and the other must fail safely/retry; final cylinder status and gas weight must match the single successful operation, with no duplicate or orphan movements.
+
+### CRL01 — Concurrent credit sales at the customer credit limit
+1. Configure an active customer with credit enabled and a known limit. Set current outstanding balance so either one proposed credit sale can fit but both together cannot.
+2. Submit two credit sales concurrently using separate requests/connections.
+3. Reconcile the customer ledger, posted sales, payment rows, and outstanding balance.
+
+**Expected:** the customer row lock serializes credit validation and posting. At most the permitted amount is posted; the final outstanding balance must not exceed the configured limit. A rejected request must leave no partial sale, payment, cash, or inventory effects. Repeat for the configured shop-level credit-limit mode.
+
+### PRICE01 — Order price / physical gas weight changes before fulfillment
+1. Create and accept an order against selected physical cylinders and record the quoted price revision, actual gas weights, rates, and delivery fee.
+2. In a disposable test database, change the selected unit's gas weight or the effective price after the quote but before fulfillment.
+3. Attempt fulfillment without customer price reconfirmation, then perform the supported reconfirmation flow and retry.
+
+**Expected:** stale quote fulfillment is blocked; no sale/payment/cash/inventory effects are posted while confirmation is required. The customer is shown the revised quote and must reconfirm it before fulfillment can commit. The final sale total and inventory consumption must agree with the confirmed order.
+
+### REV01 — Void/reversal restores the original financial and physical inventory state
+Run separate cases for: partial gas-only sale; gas-only sale that empties a cylinder; filled-cylinder sale; empty-cylinder sale; same-capacity exchange; and different-capacity exchange. For each case:
+1. Capture the pre-sale cylinder units, gas weights, customer balance, cash session balance, and inventory movement totals.
+2. Post the sale and then void it with a reason.
+3. Reconcile original sale movements against sale_void movements, physical units, customer ledger, sale status, and cash transactions.
+
+**Expected:** the sale is voided once; every inventory movement has exactly one effective reversal; the original physical unit(s) and gas weights are restored without double-restoration or capacity violations; generated empty units are handled correctly; sale cash is reversed; customer outstanding balance returns to the expected pre-sale amount. Repeated void attempts must be rejected without creating additional reversals.
+
+### REV02 — Void after later use of the same cylinder
+1. Post a partial gas-only sale against a filled unit.
+2. Post a second valid gas-only sale against that same unit, including a case that reduces it to empty.
+3. Void the first sale and compare the resulting unit state and movement ledger with the mathematically expected stock after reversing only the first transaction.
+
+**Expected:** reversal must not overwrite later valid activity or create gas beyond cylinder capacity. If the original unit state can no longer be safely reconstructed, void must fail atomically and require controlled manual review rather than corrupting stock.
+
+### Static review observations (not runtime proof)
+- Standard POS posting begins a database transaction and catches exceptions to roll back dependent writes; cash-session availability is checked before the posting can commit.
+- Standard POS and the gas/cylinder header posting paths use customer row locks in their credit-sensitive posting paths; inventory paths acquire MySQL advisory locks keyed by shop and inventory type, then lock/revalidate physical units.
+- Sales have a unique (location_id, sale_no) key. Concurrent requests can still contend while calculating the next sequence; verify the losing request rolls back cleanly and receives a controlled retry/error rather than partial effects.
+- SalesService::void() writes reversal movements and restores physical cylinder state within a transaction. REV01/REV02 are required to validate real-world sequences, especially when a unit has had subsequent valid activity.
+- FIP01, INV01, CRL01, PRICE01, REV01 and REV02 remain **NOT EXECUTED** until test evidence is recorded. Do not report financial/inventory safety as passed based on source review alone.
+
+
+### CRL02 — Credit-limit mode is honored by the standard five-mode POS
+1. Run a standard five-mode POS credit sale with credit-limit mode set to `none`, first with customer credit limit 0 and then with a positive customer limit.
+2. Repeat with mode `customer` and a customer whose existing balance plus proposed credit exceeds the configured customer limit.
+3. Repeat with mode `shop` and a shop outstanding balance near the shop limit; test both one request and two concurrent requests for different customers.
+4. Check the posted sale, payment, customer ledger, and shop/customer outstanding totals after every allowed and rejected request.
+
+**Expected:** `none` with customer limit 0 does not accidentally reject an otherwise eligible credit sale; a positive customer limit remains enforced in `none` mode; `customer` mode enforces a positive customer limit; `shop` mode enforces the configured shop limit and serializes concurrent requests. Every rejected request leaves no partial posting.
+
+### Confirmed source-review finding and fix
+- The standard five-mode POS posting path previously enforced the customer's numeric credit limit unconditionally. This contradicted the existing configuration semantics: a zero customer limit is treated as unlimited, and the shop-level mode should validate total shop exposure instead.
+- Updated `SalesService::post()` to honor `credit_limit_validation_mode`, preserve the positive customer-limit behavior in `none` mode, and use the shop-scoped advisory lock plus shop outstanding calculation in `shop` mode.
+- This is a source-level fix only. CRL01/CRL02 remain **NOT EXECUTED** until the customer and shop-limit scenarios (including concurrent requests) pass against a disposable database.
+
+## Web and mobile-backend release cases
+
+These cases were added for the current web/backend implementation. **Every case below is NOT EXECUTED until a result and evidence are recorded.** Passing CI does not prove the running application works.
+
+### BIZWEB01 — Business/shop provisioning and staff scope
+
+1. As System Administrator, create a unique second business and verify an authorized user can see it.
+2. Create two shops under the second business; verify each receives a default shop_settings row, main cash register and base inventory policy.
+3. Verify a Business/Head Office user can access the business shops, but is not silently granted global System Administrator/ADMIN permissions.
+4. Assign one staff member to one shop and another staff member to both shops; verify defaults are consistent, access changes revoke old staff API sessions, and the next login exposes only permitted shops.
+5. Try to access a different business/shop by editing URLs, form IDs and API path IDs. Deny out-of-scope read and write attempts.
+6. Set Head Office as the default assignment and verify the default shop belongs to that business; remove access and verify no stale users.location_id grants access.
+
+**Expected:** provisioning is atomic; no duplicate shop defaults; access follows role capability AND business/shop membership; scope violations are denied.
+
+Status: **NOT EXECUTED**.
+
+### CATWEB01 — Business catalog and per-shop product availability
+
+1. Create one product per supported sale mode (sell_gas_only, sell_filled, sell_empty) for an active cylinder type.
+2. Verify gas quantity rules permit only valid positive KG minimum/step values, cylinder products require whole-number quantity rules, and duplicate business/type/mode products are rejected safely.
+3. Edit and deactivate a product; verify it is not orderable at any shop when the business catalog item is inactive.
+4. Activate the product at Shop A, keep it inactive at Shop B, then verify customer catalog responses reflect the separate shop availability.
+5. Try to activate a product belonging to another business or write Shop B availability while scoped only to Shop A.
+6. Verify audit records contain the business/shop actor context for create/update/availability changes.
+
+**Expected:** one shared business catalog with separate explicit per-shop availability; no cross-business product reference or permission bypass.
+
+Status: **NOT EXECUTED**.
+
+### ACCWEB01 — Customer App signup approval and account lifecycle
+
+1. Submit self-registration for Shop A and verify no login/order access exists while signup is pending.
+2. Approve the request by linking an existing active financial customer in Shop A; verify exactly one account-to-customer link and no duplicate customer master.
+3. Approve another request by creating a new financial customer master; confirm the new master starts with credit sales disabled, zero credit limit, and no opening balance.
+4. Attempt to link a customer from Shop B, a customer that already has an app account, an occupied username, and a duplicate pending username; each must be rejected safely.
+5. Reject a pending request with a reason; verify the password hash is cleared and the pending username becomes available.
+6. Create a Customer App account for an existing unlinked party; verify the minimum password policy, username normalization and uniqueness.
+7. Reset the password for an approved account; verify the old refresh/access sessions are revoked and cannot refresh or call protected routes. A new login with the new password should work.
+8. Disable an account, then verify its existing access and refresh tokens stop working. Re-enable only while the financial customer is active, then verify old sessions remain invalid and only a fresh login works. Verify unauthorized roles cannot approve, reject, reset, enable or disable accounts.
+
+**Expected:** one mobile account per financial customer; every customer is owned by exactly one shop; pending/rejected/disabled accounts cannot access private profiles or orders; no credit permission is silently enabled.
+
+Status: **NOT EXECUTED**.
+
+### OWEB01 — Customer order list and status workflow in browser
+
+1. Open /customer-orders as an authorized order viewer; verify status filters and empty/populated views.
+2. Open an order from Shop A, verify customer ownership and the entire status history.
+3. Try every permitted status transition, including mandatory reason checks for rejection/cancellation/unable-to-fulfil; test invalid/backward transitions.
+4. Verify staff cannot mark an order completed directly; completion must come from POS fulfillment.
+5. Open the same order under Shop B and as a role without ORDER_VIEW/ORDER_MANAGE; access must be denied.
+
+**Expected:** the same server-side order state machine is used by the browser and staff API; the route or form cannot bypass a permission or shop-scope check.
+
+Status: **NOT EXECUTED**.
+
+### OWEB02 — Browser fulfillment posts once through validated POS
+
+1. Use an accepted order with one gas-only line and one cylinder line. Ensure the shop has sufficient real cylinder units and an open cash session.
+2. Select physical units and submit a payment split whose total equals the current server-calculated order total (including delivery fee if applicable).
+3. Verify the linked POS sale, separate delivery-fee component, payments, cash session, customer balance, physical-cylinder states/weights and immutable inventory movement history.
+4. Change a cylinder's gas weight or the effective price before fulfillment. Verify the new quote forces customer reconfirmation, resets acceptance, and does not create a sale.
+5. Submit the same fulfillment request twice or concurrently. Verify one POS sale maximum and a safe idempotent replay/recovery.
+6. Try insufficient stock, a closed cash session, invalid payment mode, payment total mismatch, wrong cylinder type/unit, and a request selecting a unit from another shop.
+
+**Expected:** failure leaves no partial financial/inventory posting; one order can create at most one sale; only the validated POS posting path can complete an order.
+
+Status: **NOT EXECUTED**.
+
+### APISEC01 — Customer/staff API authentication and isolation
+
+1. Test malformed, missing, expired and wrong-audience access tokens for each customer/staff route.
+2. Rotate refresh tokens, replay an already-used refresh token, logout, change password, run staff-mediated customer password reset, disable and re-enable an account and remove shop access.
+3. Verify customer tokens can only read their own linked customer, products and orders; staff can only access authorized business/shop scopes.
+4. Run two customers and two staff members concurrently across two businesses/two shops. Verify order idempotency, state history and sale linkage; test cross-shop order IDs and physical-cylinder IDs.
+5. Verify public error responses don't reveal password hashes, refresh/access token values, session IDs, SQL errors or internal tracebacks.
+
+**Expected:** audience separation, scope enforcement and token revocation are proven by HTTP responses/database evidence. Static source review alone is not a PASS.
+
+Status: **NOT EXECUTED**.
+
+## Page-by-page runtime execution register
+
+Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the required checks per page. The workflow must be executed in a running browser against the current commit and disposable SQA database; static inspection and CI are not substitutes.
+
+**Current status: NOT EXECUTED as a complete page-by-page runtime suite.**
+
+| ID | Scope | Required execution | Actual result | Evidence / issue | Status |
+|---|---|---|---|---|---|
+| PQA01 | Login, installation, session and access control | Test successful/failed login, logout, direct URL protection and restricted-role denial | | | NOT EXECUTED |
+| PQA02 | Dashboard and configuration | Verify displayed totals, filters, shop context, save/reload and role visibility | | | NOT EXECUTED |
+| PQA03 | POS and sale history/details/receipt | Exercise all supported transaction types, validation, payment, duplicate submit and linked history | | | NOT EXECUTED |
+| PQA04 | Cash and payment pages | Open/close, IN/OUT, receipts, supplier payments, cash totals and ledger links | | | NOT EXECUTED |
+| PQA05 | Customers, suppliers and ledgers | CRUD/validation, balances, receipts/payments, credit/deposit and history | | | NOT EXECUTED |
+| PQA06 | Inventory, physical cylinders, adjustments and wastage | Validate stock/gas KG, unit state, permissions, history, limits and movements | | | NOT EXECUTED |
+| PQA07 | Purchases, expenses and reversals | Posting, validation, void/reversal, cash and stock/payable reconciliation | | | NOT EXECUTED |
+| PQA08 | Rates, cylinder types, users and permissions | CRUD, effective rates, capacity validation and unauthorized access attempts | | | NOT EXECUTED |
+| PQA09 | Reports, audit and backup/admin pages | Filter accuracy, source reconciliation, audit trail and admin-only operations | | | NOT EXECUTED |
+| PQA10 | Customer/staff mobile API and multi-shop scope | Auth/token lifecycle, order flows, price reconfirmation, duplicate protection and cross-shop denial | | | NOT EXECUTED |
+| PQA11 | Responsive/browser quality | Desktop/mobile viewport, navigation, modals, tables, browser console, network and server logs | | | NOT EXECUTED |
+| PQA12 | Full end-to-end regression | Execute complete retail-day scenario and reconcile inventory, ledgers, cash, reports and audit | | | NOT EXECUTED |
+| PQA13 | Businesses, shops and staff scope web pages | Create/provision businesses/shops, review shop defaults, staff assignments/default shop and authorization denials | | | NOT EXECUTED |
+| PQA14 | Customer App account administration | Review pending signup, approve/reject, link or create one customer master, reset password, disable/re-enable login and revoke sessions | | | NOT EXECUTED |
+| PQA15 | Customer Ordering Catalog | Create/edit products, validate quantity rules, activate shop-specific availability and verify catalog API output | | | NOT EXECUTED |
+| PQA16 | Browser customer order management | Queue/detail/history, valid status transitions, physical-cylinder selection and fulfillment through POS with reconciliation | | | NOT EXECUTED |
+
+For each PQA row, link the detailed individual page/case IDs and evidence in the result comments. Split a row into multiple entries when individual pages have different outcomes. A page must not be marked PASS merely because its controller or route exists.
+
+
+## Automated web/API runtime evidence — 2026-10-15
+
+**Result:** PASS for the selected automated scenarios below.  
+**Commit tested:** `8f632643a691f061a3a79db73c1c1703c2d23cf7`  
+**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38673310726)  
+**Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter development server and Playwright Chromium. CI creates its own QA catalog/rate and second-business fixtures; no production database is used.
+
+| Case | Coverage | Actual result | Status |
+| E2E-011 | Smoke-load 24 existing web routes from dashboard through inventory opening | Every listed route returned HTTP 200 with no detected PHP/browser errors | PASS |
+|---|---|---|---|
+| E2E-020 | Business/shop administration page renders for System Administrator | Page loaded in browser | PASS |
+| E2E-021 | Customer ordering catalog page and separate business/shop controls | Page loaded in browser | PASS |
+| E2E-022 | Customer App account review page | Page loaded in browser | PASS |
+| E2E-023 | Customer order queue authentication and permissions | Page loaded in browser | PASS |
+| E2E-024 | API health, public registration-shop discovery, missing-token guards and invalid staff credentials | Expected HTTP/status behavior observed | PASS |
+| E2E-025 | Staff API login, access-token use, refresh rotation, refresh-token replay revocation, logout and revoked-token denial | Session lifecycle checks passed | PASS |
+| E2E-026 | Customer signup and staff approval, customer login/profile/catalog, application/business/shop configuration reads, catalog API reads, second-shop provisioning, order create, idempotent retry, reused-key conflict, staff queue/acceptance and customer-safe order details | End-to-end API flow passed; order remained separate from POS sale | PASS |
+| E2E-027 | Scoped staff cannot override shop scope for a sibling shop or another business; non-system administrator cannot create a business | Cross-scope requests denied as expected | PASS |
+
+**Fix found by these tests:** Access-token creation time is now written explicitly in the application timezone so the token's creation and expiry boundaries are evaluated consistently. Logout now returns a JSON `200` response after revoking the session, which is reliable for mobile API clients.
+
+This is evidence for the listed CI scenarios only. It does **not** mark the complete PQA01–PQA12 route-by-route suite or concurrency/reversal cases as passed. Those still require their own execution evidence, and WP-10 still needs full two-shop pilot/owner acceptance before release.
+
+
+## Mobile-ordering security regression evidence — 2026-10-15
+
+**Result:** PASS for the selected automated runtime suite.  
+**Commit tested:** `e80e12f9700848e7f5df746f387ef5b64466951f`  
+**GitHub Actions:** [Run 38699695263](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38699695263)  
+**Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter server and Playwright Chromium. No production database was used.
+
+The run passed PHP syntax validation, schema bootstrap, application migration gate, PHPUnit, and all **23 Playwright tests**.
+
+Additional regression coverage verified:
+
+| Case | Coverage | Actual result | Status |
+|---|---|---|---|
+| E2E-007 | Zero-quantity gas sale is rejected after valid source-cylinder setup | Validation message shown; no sale posted | PASS |
+| E2E-026 | Customer signup/approval, shop-scoped catalog and order creation, idempotent retry and reused-key conflict, disabled shop ordering, unavailable catalog product, malformed idempotency key, and acceptance without POS posting | Expected API responses observed, including 403 for disabled ordering, 409 for stale catalog product, and 422 for malformed idempotency key | PASS |
+| E2E-026 ownership checks | A second approved customer in the same shop attempts to read and cancel another customer’s order | Both requests returned 404; order ownership was enforced server-side | PASS |
+| E2E-027 | Staff attempts to override shop scope for a sibling shop or a different business | Cross-scope requests denied as expected | PASS |
+
+The order lifecycle checks also confirmed that creating or accepting a customer order does not itself link a POS sale. The existing validated POS fulfilment path remains the posting boundary.
+
+This evidence covers the listed automated cases only. It does **not** mark the complete page-by-page PQA01–PQA16 suite, concurrency/reversal tests, Flutter device QA, or the two-shop owner pilot as complete.

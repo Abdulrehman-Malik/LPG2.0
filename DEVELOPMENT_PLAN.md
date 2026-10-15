@@ -93,40 +93,58 @@ Legend:
 - [x] Phase 6 functional scope implemented and released for SQA
 
 ## Phase 7 — Mobile App and Multi-Shop Customer Ordering
-**Requirements branch:** `feature/mobile-multishop-ordering-requirements`
-**Current status:** planning pack complete; implementation not started. Business decisions and legacy data mapping remain approval gates. Keep all work on the feature branch, never directly on `main`.
 
-- [x] Module 01 — Product scope and target architecture documented
-- [x] Module 02 — Business, shops, staff roles, permissions and scope requirements documented
-- [x] Module 03 — Customer mobile accounts and one-customer-to-one-shop assignment documented
-- [x] Module 04 — Order lifecycle and safe POS integration documented
-- [x] Module 05 — API contract and security requirements documented
-- [x] Module 06 — Flutter Android/iOS app requirements documented
-- [x] Module 07 — Database model and non-destructive legacy migration plan documented
-- [x] Module 08 — QA and release gates documented
-- [x] Module 09 — Dependency-ordered implementation plan and decision register documented
-- [x] Complete documentation-only development planning on the feature branch
-- [ ] Review/approve the mobile multi-shop decision register with the owner
-- [ ] Inspect current data in a safe non-production copy and produce customer-to-shop legacy mapping report
-- [ ] Finalize the remaining owner decisions listed in docs/mobile-multishop/09-implementation-plan-and-decision-register.md
-- [ ] Implement business-to-location model and shop-scoped authorization
-- [ ] Add verified customer-to-shop assignment and customer mobile-account linking
-- [ ] Add order tables, idempotency and status history
-- [ ] Add web Order Management screen
-- [ ] Add versioned mobile API and security tests
-- [ ] Build Flutter app for Android and iOS
-- [ ] Run two-shop isolation pilot and existing POS regression suite
-- [ ] Obtain explicit approval before merge/deployment
+**Implementation branch:** `feature/mobile-multishop-ordering`  
+**Planning branch:** `docs/mobile-multishop-final-plan`  
+**Main baseline:** `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`  
+**Current status:** Web administration and the customer/staff API foundation are implemented on this feature branch. CI passes PHP/schema/PHPUnit checks plus selected Playwright browser, API session, customer-order and shop-isolation scenarios against a disposable MySQL database. Full route-by-route SQA, financial/inventory concurrency regression and the owner two-shop pilot remain pending. `main` remains untouched.
 
-## Mobile / Multi-Shop Planning Gate
+### Confirmed product decisions
 
-- [x] Requirements and architecture modules 01–08 documented on `feature/mobile-multishop-ordering-requirements`.
-- [x] Module 09 implementation plan, decision register, dependency order, acceptance criteria and release gates documented.
-- [x] Documentation-only planning completed; no mobile/order application code or database schema was changed.
-- [ ] Owner reviews/approves the business decisions in `docs/mobile-multishop/09-implementation-plan-and-decision-register.md`.
-- [ ] Inspect current data in a safe non-production copy and prepare/review customer-to-shop mapping.
-- [ ] Explicit approval to begin implementation.
-- [ ] Until approval, do not modify application code, schema/migrations, production data, or `main`.
+- Support multiple independent businesses; each has a Head Office and its own shops.
+- Keep two separate Flutter apps: Customer App and Business/Staff App.
+- Every customer belongs to exactly one shop and links to one financial customer master.
+- No legacy customer-to-shop mapping/backfill is required for this initiative. If a populated deployment is later selected, its upgrade/mapping plan must be separately reviewed.
+- Keep the existing role/permission implementation and add server-side business/shop scope checks.
+- Keep centralized Configuration for Application, Head Office/Business and Shop scopes; preserve existing Shop Settings. Login & Session controls are application-owned.
+- English only for the initial release, with localization-ready strings.
+- Customer orders are not POS sales; existing validated services own financial/inventory posting.
+- Customer offline queue persists locally, but a shop receives an order only after cloud synchronization.
+
+### Work package status
+
+- [x] Requirements modules 01–10 and decision register documented.
+- [x] WP-0 — source inventory, framework/test review, Shop Settings inventory and technical decisions. Source inventory complete; runtime verification remains a separate gate.
+- [x] WP-1 — fresh-install business/shop/customer ownership schema and seed setup. Migrations 032–039 are included and final mobile-order schema is present in `database/schema.sql`.
+- [x] WP-2 — business/shop scope resolver, explicit user/business/shop assignments, standard-role permission integration and scope checks in browser/API paths. Cross-shop runtime cases remain pending in `SQA.md`.
+- [x] WP-3 — customer app identity, pending self-registration, approval/rejection, account creation/disablement and revocable customer/staff API sessions. Browser administration screens are now present.
+- [x] WP-4 — order tables, state machine, status history, request idempotency, price reconfirmation, selected physical-cylinder snapshots and unique order-to-sale linkage.
+- [x] WP-5 — backend order/catalog/configuration services plus browser Order Management, Business/Shop administration, Customer App Account review and Catalog/Shop Availability pages.
+- [x] WP-6 — versioned Customer/Staff API, authentication/session lifecycle, permission/scope checks and CI schema assertions. Dedicated security/isolation runtime cases remain pending.
+- [ ] WP-7 — separate Customer App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
+- [ ] WP-8 — separate Business/Staff App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
+- [x] WP-9 — POS fulfilment service integration uses the existing validated sale/cash/inventory/ledger posting path with idempotent order linkage. Financial/inventory regression execution remains pending in `SQA.md`.
+- [ ] WP-10 — two-shop pilot, release validation, owner acceptance and rollback plan.
+
+
+### Web/backend delivery completed on this branch
+
+- Browser **Businesses & Shops** administration: create businesses (System Administrator only), provision shops with their default shop settings/cash register/inventory-policy records, and manage staff shop/Head Office scope without granting global ADMIN permissions.
+- Browser **Customer Orders** queue/detail: filter orders, validate legal state transitions, display price-reconfirmation state and status history, select physical cylinders and post fulfilment through the existing POS service.
+- Browser **Customer App Accounts**: review pending signups, link an existing financial customer or create a new one with credit disabled by default, reject with a reason, create app credentials for existing customers, and disable/revoke sessions.
+- Browser **Customer Ordering Catalog**: maintain the business-level product catalog and activate/deactivate products per authorized shop.
+- Versioned customer/staff API and services include account/session lifecycle, catalogue, centralized settings, order creation/cancellation/reconfirmation, shop order queue/status, physical-cylinder fulfilment and idempotent POS sale linkage.
+- These are implementation statuses, not runtime test results. Follow the page-by-page workflow and SQA execution register before release.
+
+### Development safety gates
+
+- All work stays on `feature/mobile-multishop-ordering`; no direct commits to `main`.
+- No production database is queried or modified by this development workflow.
+- Preserve current POS, ledgers, receipts, deposits, cylinder custody, cash, inventory and custom-role behavior.
+- Do not report tests as PASS without execution evidence. CI covers PHP syntax, Composer, MySQL 8 schema/migration smoke checks, PHPUnit, and selected Playwright browser/API runtime scenarios against disposable test data. Full route-by-route SQA, mobile-device validation, concurrency/reversal tests and owner acceptance still require separate evidence; CI is not proof that every page/device scenario passed.
+- Do not merge or deploy until all security, isolation, POS-regression and owner-acceptance gates pass.
+
+See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the detailed implementation plan](docs/mobile-multishop/09-implementation-plan-and-decision-register.md), and [centralized configuration requirements](docs/mobile-multishop/10-configuration-management.md).
 
 ## Workflow Gate
 

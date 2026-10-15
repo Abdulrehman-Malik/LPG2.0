@@ -20,6 +20,9 @@ class SalesService
     protected array $inventoryLocks = [];
     protected array $creditLocks = [];
     protected ?int $currentLocationId = null;
+    protected bool $orderFulfillmentContext = false;
+    protected ?int $currentOrderId = null;
+    protected ?float $currentOrderExpectedTotal = null;
 
     public function __construct()
     {
@@ -46,6 +49,133 @@ class SalesService
         return $prefix.str_pad((string)$next,5,'0',STR_PAD_LEFT);
     }
 
+    /**
+     * A previously posted sale may only be replayed or recovered when all financial and ownership
+     * fields still agree with the approved customer-order snapshot.
+     */
+    protected function assertCustomerOrderSaleMatches(array $order, array $sale, int $orderId, int $locationId): void
+    {
+        if ((string) ($sale['status'] ?? '') !== 'posted'
+            || (int) ($sale['customer_order_id'] ?? 0) !== $orderId
+            || (int) ($sale['location_id'] ?? 0) !== $locationId
+            || (int) ($sale['customer_id'] ?? 0) !== (int) $order['customer_id']
+            || abs((float) ($sale['subtotal'] ?? 0) - (float) $order['subtotal']) > 0.009
+            || abs((float) ($sale['discount_amount'] ?? 0) - (float) $order['discount_amount']) > 0.009
+            || abs((float) ($sale['delivery_fee_amount'] ?? 0) - (float) $order['delivery_fee']) > 0.009
+            || abs((float) ($sale['total_amount'] ?? 0) - (float) $order['total_amount']) > 0.009) {
+            throw new RuntimeException('Customer order POS sale link is inconsistent with the approved order totals; manual review is required.');
+        }
+    }
+
+    /**
+     * Internal service entry point for validated customer-order fulfillment.
+     * Delivery fees are accepted only through this path, never from a normal POS request.
+     */
+    public function postForCustomerOrder(array $payload,int $userId,int $locationId,int $orderId,float $deliveryFee): array
+    {
+        if ($orderId <= 0 || $deliveryFee < 0) {
+            throw new RuntimeException('Invalid customer-order fulfillment context.');
+        }
+
+        $order = $this->db->table('customer_orders')
+            ->where(['id' => $orderId, 'location_id' => $locationId])
+            ->get()->getRowArray();
+        if (!$order) {
+            throw new RuntimeException('Customer order was not found in this shop.');
+        }
+        if ((int) $order['price_reconfirmation_required'] === 1) {
+            throw new RuntimeException('Customer price reconfirmation is required before fulfillment.');
+        }
+        if (abs((float) $order['delivery_fee'] - $deliveryFee) > 0.009) {
+            throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the saved delivery fee changed before posting.');
+        }
+        if (!empty($payload['customer_id']) && (int) $payload['customer_id'] !== (int) $order['customer_id']) {
+            throw new RuntimeException('Sale customer does not match the customer order.');
+        }
+        $payload['customer_id'] = (int) $order['customer_id'];
+
+        $existing = $this->db->table('sales')->where('customer_order_id', $orderId)->get()->getRowArray();
+        if ($existing) {
+            $this->assertCustomerOrderSaleMatches($order, $existing, $orderId, $locationId);
+            if (!empty($order['pos_sale_id']) && (int) $order['pos_sale_id'] !== (int) $existing['id']) {
+                throw new RuntimeException('Customer order is linked to a different POS sale.');
+            }
+            if ((int) ($order['pos_sale_id'] ?? 0) === 0 || (string) $order['status'] !== 'completed') {
+                $this->db->transBegin();
+                try {
+                    $lockedOrder = $this->db->query(
+                        'SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE',
+                        [$orderId, $locationId]
+                    )->getRowArray();
+                    if (!$lockedOrder) throw new RuntimeException('Customer order was not found in this shop.');
+                    $this->assertCustomerOrderSaleMatches($lockedOrder, $existing, $orderId, $locationId);
+                    if (!empty($lockedOrder['pos_sale_id']) && (int) $lockedOrder['pos_sale_id'] !== (int) $existing['id']) {
+                        throw new RuntimeException('Customer order is linked to a different POS sale.');
+                    }
+                    if (!in_array((string) $lockedOrder['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery', 'completed'], true)) {
+                        throw new RuntimeException('A posted sale exists for an order that is no longer fulfillable; manual review is required.');
+                    }
+                    if ((string) $lockedOrder['status'] !== 'completed' || empty($lockedOrder['pos_sale_id'])) {
+                        $this->db->table('customer_orders')->where('id', $orderId)->update([
+                            'pos_sale_id' => (int) $existing['id'],
+                            'status' => 'completed',
+                            'completed_by' => $userId,
+                            'completed_at' => $lockedOrder['completed_at'] ?: date('Y-m-d H:i:s'),
+                        ]);
+                        $this->db->table('customer_order_status_history')->insert([
+                            'order_id' => $orderId,
+                            'business_id' => (int) $lockedOrder['business_id'],
+                            'from_status' => (string) $lockedOrder['status'],
+                            'to_status' => 'completed',
+                            'actor_type' => 'staff',
+                            'customer_app_account_id' => null,
+                            'user_id' => $userId,
+                            'reason' => 'Recovered existing POS sale ' . (string) $existing['sale_no'] . ' during an idempotent fulfillment retry.',
+                            'request_id' => null,
+                        ]);
+                    }
+                    if (!$this->db->transStatus()) throw new RuntimeException('Existing POS sale link could not be recovered.');
+                    $this->db->transCommit();
+                } catch (\Throwable $e) {
+                    $this->db->transRollback();
+                    throw $e;
+                }
+            }
+            return [
+                'id' => (int) $existing['id'],
+                'sale_no' => (string) $existing['sale_no'],
+                'total' => (float) $existing['total_amount'],
+                'customer_id' => (int) $existing['customer_id'],
+                'credit_amount' => (float) $existing['credit_amount'],
+                'idempotent_replay' => true,
+            ];
+        }
+
+        if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
+            throw new RuntimeException('Only an accepted order can be fulfilled.');
+        }
+        if (!empty($order['pos_sale_id'])) {
+            throw new RuntimeException('Customer order has a POS sale link but the sale idempotency record is missing; manual review is required.');
+        }
+
+        $previous = $this->orderFulfillmentContext;
+        $previousOrderId = $this->currentOrderId;
+        $previousExpectedTotal = $this->currentOrderExpectedTotal;
+        $this->orderFulfillmentContext = true;
+        $this->currentOrderId = $orderId;
+        $this->currentOrderExpectedTotal = (float) $order['total_amount'];
+        $payload['order_id'] = $orderId;
+        $payload['transaction_type'] = 'customer_order';
+        $payload['delivery_fee_amount'] = round((float) $order['delivery_fee'], 2);
+        try {
+            return $this->post($payload, $userId, $locationId);
+        } finally {
+            $this->orderFulfillmentContext = $previous;
+            $this->currentOrderId = $previousOrderId;
+            $this->currentOrderExpectedTotal = $previousExpectedTotal;
+        }
+    }
+
     public function post(array $payload,int $userId,int $locationId): array
     {
         $customerId=!empty($payload['customer_id'])?(int)$payload['customer_id']:null;
@@ -68,7 +198,7 @@ class SalesService
 
         $transactionAt=str_replace('T',' ',trim((string)($payload['transaction_at']??date('Y-m-d H:i:s'))));
         $notes=trim((string)($payload['notes']??''))?:null;
-        $customer=$customerId?$this->customers->find($customerId):null;
+        $customer=$customerId?$this->customers->findForLocation($customerId,$locationId):null;
         if($customerId && !$customer) throw new RuntimeException('Customer not found.');
         if($customerId && !(int)$customer['is_active']) throw new RuntimeException('Customer is inactive.');
 
@@ -96,7 +226,7 @@ class SalesService
             $emptyReceived=0;$previewUnits=[];
 
             if(in_array($mode,['sell_gas_only','replace_same','sell_filled','replace_different'],true)){
-                $standardGasRate=$this->rates->currentKgRate($transactionAt);
+                $standardGasRate=$this->rates->currentKgRate($transactionAt,$locationId);
                 if($standardGasRate!==null && $standardGasRate<=0) $standardGasRate=null;
                 // A positive line rate is an allowed override. Only require a configured
                 // effective rate when the cashier has not supplied a usable line rate.
@@ -108,7 +238,7 @@ class SalesService
                 }
             }
             if(in_array($mode,['sell_filled','replace_different','sell_empty'],true)){
-                $standardCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt);
+                $standardCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt,$locationId);
                 if($standardCylinderRate===null) throw new RuntimeException('No effective cylinder price exists for '.$type['name'].'.');
                 $cylinderRate=$cylinderRateInput??$standardCylinderRate;
             }
@@ -133,9 +263,20 @@ class SalesService
                 $gasRequirements[]=['line_no'=>$i+1,'type_id'=>$typeId,'gas_kg'=>$gasKg];
             }elseif(in_array($mode,['replace_same','sell_filled','replace_different'],true)){
                 if(floor($qty)!==$qty) throw new RuntimeException('Cylinder quantity on line '.($i+1).' must be a whole number.');
-                $previewUnits=$this->cylinders->availableForDisplay($locationId,$typeId,'filled');
-                if(count($previewUnits)<(int)$qty) throw new RuntimeException('Insufficient filled cylinders of '.$type['name'].'.');
-                $selected=array_slice($previewUnits,0,(int)$qty);
+                $requestedUnitIds=array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[])));
+                if($requestedUnitIds){
+                    if(count($requestedUnitIds)!==(int)$qty || min($requestedUnitIds)<=0) throw new RuntimeException('Select exactly '.(int)$qty.' physical filled cylinder(s) on line '.($i+1).'.');
+                    $previewUnits=$this->db->table('cylinder_units')->select('id,unit_code,cylinder_type_id,status,gas_weight_kg')
+                        ->where('location_id',$locationId)->where('cylinder_type_id',$typeId)->where('status','filled')
+                        ->whereIn('id',$requestedUnitIds)->get()->getResultArray();
+                    if(count($previewUnits)!==(int)$qty) throw new RuntimeException('One or more selected filled cylinders are unavailable or belong to another cylinder type.');
+                    usort($previewUnits,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                }else{
+                    $previewUnits=$this->cylinders->availableForDisplay($locationId,$typeId,'filled');
+                    if(count($previewUnits)<(int)$qty) throw new RuntimeException('Insufficient filled cylinders of '.$type['name'].'.');
+                    $previewUnits=array_slice($previewUnits,0,(int)$qty);
+                }
+                $selected=$previewUnits;
                 $gasKg=array_sum(array_map(static fn($u)=>(float)$u['gas_weight_kg'],$selected));
                 if($gasKg<=0) throw new RuntimeException('Selected filled cylinders contain no gas.');
                 if($mode==='replace_same'){
@@ -150,8 +291,17 @@ class SalesService
                 if($receivedTypeId) $emptyReceived=$qty;
             }elseif($mode==='sell_empty'){
                 if(floor($qty)!==$qty) throw new RuntimeException('Empty-cylinder quantity on line '.($i+1).' must be a whole number.');
-                $availableEmpty=$this->cylinders->availableForDisplay($locationId,$typeId,'empty');
-                if(count($availableEmpty)<(int)$qty) throw new RuntimeException('Insufficient empty cylinders of '.$type['name'].'.');
+                $requestedUnitIds=array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[])));
+                if($requestedUnitIds){
+                    if(count($requestedUnitIds)!==(int)$qty || min($requestedUnitIds)<=0) throw new RuntimeException('Select exactly '.(int)$qty.' physical empty cylinder(s) on line '.($i+1).'.');
+                    $availableEmpty=$this->db->table('cylinder_units')->select('id,unit_code,cylinder_type_id,status,gas_weight_kg')
+                        ->where('location_id',$locationId)->where('cylinder_type_id',$typeId)->where('status','empty')
+                        ->whereIn('id',$requestedUnitIds)->get()->getResultArray();
+                    if(count($availableEmpty)!==(int)$qty) throw new RuntimeException('One or more selected empty cylinders are unavailable or belong to another cylinder type.');
+                }else{
+                    $availableEmpty=$this->cylinders->availableForDisplay($locationId,$typeId,'empty');
+                    if(count($availableEmpty)<(int)$qty) throw new RuntimeException('Insufficient empty cylinders of '.$type['name'].'.');
+                }
             }
 
             $customGas=$gasRateInput!==null && ($standardGasRate===null || abs($gasRate-$standardGasRate)>0.00001);
@@ -161,6 +311,7 @@ class SalesService
             if(in_array($mode,['sell_gas_only','replace_same'],true)) $lineTotal=$gasKg*$gasRate;
             elseif(in_array($mode,['sell_filled','replace_different'],true)) $lineTotal=$gasKg*$gasRate+$qty*$cylinderRate;
             elseif($mode==='sell_empty') $lineTotal=$qty*$cylinderRate;
+            if($this->currentOrderId) $lineTotal=round($lineTotal,2);
 
             $subtotal+=$lineTotal;$totalKg+=$gasKg;
             $storedLineType=$mode==='sell_empty'?'empty_cylinder':($mode==='sell_gas_only'?'refill_kg':'filled_cylinder');
@@ -170,6 +321,7 @@ class SalesService
             $prepared[]=[
                 'line_no'=>$i+1,'sale_mode'=>$mode,'line_type'=>$storedLineType,'cylinder_type_id'=>$typeId,
                 'source_cylinder_unit_id'=>($mode==='sell_gas_only'?(int)($line['source_cylinder_unit_id']??0):null),
+                'selected_cylinder_unit_ids'=>array_values(array_unique(array_map('intval',is_array($line['selected_cylinder_unit_ids']??null)?$line['selected_cylinder_unit_ids']:[]))),
                 'received_cylinder_type_id'=>$receivedTypeId,'quantity'=>$qty,'gas_weight_kg'=>$gasKg,
                 'entered_amount'=>$enteredAmount,
                 'gas_rate'=>$gasRate,'cylinder_rate'=>$cylinderRate,'standard_gas_rate'=>$standardGasRate,
@@ -180,8 +332,15 @@ class SalesService
         }
 
         $discount=max(0,(float)($payload['discount_amount']??0));
+        $deliveryFee=(float)($payload['delivery_fee_amount']??0);
+        if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
+        if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
         if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-        $total=$subtotal-$discount;$paymentTotal=0;$credit=0;$cashAmount=0;
+        $total=round($subtotal-$discount+$deliveryFee,2);
+        if($this->currentOrderId && ($this->currentOrderExpectedTotal===null || abs($total-$this->currentOrderExpectedTotal)>0.009)) {
+            throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the physical-cylinder total no longer matches the customer-confirmed quote.');
+        }
+        $paymentTotal=0;$credit=0;$cashAmount=0;
         foreach($payments as $p){
             $mode=(string)($p['payment_mode']??'');$amount=(float)($p['amount']??0);
             if(!in_array($mode,['cash','cheque','online','credit'],true)||$amount<=0) throw new RuntimeException('Invalid payment.');
@@ -192,8 +351,29 @@ class SalesService
 
         $this->db->transBegin();
         try{
+            $lockedOrder = null;
+            if($this->currentOrderId){
+                $lockedOrder=$this->db->query("SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE",[$this->currentOrderId,$locationId])->getRowArray();
+                if(!$lockedOrder) throw new RuntimeException('Customer order was not found in this shop.');
+                if((string)$lockedOrder['status']==='completed' && !empty($lockedOrder['pos_sale_id'])){
+                    $existingSale=$this->db->table('sales')->where(['id'=>(int)$lockedOrder['pos_sale_id'],'customer_order_id'=>$this->currentOrderId])->get()->getRowArray();
+                    if($existingSale){
+                        $this->assertCustomerOrderSaleMatches($lockedOrder, $existingSale, (int)$this->currentOrderId, $locationId);
+                        $this->db->transRollback();
+                        return ['id'=>(int)$existingSale['id'],'sale_no'=>(string)$existingSale['sale_no'],'total'=>(float)$existingSale['total_amount'],'customer_id'=>(int)$existingSale['customer_id'],'credit_amount'=>(float)$existingSale['credit_amount'],'idempotent_replay'=>true];
+                    }
+                }
+                if(!in_array((string)$lockedOrder['status'],['accepted','preparing','ready','out_for_delivery'],true)) throw new RuntimeException('Only an accepted order can be fulfilled.');
+                if((int)$lockedOrder['price_reconfirmation_required']===1) throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: customer confirmation is pending.');
+                if(!empty($lockedOrder['pos_sale_id'])) throw new RuntimeException('Customer order already has a POS sale link.');
+                if(abs((float)$lockedOrder['total_amount']-(float)$this->currentOrderExpectedTotal)>0.009
+                    || abs((float)$lockedOrder['delivery_fee']-(float)$deliveryFee)>0.009
+                    || (int)$lockedOrder['customer_id']!==(int)$customerId){
+                    throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: order details changed before posting.');
+                }
+            }
             if($customerId){
-                $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$lockedCustomer || !(int)$lockedCustomer['is_active']) throw new RuntimeException('Customer is unavailable.');
                 $customer=$lockedCustomer;
             }
@@ -262,7 +442,12 @@ class SalesService
                 }elseif(in_array($mode,['replace_same','sell_filled','replace_different'],true)){
                     $units=$this->cylinders->available($locationId,$typeId,'filled');
                     $units=array_values(array_filter($units,static fn(array $unit): bool => !isset($reservedFilledIds[(int)$unit['id']])));
-                    if(count($units)<(int)$qty) throw new RuntimeException('Filled-cylinder stock changed while posting. Please retry the sale.');
+                    $requestedUnitIds=$row['selected_cylinder_unit_ids']??[];
+                    if($requestedUnitIds){
+                        $units=array_values(array_filter($units,static fn(array $unit): bool => in_array((int)$unit['id'],$requestedUnitIds,true)));
+                        usort($units,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                    }
+                    if(count($units)<(int)$qty) throw new RuntimeException('One or more selected filled cylinders changed while posting. Please retry the sale.');
                     $selected=array_slice($units,0,(int)$qty);$actualGas=0;
                     foreach($selected as $unit){
                         $reservedFilledIds[(int)$unit['id']]=true;
@@ -270,14 +455,23 @@ class SalesService
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>(float)$unit['gas_weight_kg'],'direction'=>'out','unit_id'=>(int)$unit['id']];
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
                     }
-                    if(abs($actualGas-(float)$row['gas_weight_kg'])>0.00001) throw new RuntimeException('Filled-cylinder gas weight changed while posting. Please retry the sale.');
+                    if(abs($actualGas-(float)$row['gas_weight_kg'])>0.00001) {
+                        throw new RuntimeException($this->currentOrderId
+                            ? 'ORDER_PRICE_RECONFIRMATION_REQUIRED: physical-cylinder gas weight changed during fulfillment.'
+                            : 'Filled-cylinder gas weight changed while posting. Please retry the sale.');
+                    }
                     if($row['received_cylinder_type_id']){
                         for($n=0;$n<(int)$qty;$n++) $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>(int)$row['received_cylinder_type_id'],'quantity'=>1,'direction'=>'in','unit_id'=>null,'transition'=>'new_empty'];
                     }
                 }elseif($mode==='sell_empty'){
                     $units=$this->cylinders->available($locationId,$typeId,'empty');
                     $units=array_values(array_filter($units,static fn(array $unit): bool => !isset($reservedEmptyIds[(int)$unit['id']])));
-                    if(count($units)<(int)$qty) throw new RuntimeException('Empty-cylinder stock changed while posting. Please retry the sale.');
+                    $requestedUnitIds=$row['selected_cylinder_unit_ids']??[];
+                    if($requestedUnitIds){
+                        $units=array_values(array_filter($units,static fn(array $unit): bool => in_array((int)$unit['id'],$requestedUnitIds,true)));
+                        usort($units,static fn(array $a,array $b): int => array_search((int)$a['id'],$requestedUnitIds,true)<=>array_search((int)$b['id'],$requestedUnitIds,true));
+                    }
+                    if(count($units)<(int)$qty) throw new RuntimeException('One or more selected empty cylinders changed while posting. Please retry the sale.');
                     foreach(array_slice($units,0,(int)$qty) as $unit){
                         $reservedEmptyIds[(int)$unit['id']]=true;
                         $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
@@ -288,7 +482,14 @@ class SalesService
 
             $preparedSubtotal=array_sum(array_map(static fn($r)=>(float)$r['line_total'],$prepared));
             $discount=max(0,(float)($payload['discount_amount']??0));if($discount>$preparedSubtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-            $total=$preparedSubtotal-$discount;$paymentTotal=0;$credit=0;$cashAmount=0;
+            $deliveryFee=(float)($payload['delivery_fee_amount']??0);
+            if($deliveryFee<0) throw new RuntimeException('Delivery fee cannot be negative.');
+            if($deliveryFee>0 && !$this->orderFulfillmentContext) throw new RuntimeException('A delivery fee can only be posted against a validated customer order.');
+            $total=round($preparedSubtotal-$discount+$deliveryFee,2);
+            if($this->currentOrderId && ($this->currentOrderExpectedTotal===null || abs($total-$this->currentOrderExpectedTotal)>0.009)) {
+                throw new RuntimeException('ORDER_PRICE_RECONFIRMATION_REQUIRED: the physical-cylinder total changed during fulfillment.');
+            }
+            $paymentTotal=0;$credit=0;$cashAmount=0;
             foreach($payments as $p){
                 $mode=(string)$p['payment_mode'];$amount=(float)$p['amount'];$paymentTotal+=$amount;
                 if($mode==='credit')$credit+=$amount;if($mode==='cash')$cashAmount+=$amount;
@@ -297,8 +498,30 @@ class SalesService
             if(!$customerId && abs($paymentTotal-$total)>0.01) throw new RuntimeException('Walk-in sale must be fully paid. Received amount must equal sale total.');
             if($customerId && $credit>0.01){
                 if(!(int)($customer['allow_credit_sale']??0)) throw new RuntimeException('Credit sale is not allowed for this customer. Enable Allow Credit Sale on the customer record before posting a credit sale.');
-                $newBalance=$this->customerBalance($customerId)+$credit;
-                if($newBalance>(float)$customer['credit_limit']+0.01) throw new RuntimeException('Customer credit limit exceeded.');
+
+                // Keep standard five-mode POS credit validation aligned with the header-sale
+                // payment planner: a configured customer limit applies in customer mode, and
+                // remains authoritative in "none" mode only when a positive customer limit
+                // is configured. Shop mode must serialize and check the whole shop exposure.
+                $creditMode=(string)($shopSettings['credit_limit_validation_mode']??'none');
+                $customerCreditLimit=(float)($customer['credit_limit']??0);
+                if($creditMode==='customer' || ($creditMode==='none' && $customerCreditLimit>0)){
+                    $newBalance=$this->customerBalance($customerId)+$credit;
+                    if($customerCreditLimit>0 && $newBalance>$customerCreditLimit+0.01){
+                        throw new RuntimeException('Customer credit limit exceeded.');
+                    }
+                }elseif($creditMode==='shop'){
+                    $this->acquireCreditLimitLock($locationId);
+                    $shopOs=$this->shopOutstanding($locationId);
+                    $previousGasOs=$this->customerGasBalance($customerId);
+                    $advanceApplied=min($credit,max(0,-$previousGasOs));
+                    $projectedShopOs=max(0,$shopOs+$credit-$advanceApplied);
+                    $shopLimit=(float)($shopSettings['shop_credit_limit']??0);
+                    if($projectedShopOs>$shopLimit+0.01){
+                        $available=max(0,$shopLimit-$shopOs);
+                        throw new RuntimeException('Shop credit limit exceeded. Current shop OS Rs. '.number_format($shopOs,2).'; available additional credit Rs. '.number_format($available,2).'.');
+                    }
+                }
             }
 
             $saleNo=$this->nextSaleNo($transactionAt,$locationId);
@@ -307,7 +530,7 @@ class SalesService
                 'sell_gas_only'=>'refill_service','replace_same'=>'cylinder_exchange','sell_filled'=>'filled_cylinder',
                 'replace_different'=>'mixed','sell_empty'=>'empty_sale'
             };
-            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
+            $this->db->table('sales')->insert(['sale_no'=>$saleNo,'location_id'=>$locationId,'customer_id'=>$customerId,'transaction_type'=>$transactionType,'status'=>'posted','transaction_at'=>$transactionAt,'total_kg'=>array_sum(array_map(static fn($r)=>(float)$r['gas_weight_kg'],$prepared)),'subtotal'=>$preparedSubtotal,'discount_amount'=>$discount,'delivery_fee_amount'=>$deliveryFee,'customer_order_id'=>$this->currentOrderId,'total_amount'=>$total,'credit_amount'=>$credit,'custom_rate_flag'=>$customRate?1:0,'notes'=>$notes,'created_by'=>$userId]);
             $saleId=(int)$this->db->insertID();
 
             foreach($prepared as $row){
@@ -352,6 +575,26 @@ class SalesService
                 if(!$session) throw new RuntimeException('Open the counter cash session before posting a cash sale.');
                 $this->cash->postSaleCash((int)$session['id'],$saleId,$cashAmount,$userId,$transactionAt);
             }
+            if($this->currentOrderId && $lockedOrder){
+                $completedAt=date('Y-m-d H:i:s');
+                $this->db->table('customer_orders')->where(['id'=>$this->currentOrderId,'location_id'=>$locationId])->update([
+                    'pos_sale_id'=>$saleId,
+                    'status'=>'completed',
+                    'completed_by'=>$userId,
+                    'completed_at'=>$completedAt,
+                ]);
+                $this->db->table('customer_order_status_history')->insert([
+                    'order_id'=>$this->currentOrderId,
+                    'business_id'=>(int)$lockedOrder['business_id'],
+                    'from_status'=>(string)$lockedOrder['status'],
+                    'to_status'=>'completed',
+                    'actor_type'=>'staff',
+                    'customer_app_account_id'=>null,
+                    'user_id'=>$userId,
+                    'reason'=>'Fulfilled and posted as POS sale '.$saleNo.'.',
+                    'request_id'=>null,
+                ]);
+            }
             if(!$this->db->transStatus()) throw new RuntimeException('Sale posting failed.');
             $this->db->transCommit();
             $this->releaseInventoryLocks();
@@ -370,11 +613,11 @@ class SalesService
         $notes=trim((string)($payload['notes']??''))?:null;
         $lines=is_array($payload['lines']??null)?$payload['lines']:[];
         $payments=is_array($payload['payments']??null)?$payload['payments']:[];
-        $deposit=max(0,(float)($payload['security_deposit_amount']??0));
+        $deposit=(float)($payload['security_deposit_amount']??0);
         $custodyUnitIds=array_values(array_unique(array_map('intval',is_array($payload['custody_unit_ids']??null)?$payload['custody_unit_ids']:[])));
         $returnUnitIds=array_values(array_unique(array_map('intval',is_array($payload['return_unit_ids']??null)?$payload['return_unit_ids']:[])));
 
-        $customer=$customerId?$this->customers->find($customerId):null;
+        $customer=$customerId?$this->customers->findForLocation($customerId,$locationId):null;
         if($customerId && (!$customer || !(int)$customer['is_active'])) throw new RuntimeException('Customer is invalid or inactive.');
         if($headerType==='security_deposit' || $headerType==='cylinder_return'){
             if(!$customerId) throw new RuntimeException('A named customer is required for cylinder custody transactions.');
@@ -425,7 +668,7 @@ class SalesService
             if($enteredAmount!==null && $enteredAmount<=0) throw new RuntimeException('Entered amount on gas line '.$n.' must be greater than zero.');
             if($gasRateInput!==null&&$gasRateInput<0) throw new RuntimeException('Gas rate cannot be negative on line '.$n.'.');
 
-            $standardRate=$this->rates->currentKgRate($transactionAt);
+            $standardRate=$this->rates->currentKgRate($transactionAt,$locationId);
             // A zero rate is not usable for calculating KG from an amount.
             if($standardRate!==null && $standardRate<=0) $standardRate=null;
 
@@ -472,7 +715,7 @@ class SalesService
         $this->db->transBegin();
         try{
             if($customerId){
-                $locked=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $locked=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$locked||!(int)$locked['is_active']) throw new RuntimeException('Customer is unavailable.');
             }
 
@@ -640,7 +883,7 @@ class SalesService
             // Cylinder Sale pricing priority: a positive rate configured against this cylinder type
             // overrides the Cylinder Type master price. A zero/negative configured rate means
             // no rate is defined there, so fall back to the Cylinder Type empty-cylinder price.
-            $configuredCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt);
+            $configuredCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt,$locationId);
             $configuredCylinderRate=($configuredCylinderRate!==null && $configuredCylinderRate>0)?$configuredCylinderRate:null;
             $masterCylinderRate=(float)($type['empty_cylinder_price']??0);
             $stdCylinderRate=$configuredCylinderRate??$masterCylinderRate;
@@ -656,7 +899,7 @@ class SalesService
                     if(isset($selectedAcrossLines[$selectedId])) throw new RuntimeException('Physical cylinder '.$selectedId.' is selected more than once in this sale.');
                     $selectedAcrossLines[$selectedId]=$n;
                 }
-                $stdGas=$this->rates->currentKgRate($transactionAt);
+                $stdGas=$this->rates->currentKgRate($transactionAt,$locationId);
                 if($stdGas!==null && $stdGas<=0) $stdGas=null;
                 $gasRate=$gasRateInput??$stdGas;
                 if($gasRate===null || $gasRate<=0){
@@ -681,7 +924,7 @@ class SalesService
         try{
             $customer=null;
             if($customerId){
-                $customer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+                $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
                 if(!$customer||!(int)$customer['is_active']) throw new RuntimeException('Customer is unavailable.');
             }
 
@@ -856,12 +1099,12 @@ class SalesService
             // when no usable rate was supplied by the POS. This keeps the custody workflow
             // independent from the normal gas-sale rate validation while preserving the
             // configured rate as the default.
-            $stdGas=$cfg['status']==='filled'?$this->rates->currentKgRate($transactionAt):0;
+            $stdGas=$cfg['status']==='filled'?$this->rates->currentKgRate($transactionAt,$locationId):0;
             $enteredGasRate=$cfg['status']==='filled'?(float)$cfg['gas_rate']:0;
             if($cfg['status']==='filled'&&$enteredGasRate<=0&&$stdGas===null){
                 throw new RuntimeException('No effective gas/kg rate exists.');
             }
-            $stdCyl=$this->rates->currentCylinderRate((int)$row['cylinder_type_id'],$transactionAt);
+            $stdCyl=$this->rates->currentCylinderRate((int)$row['cylinder_type_id'],$transactionAt,$locationId);
             $stdCyl=($stdCyl!==null&&$stdCyl>0)?$stdCyl:(float)$row['empty_cylinder_price'];
             $gasRate=$enteredGasRate>0?$enteredGasRate:($stdGas??0);
             $cylRate=$cfg['cylinder_rate']>0?$cfg['cylinder_rate']:$stdCyl;
@@ -1067,7 +1310,7 @@ class SalesService
                 $locked=$this->db->query("SELECT cu.*,ct.capacity_kg FROM cylinder_units cu JOIN cylinder_types ct ON ct.id=cu.cylinder_type_id JOIN cylinder_custody cc ON cc.cylinder_unit_id=cu.id AND cc.status='issued' WHERE cu.id=? AND cc.customer_id=? FOR UPDATE",[$id,$customerId])->getRowArray();
                 if(!$locked)throw new RuntimeException('Cylinder selection changed while posting. Refresh and retry.');
             }
-            $customer=$this->db->query("SELECT * FROM customers WHERE id=? FOR UPDATE",[$customerId])->getRowArray();
+            $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
             if(!$customer||!(int)$customer['is_active'])throw new RuntimeException('Customer is unavailable.');
 
             $previousGasOs=$this->customerGasBalance($customerId);
@@ -1413,6 +1656,10 @@ class SalesService
 
     public function customerBalance(int $customerId): float
     {
+        $locationId=(int)($this->currentLocationId??0);
+        if (!$this->customers->findForLocation($customerId,$locationId)) {
+            throw new RuntimeException('Customer not found in current shop.');
+        }
         $gasBalance=$this->customerGasBalance($customerId);
         $settings=(new ShopSettingsModel())->forLocation($this->currentLocationId ?? 0);
         if((int)($settings['include_security_deposit_in_os']??0)!==1)return $gasBalance;

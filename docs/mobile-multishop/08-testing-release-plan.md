@@ -8,7 +8,10 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 
 ### Identity and shop ownership
 - Customer belongs to exactly one active shop.
-- New customer/account linking is atomic and prevents duplicate links.
+- Admin/Manager-created app accounts link to a customer master without duplication.
+- Customer signup remains pending and cannot authenticate or order until an authorized Admin/Manager approves it.
+- Approval/rejection is limited to the responsible shop and is audited.
+- Username/password API login, 15-minute access-token expiry, refresh rotation, 30-day inactivity expiry, 90-day absolute expiry, refresh-token reuse rejection, logout, recovery/reset and session revocation behave as specified.
 - Invalid, inactive or blocked customer cannot order.
 - Customer A cannot read Customer B's order, even when IDs are changed.
 - Customer cannot submit an order for another shop.
@@ -21,17 +24,27 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 - Successful order creation creates exactly one pending order.
 - Retried request with same idempotency key does not duplicate order.
 - Invalid item, quantity, price or inactive product is rejected.
-- Shop acceptance revalidates current price and stock/availability.
+- Head Office catalog products can be active/inactive by business and shops can activate/deactivate within the business catalog.
+- A disabled shop product cannot be newly ordered.
+- Shop acceptance revalidates availability and rate policy without silently changing the saved order price; price changes require the specified review/reconfirmation.
 - Invalid status transitions are rejected.
 - Rejection/cancellation stores actor/reason and does not post sales, payments, cash, inventory, deposits or custody.
 - Duplicate acceptance/fulfilment cannot post a sale twice.
+- `GET /staff/orders/{id}/fulfillment-options` returns only physical cylinders in the selected authorized shop and the expected cylinder type/status; gas-refill source cylinders must contain enough gas for the requested quantity.
+- Filled/empty cylinder selection is persisted to the order quote. A changed physical selection or actual gas weight updates the quote and requires customer reconfirmation plus shop acceptance before POS posting.
+- Customer-facing order responses never expose internal physical cylinder IDs.
+- Successful fulfillment creates one posted sale with the saved delivery fee, links `sales.customer_order_id` and `customer_orders.pos_sale_id`, posts payments/inventory/ledger effects, and marks the order completed in the same database transaction.
+- Repeated or concurrent fulfillment requests recover the same sale; they do not create duplicate sales.
+- Invalid payment totals, unavailable cylinders, missing cash session, stale quote, or a failed financial posting leave no partial sale/order-completion state.
+- Directly setting order status to `completed` through the status API is rejected.
+- Migration 038/039 work on fresh schema and on an existing database with earlier migrations already applied.
 - Failure midway leaves no partial order/financial state.
 
 ### Security
 - Unauthenticated API request is rejected with JSON, not redirected to HTML login.
-- Expired/revoked token cannot access data.
+- Expired/revoked session cannot access data; Customer App sessions cannot call staff endpoints and Business/Staff App sessions cannot call customer endpoints.
 - Object-level authorization and shop scope are tested for every endpoint.
-- Mass assignment, SQL error leakage, OTP abuse, request replay and brute force are tested.
+- Mass assignment, SQL error leakage, unauthorized signup approval, request replay, login abuse and brute force are tested.
 - Rate limits and audit events are verified.
 
 ### Regression
@@ -52,15 +65,16 @@ Follow `agent.md`, `TESTING.md`, and `SQA.md`. The existing agent rules require 
 7. Verify Shop B staff cannot view or act on Shop A's order.
 8. Sign in as business owner; confirm cross-shop overview only within the owner's business.
 9. Fulfil one accepted order through the approved POS integration and reconcile sale, inventory and payment records.
-10. Repeat with network interruption/retry, cancellation, stock change and price change.
-11. Run Android and iOS functional tests against the same API.
-12. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
+10. Repeat with network interruption/retry, cancellation, stock/rate change, product activation/deactivation and price reconfirmation.
+11. Test signup pending state, Admin/Manager approval and rejection, account recovery, English-only UI and localization-ready string handling in both apps.
+12. Run Android and iOS functional tests against the same API.
+13. Verify production configuration, TLS, token expiry/revocation, logs, backups and rollback plan.
 
 ## Release gates
 
-- [ ] Business/location/customer ownership migration reviewed and approved.
+- [ ] Fresh-install business/location/customer ownership schema and repeatable seeds are verified; legacy customer mapping/backfill is not a release gate.
 - [ ] Existing database upgrade test passes.
-- [ ] Fresh-install schema includes the final supported schema.
+- [ ] Fresh-install schema includes the final supported schema, including separate customer identity, product controls and order tables.
 - [ ] Role/permission and data-scope tests pass.
 - [ ] API security tests pass.
 - [ ] Order-to-POS duplicate protection and reconciliation pass.

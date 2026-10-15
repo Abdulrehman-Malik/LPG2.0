@@ -1,8 +1,8 @@
 # Current-State Gap Report — Mobile Multi-Shop Ordering
 
-**Reviewed:** 2026-10-13
-**Source branch:** `main` at `9abc7d9a417d0508ebc8afd04da3e3d7a15d9038`
-**Status:** Initial source review complete. No application/schema behavior has been changed in this requirements branch.
+**Reviewed:** 2026-10-14
+**Source branch:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`
+**Status:** This document describes the historical source gap on `main` at the commit above. The gaps listed in sections 1–4 are baseline findings, not a statement that the current feature branch is unchanged. Implementation has since proceeded on `feature/mobile-multishop-ordering`; see `wp0-source-inventory.md` and `DEVELOPMENT_PLAN.md` for current implementation status. Runtime QA remains pending.
 
 ## 1. Role and permission implementation
 
@@ -55,9 +55,19 @@ Retain the existing role/permission tables and service as the capability layer. 
 - Every customer order references the customer, assigned location and business.
 - Shop ownership and order ownership must be validated on the server and reinforced with database constraints where possible.
 
-### Migration blocker
+### Data setup decision: fresh deployment, no legacy mapping/backfill
 
-A safe backfill cannot be inferred merely from the currently logged-in staff location. Before adding a non-null customer location, inspect customers and their posted sales/receipts/security deposits/custody history by location. Customers with no clear owner or transactions across shops need an explicit mapping decision. Produce a report and request owner approval before data is updated.
+The owner confirmed that there is no existing business/customer transactional data to migrate for this initiative. Therefore, a legacy customer-to-shop mapping report and historical backfill are not requirements or release blockers. The fresh-install schema and repeatable seed/setup path must create the business, shop and customer ownership relationships correctly from the start. Every new customer is assigned to exactly one shop during customer creation or approved account setup.
+
+This does not mean a mobile signup can create a duplicate financial customer. The customer app identity must link to one existing customer master in the deployed application; if no suitable master record exists, an authorized Admin/Manager must explicitly select or create the correct customer master as a separate reviewed step before approving the app account. Any future plan to upgrade a populated deployment requires a separate approved data-handling and recovery plan.
+
+## 2A. Configuration management target
+
+The owner requires important settings to be managed through a centralized, permission-aware Configuration area, building on the existing Shop Settings experience. The target has three scopes: Application (System Administrator only), Head Office/Business (limited to that business), and Shop (limited to assigned shop(s)). A Login & Session group belongs at Application scope by default.
+
+This is a target requirement, not a complete source inventory. During WP-0, inspect the existing Shop Settings UI, routes, controllers, models/tables, consumers and tests. Classify settings before moving them. Resolve permitted overrides as Shop → Business → Application; settings that are not explicitly overridable remain at their owning scope. Keep security guardrails at Application scope; lower scopes cannot extend session limits or weaken authentication controls. Audit changes and never return deployment secrets to a client.
+
+See [Module 10 — Centralized Configuration Management](10-configuration-management.md) for the full target design.
 
 ## 3. POS and financial integrity
 
@@ -71,17 +81,30 @@ The existing architecture assigns posting logic to application services and uses
 
 ## 4. First implementation work package
 
-Do not begin by making `customers.location_id` non-null or changing authorization in controllers ad hoc.
+The first implementation step is a code/schema inventory and fresh-install design review; do not make ad hoc controller changes or start mobile UI first.
 
-1. Inspect current schema, migrations and representative database records in a safe non-production copy.
-2. Produce a customer/location/history mapping report with unresolved cases listed separately.
-3. Define the business owner vs system administrator distinction and staff multi-shop assignment requirement.
-4. Implement and test a scope resolver and shop assignments without changing existing role semantics.
-5. Add restart-safe migration(s) for business/location/customer relationships and test on fresh plus existing databases.
-6. Only then add order persistence and staff order management.
-7. Add mobile API auth, authorization, idempotency and security tests.
-8. Build Flutter UI after backend contracts and web order workflow are stable.
+1. Confirm source schema, migration conventions, permission seeding behavior, current POS posting service and automated/runtime test setup.
+2. Finalize business/shop/customer relationships and repeatable fresh-install schema/seeds; do not build a legacy mapping/backfill workflow.
+3. Define the business owner vs system administrator boundary and explicit staff multi-shop assignments.
+4. Implement and test a server-side business/shop scope resolver without changing existing role semantics.
+5. Define customer account creation by Admin/Manager, customer self-registration with pending approval, username/password API login, account recovery and session revocation.
+6. Define Head Office business catalog settings and shop-level product activation/deactivation, effective pricing snapshots, price-change review, and delivery/collection options.
+7. Implement order persistence and web Order Management before mobile UI. Keep orders separate from POS financial/inventory posting until validated fulfilment.
+8. Add API authentication, authorization, idempotency and security tests; then build the separate Customer App and Business/Staff App against the stable API.
+9. Test multilingual login selection, offline customer order queueing, customer signup approval, product toggles, price changes, delivery/collection, multi-business isolation and all four existing POS types.
 
-## 5. Verification limits
+## 5. Confirmed product decisions represented in the plan
 
-This report is based on GitHub source inspection. No production database was queried, no legacy customer mapping was executed, and no runtime QA or automated test suite was run as part of this report. Do not interpret this document as test evidence.
+- Two separate mobile apps: Customer App and Business/Staff App; both use the authenticated API and never connect directly to MySQL.
+- Username/password login through the API over TLS. SMS/OTP is out of scope for the first release.
+- Admin/Manager can create customer app accounts; customers may self-register, but an authorized Admin/Manager must approve or reject the request before the customer can log in or order.
+- Head Office manages the business product catalog; individual shops can activate/deactivate products according to what they currently sell.
+- The server applies existing effective-rate rules and snapshots prices for cloud orders. A changed price is never silently applied to an existing order; offline queued orders require review if price/availability changed before synchronization.
+- Customer chooses delivery or collection at checkout; delivery requires an address and any fee/condition must be shown before submission.
+- English is the only supported UI language in the initial release; keep strings localization-ready. Add a language selector when a second language is introduced.
+- Important settings are managed through one Configuration area at Application, Head Office/Business and Shop scopes, with application-level Login & Session policy and audited, validated override rules.
+- The customer app can persist offline queued orders and retry when connectivity returns; a queued local-only order is not visible to a shop until the cloud confirms it.
+
+## 6. Verification limits
+
+This report is based on GitHub source inspection. No production database was queried and no runtime QA or automated test suite was run as part of this report. Do not interpret this document as test evidence.
