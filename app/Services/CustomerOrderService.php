@@ -1028,7 +1028,20 @@ class CustomerOrderService
                 }
             }
 
-            $quote = $this->quoteItems((int) $order['business_id'], $shopId, $quoteInput);
+            $quotedItems = $this->quoteItems((int) $order['business_id'], $shopId, $quoteInput);
+            $deliveryFee = $this->deliveryFee(
+                (int) $order['business_id'],
+                $shopId,
+                (string) $order['fulfilment_method']
+            );
+            // quoteDiffers/saveNewQuote expect the complete order quote, not the raw line quote.
+            // Keep the delivery fee in the same comparison so configuration changes require customer reconfirmation.
+            $quote = [
+                'items' => $quotedItems['items'],
+                'subtotal' => $quotedItems['subtotal'],
+                'delivery_fee' => $deliveryFee,
+                'total' => round((float) $quotedItems['subtotal'] + $deliveryFee, 2),
+            ];
             if ($this->quoteDiffers($order, $quote, $oldItems)) {
                 $this->saveNewQuote($order, $quote, true);
                 $this->db->table('customer_orders')->where('id', $orderId)->update([
