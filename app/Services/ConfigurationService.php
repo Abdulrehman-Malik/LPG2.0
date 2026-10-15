@@ -89,6 +89,53 @@ class ConfigurationService
             'max' => 128,
             'scopes' => ['application'],
         ],
+        // Back-office business rules (owner decisions D9-2, D9-3, D10-1).
+        'supplier_scope_mode' => [
+            'label' => 'Supplier sharing',
+            'type' => 'choice',
+            'default' => 'shared',
+            'options' => [
+                'shared' => 'Shared — every supplier is available to all branches',
+                'branch' => 'Branch only — every supplier belongs to one branch',
+                'both' => 'Both — choose business-wide or branch-only per supplier',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
+        'stock_transfer_enabled' => [
+            'label' => 'Inter-branch stock transfer',
+            'type' => 'boolean',
+            'default' => false,
+            'scopes' => ['application', 'business'],
+        ],
+        'stock_transfer_mode' => [
+            'label' => 'Stock transfer flow',
+            'type' => 'choice',
+            'default' => 'two_step',
+            'options' => [
+                'one_step' => 'One step — stock moves immediately when the transfer is posted',
+                'two_step' => 'Two steps — sending branch dispatches, receiving branch confirms receipt',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
+        'backdate_mode' => [
+            'label' => 'Back-dated transactions',
+            'type' => 'choice',
+            'default' => 'none',
+            'options' => [
+                'none' => 'Not allowed — today only',
+                'current_month' => 'Current month — from the 1st of this month',
+                'days' => 'Limited days — up to the configured number of days back',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
+        'backdate_max_days' => [
+            'label' => 'Maximum days back (when limited by days)',
+            'type' => 'integer',
+            'default' => 7,
+            'min' => 1,
+            'max' => 365,
+            'scopes' => ['application', 'business'],
+        ],
     ];
 
     protected $db;
@@ -162,6 +209,13 @@ class ConfigurationService
                         'Configuration ' . $key . ' must be between '
                         . $definition['min'] . ' and ' . $definition['max'] . '.'
                     );
+                }
+                return $normalized;
+
+            case 'choice':
+                $normalized = is_scalar($value) ? trim((string) $value) : '';
+                if (!array_key_exists($normalized, $definition['options'])) {
+                    throw new RuntimeException('Configuration ' . $key . ' must be one of: ' . implode(', ', array_keys($definition['options'])) . '.');
                 }
                 return $normalized;
 
@@ -268,10 +322,24 @@ class ConfigurationService
             'label' => $definition['label'],
             'value' => $value,
             'type' => $definition['type'],
+            'options' => $definition['options'] ?? null,
+            'min' => $definition['min'] ?? null,
+            'max' => $definition['max'] ?? null,
             'source' => $source,
             'source_id' => $sourceId,
             'editable_scopes' => $definition['scopes'],
         ];
+    }
+
+    /**
+     * Effective value for the business that owns a shop. Back-office rules (supplier
+     * sharing, stock transfer, back-dating) are business-level, so posting services call
+     * this with the shop they are posting for.
+     */
+    public function valueForShop(string $key, int $shopId)
+    {
+        $businessId = (int) ($this->db->table('locations')->select('business_id')->where('id', $shopId)->get()->getRowArray()['business_id'] ?? 0);
+        return $this->resolve($key, $businessId > 0 ? $businessId : null, $shopId > 0 ? $shopId : null)['value'];
     }
 
     public function forShop(int $shopId): array

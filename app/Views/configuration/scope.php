@@ -14,7 +14,8 @@
     $type = $setting['type'];
     $valueLabel = $type === 'boolean'
         ? ((bool)$value ? 'Enabled / True' : 'Disabled / False')
-        : ($type === 'string_list' ? implode(', ', (array)$value) : (string)$value);
+        : ($type === 'string_list' ? implode(', ', (array)$value)
+        : ($type === 'choice' ? (string)($setting['options'][(string)$value] ?? $value) : (string)$value));
     $sourceLabel = match ($setting['source']) {
         'shop' => 'Shop override',
         'business' => 'Business / Head Office',
@@ -57,6 +58,12 @@
                         <?php elseif ($type === 'integer'): ?>
                             <input id="setting-<?= esc($setting['key']) ?>" name="value" type="number" step="1" min="<?= (int)($setting['min'] ?? 0) ?>" max="<?= (int)($setting['max'] ?? 1000000) ?>" class="form-control" value="<?= esc((string)$value) ?>" required>
                             <?php if (isset($setting['min'], $setting['max'])): ?><div class="form-text">Allowed range: <?= (int)$setting['min'] ?>–<?= (int)$setting['max'] ?>.</div><?php endif; ?>
+                        <?php elseif ($type === 'choice'): ?>
+                            <select id="setting-<?= esc($setting['key']) ?>" name="value" class="form-select" required>
+                                <?php foreach ((array)($setting['options'] ?? []) as $optionValue => $optionLabel): ?>
+                                    <option value="<?= esc((string)$optionValue) ?>" <?= (string)$value === (string)$optionValue ? 'selected' : '' ?>><?= esc($optionLabel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         <?php elseif ($type === 'decimal'): ?>
                             <input id="setting-<?= esc($setting['key']) ?>" name="value" type="number" step="0.01" min="<?= esc((string)($setting['min'] ?? 0)) ?>" max="<?= esc((string)($setting['max'] ?? 1000000)) ?>" class="form-control" value="<?= esc(number_format((float)$value, 2, '.', '')) ?>" required>
                             <div class="form-text">Amount is stored to two decimal places.</div>

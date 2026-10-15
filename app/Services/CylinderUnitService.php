@@ -11,7 +11,7 @@ class CylinderUnitService
     public function createUnits(int $locationId,int $typeId,int $quantity,string $status,float $gasWeight,int $userId,string $sourceType,int $sourceId): array
     {
         if($quantity<1) throw new RuntimeException('Cylinder quantity must be a whole number.');
-        $ct=$this->db->table('cylinder_types')->where('id',$typeId)->get()->getRowArray();
+        $ct=BusinessContext::cylinderType($typeId,$locationId);
         if(!$ct) throw new RuntimeException('Cylinder type not found.');
         if($gasWeight<0 || $gasWeight>(float)$ct['capacity_kg']) throw new RuntimeException('Actual gas weight must be between 0 and the cylinder capacity.');
         if($status==='filled' && $gasWeight<=0) throw new RuntimeException('Filled cylinders must have actual gas weight greater than zero.');

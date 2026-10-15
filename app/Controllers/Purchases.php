@@ -30,11 +30,7 @@ class Purchases extends Controller
             [$fromDate, $toDate] = [$toDate, $fromDate];
         }
         $purchaseService = new PurchaseService();
-        $suppliers = $db->table('suppliers')
-            ->where('is_active', 1)
-            ->orderBy('name')
-            ->get()
-            ->getResultArray();
+        $suppliers = (new \App\Models\SupplierModel())->activeDirectory();
 
         $supplierBalances = [];
         foreach ($suppliers as $supplier) {
@@ -115,6 +111,7 @@ class Purchases extends Controller
             'supplierBalances' => $supplierBalances,
             'canVoidPurchases' => $canVoidPurchases,
             'types'            => $db->table('cylinder_types')
+                ->where('business_id', \App\Services\BusinessContext::currentBusinessId())
                 ->where('is_active', 1)
                 ->orderBy('sort_order')
                 ->get()
@@ -152,6 +149,7 @@ class Purchases extends Controller
                 'lines'           => $lines,
                 'payments'        => $payments,
                 'notes'           => $this->request->getPost('notes'),
+                'transaction_at'  => $this->request->getPost('transaction_at'),
             ], (int) session()->get('user_id'), (int) session()->get('location_id'));
 
             return redirect()->to('/purchases')->with(

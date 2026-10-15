@@ -18,7 +18,7 @@ Legend:
 | 0–6 | Core POS / ERP foundation | — | Development complete; SQA execution pending |
 | 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
 | 8 | Stabilization & security hardening | P0 | [/] In progress |
-| 9 | Multi-branch back-office completion | P1 | [ ] Pending |
+| 9 | Multi-branch back-office completion | P1 | [/] In progress (9.5.1–9.5.3 done) |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
 | 11 | UI/UX modernization | P1 | [ ] Pending |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
@@ -214,10 +214,30 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [ ] 9.3.2 Users screen: assign shops / Head Office scope and default branch when creating or editing a user (today this is split across screens).
 - [ ] 9.3.3 Branch onboarding checklist (settings, cash register, rates, opening stock, users).
 
-### 9.4 Decisions required
-- [!] D9-1 Are cylinder types and expense categories shared by all businesses, or owned per business?
-- [!] D9-2 Is inter-branch stock transfer (moving physical cylinders between shops of the same business) required? It is not in the current requirements; if yes, it becomes a new posting type with paired out/in movements.
-- [!] D9-3 Do branches share one supplier ledger per business, or keep separate supplier balances per branch? (Plan assumes business-owned suppliers with per-branch balances.)
+### 9.4 Owner decisions (confirmed 2026-10-15)
+- [x] **D9-1** Cylinder types and expense categories are **owned by a business**. Each business has its own list; branches of that business share it. A new business is provisioned with the standard cylinder types and expense categories.
+- [x] **D9-2** **Inter-branch stock transfer is required** and its flow is **configurable per business**:
+  - `stock_transfer_enabled` (default off).
+  - `stock_transfer_mode`: `one_step` (stock moves immediately when posted) or `two_step` (sending branch dispatches → cylinders are *in transit* → receiving branch confirms receipt). Default `two_step`.
+  - Transfers move **physical cylinder units** (filled with their actual gas weight, or empty) between branches of the **same business only**, with paired out/in inventory movements, a transfer document number, audit trail and cancellation of a dispatched (not yet received) transfer.
+- [x] **D9-3** Supplier sharing is **configurable per business** (`supplier_scope_mode`):
+  - `shared` — every supplier belongs to the business and is visible to all its branches.
+  - `branch` — every supplier belongs to exactly one branch.
+  - `both` — each supplier is either business-wide or branch-only, chosen when it is created.
+  Supplier balances (purchases/payments) are always tracked per branch.
+- [x] **D10-1** Back-dated posting is **configurable per business** (`backdate_mode`):
+  - `none` — today only (default).
+  - `current_month` — any date from the first day of the current month.
+  - `days` — up to `backdate_max_days` days back (1–365, default 7).
+  Future-dated postings are never allowed. Applies to POS sales, purchases, expenses, customer receipts and supplier payments. Opening inventory is exempt because it records historical stock.
+
+### 9.5 Implementation order
+- [x] 9.5.1 Configuration: add `choice` setting type and the business-level keys above (Configuration → Business screen).
+- [x] 9.5.2 `TransactionDatePolicy` service applied to every financial posting path (closes Phase 10.4).
+- [x] 9.5.3 Migration 040: business ownership for cylinder types, expense categories and suppliers (+ optional supplier branch); scoped screens, lookups and validation; provisioning of defaults for new businesses.
+- [ ] 9.5.4 Migration 041 + `StockTransferService`: transfer documents, one-step/two-step flow, screens, permission `STOCK_TRANSFER_MANAGE`, reports.
+- [ ] 9.5.5 Head Office consolidated dashboard/reports (9.2) and branch administration UX (9.3).
+- [ ] 9.5.6 Branch-scope audit register and fixes (9.1).
 
 ## Phase 10 — Code-Logic Review & Refactoring (P1)
 
@@ -226,12 +246,12 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [ ] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
 - [ ] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
 - [ ] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
-- [ ] 10.4 Validate and normalize `transaction_at` (format, no far-future dates; back-dating policy decision D10-1).
+- [x] 10.4 Validate and normalize `transaction_at` — delivered by Phase 9.5.2 (`TransactionDatePolicy`, decision D10-1).
 - [ ] 10.5 Concurrency-safe document numbering for sales and receipts (sequence table) instead of `MAX()+1` / timestamp+random.
 - [ ] 10.6 Retire or isolate the legacy five-mode POS path in `SalesService::post()`; it is still used by customer-order fulfilment. Move fulfilment onto the four header transaction types, then remove dead code.
 - [ ] 10.7 Split `SalesService` (1,700+ lines) into per-transaction-type posting classes sharing payment-plan, credit and inventory-lock components (aligned with the agent.md transaction-type isolation rule).
 - [ ] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
-- [!] D10-1 Is back-dated posting allowed? If yes, for which roles and how many days?
+- [x] D10-1 Back-dating is configurable per business — see Phase 9.4.
 
 ## Phase 11 — UI/UX Modernization (P1)
 

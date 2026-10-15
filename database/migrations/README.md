@@ -51,6 +51,7 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 037 | `037_20261014_sale_delivery_fee_component.sql` | Adds a separate delivery-fee amount to POS sales so accepted mobile orders can be fulfilled without hiding the delivery charge from financial records |
 | 038 | `038_20261014_customer_order_sale_idempotency.sql` | Adds a unique nullable customer-order reference to POS sales so fulfillment retries can recover the same sale rather than duplicate it |
 | 039 | `039_20261014_order_physical_cylinder_selection.sql` | Persists selected physical cylinders on order lines so actual gas weight can be quoted and reconfirmed before posting |
+| 040 | `040_20261015_business_owned_master_data.sql` | Makes cylinder types, expense categories and suppliers business-owned (suppliers optionally branch-only). Existing rows go to the earliest business; other businesses get their own copies and their rows are re-pointed by code. Idempotent. |
 
 ## Deployment rules
 

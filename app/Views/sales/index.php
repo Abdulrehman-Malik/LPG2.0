@@ -369,8 +369,10 @@ $initialTransactionType = in_array((string)$defaultTransactionType, $posVisibleT
     </select>
   </div>
   <div class="col-md-3">
+    <?php $posDateRules=(new \App\Services\TransactionDatePolicy())->rules((int)session()->get('location_id')); ?>
     <label class="form-label">Transaction Time</label>
-    <input name="transaction_at" type="datetime-local" class="form-control" value="<?=date('Y-m-d\TH:i')?>">
+    <input name="transaction_at" type="datetime-local" class="form-control" value="<?=date('Y-m-d\TH:i')?>" min="<?=esc($posDateRules['earliest'])?>T00:00" <?= $posDateRules['allows_backdate'] ? '' : 'readonly' ?> title="<?=esc($posDateRules['description'])?>">
+    <?php if($posDateRules['allows_backdate']): ?><div class="form-text small"><?=esc($posDateRules['description'])?></div><?php endif; ?>
   </div>
   <div class="col-12">
     <div id="customerCreditStatus" class="small mt-1 text-muted">Walk-in / Cash: credit sale not allowed.</div>

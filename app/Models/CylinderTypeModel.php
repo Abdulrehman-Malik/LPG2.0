@@ -6,8 +6,11 @@ class CylinderTypeModel extends Model
 {
     protected $table='cylinder_types'; protected $primaryKey='id'; protected $returnType='array';
     protected $useTimestamps=true; protected $createdField='created_at'; protected $updatedField='updated_at';
-    protected $allowedFields=['code','name','capacity_kg','tare_weight_kg','empty_cylinder_price','is_active','sort_order'];
-    public function activeOrdered(): array { return $this->where('is_active',1)->orderBy('sort_order')->findAll(); }
+    protected $allowedFields=['business_id','code','name','capacity_kg','tare_weight_kg','empty_cylinder_price','is_active','sort_order'];
+    /** Active types of a business (default: the business of the current branch). */
+    public function activeOrdered(?int $businessId=null): array { return $this->where('business_id',$businessId ?? \App\Services\BusinessContext::currentBusinessId())->where('is_active',1)->orderBy('sort_order')->findAll(); }
+    /** All types of a business (default: the business of the current branch), for management screens. */
+    public function forBusiness(?int $businessId=null): array { return $this->where('business_id',$businessId ?? \App\Services\BusinessContext::currentBusinessId())->orderBy('sort_order')->orderBy('capacity_kg')->findAll(); }
     public function deleteIfUnused(int $id): bool
     {
         $row=$this->find($id); if(!$row) throw new RuntimeException('Cylinder type not found.');

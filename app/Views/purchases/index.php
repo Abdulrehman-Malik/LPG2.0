@@ -149,6 +149,7 @@
             <div class="card-body">
                 <div class="row g-4 mt-2">
                     <div class="col-lg-7">
+                        <?= view('partials/transaction_date') ?>
                         <label class="form-label fw-semibold">Purchase Notes</label>
                         <textarea name="notes" class="form-control" rows="5" placeholder="Optional purchase or supplier notes"></textarea>
 

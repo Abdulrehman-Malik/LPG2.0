@@ -173,6 +173,7 @@ class BusinessManagement extends Controller
                 'is_active' => 1,
             ]);
             $businessId = (int) $db->insertID();
+            (new \App\Services\BusinessProvisioningService($db))->seedMasterData($businessId);
             if (!$db->transStatus()) {
                 throw new \RuntimeException('Business record could not be saved.');
             }

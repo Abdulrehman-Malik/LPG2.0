@@ -88,6 +88,7 @@ class MobileCatalogManagement extends Controller
 
         $cylinderTypes = $db->table('cylinder_types')
             ->select('id,code,name,capacity_kg,empty_cylinder_price')
+            ->where('business_id', $businessId)
             ->where('is_active', 1)
             ->orderBy('sort_order')->orderBy('capacity_kg')
             ->get()->getResultArray();
@@ -152,7 +153,7 @@ class MobileCatalogManagement extends Controller
         }
 
         $db = Database::connect();
-        $type = $db->table('cylinder_types')->where(['id' => $cylinderTypeId, 'is_active' => 1])->get()->getRowArray();
+        $type = $db->table('cylinder_types')->where(['id' => $cylinderTypeId, 'business_id' => $businessId, 'is_active' => 1])->get()->getRowArray();
         if (!$type) return redirect()->back()->withInput()->with('error', 'Select an active cylinder type.');
 
         $existing = null;

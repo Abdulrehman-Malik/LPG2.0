@@ -7,6 +7,7 @@
 
 <form method="post" action="<?=site_url('receipts/save')?>" class="card shadow-sm card-body">
   <?=csrf_field()?>
+  <?= view('partials/transaction_date', ['dateFieldClass' => 'mb-3 col-md-4']) ?>
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label fw-semibold">Customer</label>

@@ -181,6 +181,8 @@ class SalesService
         // Balance, credit-limit and settings lookups must use the posting shop, not the
         // browser session: API fulfilment has no session and staff may switch shops.
         $this->currentLocationId=$locationId;
+        // Business back-dating rule (D10-1) is enforced for every POS transaction type.
+        $payload['transaction_at']=(new TransactionDatePolicy())->resolve(isset($payload['transaction_at'])?(string)$payload['transaction_at']:null,$locationId);
         $customerId=!empty($payload['customer_id'])?(int)$payload['customer_id']:null;
         $headerType=(string)($payload['transaction_type']??'');
         if(in_array($headerType,['gas_sale','cylinder_sale','security_deposit','cylinder_return'],true)){
@@ -221,7 +223,7 @@ class SalesService
             if($enteredAmount!==null && $enteredAmount<=0) throw new RuntimeException('Line '.($i+1).' amount must be greater than zero.');
             if(($gasRateInput!==null && $gasRateInput<0)||($cylinderRateInput!==null && $cylinderRateInput<0)) throw new RuntimeException('Line '.($i+1).' rate cannot be negative.');
 
-            $type=$typeId?(new CylinderTypeModel())->find($typeId):null;
+            $type=$typeId?BusinessContext::cylinderType($typeId,$locationId):null;
             if(in_array($mode,['sell_gas_only','replace_same','sell_filled','replace_different','sell_empty'],true) && !$typeId) throw new RuntimeException('Cylinder type is required on line '.($i+1).'.');
             if($typeId && (!$type || !(int)$type['is_active'])) throw new RuntimeException('Invalid or inactive cylinder type on line '.($i+1).'.');
 
@@ -287,7 +289,7 @@ class SalesService
                 }elseif($mode==='replace_different'){
                     if(!$receivedTypeId) throw new RuntimeException('Received empty cylinder type is required on line '.($i+1).'.');
                     if($receivedTypeId===$typeId) throw new RuntimeException('Different-capacity replacement must use a different received cylinder type.');
-                    $receivedType=$this->types->find($receivedTypeId);
+                    $receivedType=BusinessContext::cylinderType($receivedTypeId,$locationId);
                     if(!$receivedType || !(int)$receivedType['is_active']) throw new RuntimeException('Invalid or inactive received empty-cylinder type.');
                 }
                 $gasRequirements[]=['line_no'=>$i+1,'type_id'=>$typeId,'gas_kg'=>$gasKg];
@@ -657,7 +659,7 @@ class SalesService
             if(!$typeId) throw new RuntimeException('Cylinder type is required on gas line '.$n.'.');
             if($allowSourceSelection && !$sourceId) throw new RuntimeException('Source filled cylinder is required on gas line '.$n.'.');
             if(!$allowSourceSelection) $sourceId=0;
-            $type=$this->types->find($typeId);
+            $type=BusinessContext::cylinderType($typeId,$locationId);
             if(!$type||!(int)$type['is_active']) throw new RuntimeException('Invalid or inactive cylinder type on gas line '.$n.'.');
             if($entryMode==='cylinders'){
                 if($cylinderQty<=0 || floor($cylinderQty)!==$cylinderQty) throw new RuntimeException('Cylinder quantity on gas line '.$n.' must be a positive whole number.');
@@ -879,7 +881,7 @@ class SalesService
 
             if(!$typeId||!in_array($status,['filled','empty'],true)) throw new RuntimeException('Cylinder type and sale type are required on line '.$n.'.');
             if($qty<=0||floor($qty)!==$qty) throw new RuntimeException('Cylinder quantity on line '.$n.' must be a whole number.');
-            $type=$this->types->find($typeId);
+            $type=BusinessContext::cylinderType($typeId,$locationId);
             if(!$type||!(int)$type['is_active']) throw new RuntimeException('Invalid or inactive cylinder type on line '.$n.'.');
 
             $gasKg=0;$gasRate=0;$stdGas=null;
@@ -972,7 +974,7 @@ class SalesService
                          ORDER BY id LIMIT $limit FOR UPDATE",
                         [$locationId,$row['type_id']]
                     )->getResultArray();
-                    if(count($rows)<$limit) throw new RuntimeException('Insufficient empty cylinders of '.$this->types->find($row['type_id'])['name'].'.');
+                    if(count($rows)<$limit) throw new RuntimeException('Insufficient empty cylinders of '.(BusinessContext::cylinderType((int)$row['type_id'],$locationId)['name']??'this type').'.');
                     $row['gas_kg']=0;$row['selected_codes']=[];
                     foreach($rows as $unit){
                         if(isset($reservedEmptyIds[(int)$unit['id']])) throw new RuntimeException('Duplicate empty cylinder allocation detected.');

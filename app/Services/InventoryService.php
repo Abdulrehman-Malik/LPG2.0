@@ -36,7 +36,7 @@ class InventoryService{
   throw new RuntimeException('Invalid inventory type.');
  }
 
- public function receivePurchase(int $locationId,string $type,?int $typeId,float $qty,float $actualGasWeight,int $purchaseId,int $userId,?int $purchaseLineId=null): void
+ public function receivePurchase(int $locationId,string $type,?int $typeId,float $qty,float $actualGasWeight,int $purchaseId,int $userId,?int $purchaseLineId=null,?string $at=null): void
  {
   if($qty<=0) throw new RuntimeException('Purchase quantity must be greater than zero.');
   if(!in_array($type,['gas_kg','filled_cylinder','empty_cylinder'],true)) throw new RuntimeException('Invalid purchase inventory type.');
@@ -45,7 +45,7 @@ class InventoryService{
    if($typeId!==null) throw new RuntimeException('Gas purchase does not use a cylinder type.');
    $this->db->table('inventory_movements')->insert([
     'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,
-    'quantity'=>$qty,'direction'=>'in','movement_at'=>date('Y-m-d H:i:s'),
+    'quantity'=>$qty,'direction'=>'in','movement_at'=>$at ?? date('Y-m-d H:i:s'),
     'source_type'=>'purchase','source_id'=>$purchaseId,'source_line_id'=>$purchaseLineId,'created_by'=>$userId,
     'notes'=>'Stock received through purchase'
    ]);
@@ -56,7 +56,7 @@ class InventoryService{
   if($typeId===null) throw new RuntimeException('Cylinder type is required for cylinder purchase.');
   if(floor($qty)!==$qty) throw new RuntimeException('Cylinder purchase quantity must be a whole number.');
 
-  $ct=$this->db->table('cylinder_types')->where('id',$typeId)->get()->getRowArray();
+  $ct=BusinessContext::cylinderType((int)$typeId,$locationId);
   if(!$ct || !(int)$ct['is_active']) throw new RuntimeException('Invalid or inactive cylinder type.');
 
   $qtyInt=(int)$qty;
@@ -114,7 +114,7 @@ class InventoryService{
    if(!$typeId) throw new RuntimeException('Cylinder type is required.');
    if(floor($qty)!==$qty) throw new RuntimeException('Cylinder quantity must be a whole number.');
    $qtyInt=(int)$qty;
-   $ct=$this->db->table('cylinder_types')->where('id',$typeId)->get()->getRowArray();
+   $ct=BusinessContext::cylinderType((int)$typeId,$locationId);
    if(!$ct || !(int)$ct['is_active']) throw new RuntimeException('Invalid or inactive cylinder type.');
 
    $this->db->transBegin();

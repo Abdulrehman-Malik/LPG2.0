@@ -801,3 +801,28 @@ This evidence covers the listed automated cases only. It does **not** mark the c
 **Test fix:** E2E-004 now captures the `/sales/save` JSON through a route handler. Previously Chromium could discard the response body when the POS page redirected after a successful save, which made the test fail although the sale posted correctly.
 
 **Not covered here (remain NOT EXECUTED):** concurrent double-refund / concurrent deposit-credit requests (8.3.4/8.3.5 are concurrency fixes; sequential tests only show no regression), MySQL 8 execution of these cases (CI), browser-level page-by-page QA (PQA01–PQA16), and a committed automated business-logic suite (plan item 8.3.6).
+
+
+## Phase 9.5.1–9.5.3 — business settings, back-dating and business-owned master data — 2026-10-15
+
+**Environment:** same as the Phase 8 section (local XAMPP, PHP 8.2.12, MariaDB 10.4, disposable `lpg_qa_phase8`; upgrade test on a separate disposable `lpg_qa_upgrade`).
+**Method:** real HTTP requests to the running app, then the resulting rows were checked in the database.
+
+| ID | Item | Scenario | Actual result | Status |
+|---|---|---|---|---|
+| P9-01 | 9.5.1 | Save an invalid value for the `backdate_mode` choice setting | Rejected with the list of allowed values; nothing stored | PASS |
+| P9-02 | 9.5.1 | Business configuration screen | New settings shown; choice settings render as dropdowns | PASS |
+| P9-03 | 9.5.2 | Default policy `none`: POS sale dated yesterday / 2 days ahead / now | Yesterday rejected ("not allowed"), future rejected, now accepted | PASS |
+| P9-04 | 9.5.2 | Policy `days` = 3: yesterday / 5 days back | Yesterday accepted and stored with yesterday's date; 5 days back rejected | PASS |
+| P9-05 | 9.5.2 | Policy `current_month`: 1st of month / last day of previous month | Accepted / rejected | PASS |
+| P9-06 | 9.5.2 | Expense screen when back-dating is allowed; back-dated cash expense | Date field shown; expense stored with the chosen date | PASS |
+| P9-07 | 9.5.3 | Create a business from Businesses & Shops | Provisioned with 6 cylinder types and 5 expense categories of its own | PASS |
+| P9-08 | 9.5.3 | Business A posts a POS sale / rate card / type toggle / expense using business B's cylinder type or category IDs | All rejected; no rows created or changed; B's types not listed for A | PASS |
+| P9-09 | 9.5.3 | Supplier mode `shared` / `branch` / `both` | Business-wide / current branch only / chosen per supplier | PASS |
+| P9-10 | 9.5.3 | Second branch of the same business: supplier list, ledger and payment for the first branch's branch-only supplier | Shared suppliers listed; branch-only supplier hidden, ledger 404, payment rejected | PASS |
+| P9-11 | 9.5.3 | Migration 040 as an **upgrade** (old schema + a second business already using the global C6 type, a rate card and a supplier) | Each business owns its own C6; the second business's cylinder unit, rate card and supplier payment were re-pointed to its own copies; re-running the file changed nothing | PASS |
+| P9-12 | 9.5.3 | Fresh schema + migration runner | 040 recognised as already applied (skipped) | PASS |
+
+**Regression on the same code:** Playwright 26/26 passed; PHPUnit 15 tests OK; Phase 8 checks P8-01…P8-11 passed. One Phase 8 run showed two transient check failures caused by the test harness reading an empty value; the database showed the correct outcomes, and an immediate rerun passed.
+
+**Not covered yet:** MySQL 8 run in CI, page-by-page browser QA of the changed screens (Configuration, Suppliers, Cylinder Types, Expenses, Receipts, Supplier Payments, Purchases, POS date field), and Head Office reporting (9.5.5).

@@ -10,7 +10,7 @@ class InventoryControls extends Controller
  public function index(){
   if(!\App\Services\PermissionService::allows('INVENTORY_CONTROLS_MANAGE')) return $this->response->setStatusCode(403)->setBody('Forbidden');
   $db=Database::connect(); $loc=(int)session()->get('location_id');
-  $types=$db->table('cylinder_types')->where('is_active',1)->orderBy('sort_order')->get()->getResultArray();
+  $types=$db->table('cylinder_types')->where('business_id',\App\Services\BusinessContext::currentBusinessId())->where('is_active',1)->orderBy('sort_order')->get()->getResultArray();
   $svc=new InventoryControlService(); $policies=[];
   foreach($types as $t) $policies[(int)$t['id']]=$svc->policy($loc,(int)$t['id']);
   $policies['default']=$svc->policy($loc);
@@ -33,7 +33,7 @@ class InventoryControls extends Controller
  public function wastage(){
   if(!\App\Services\PermissionService::allows('GAS_WASTAGE_MANAGE')) return $this->response->setStatusCode(403)->setBody('Forbidden');
   $db=Database::connect(); $loc=(int)session()->get('location_id');
-  $types=$db->table('cylinder_types')->where('is_active',1)->orderBy('sort_order')->get()->getResultArray();
+  $types=$db->table('cylinder_types')->where('business_id',\App\Services\BusinessContext::currentBusinessId())->where('is_active',1)->orderBy('sort_order')->get()->getResultArray();
   $units=$db->table('cylinder_units cu')->select('cu.id,cu.unit_code,cu.gas_weight_kg,ct.code,ct.name')->join('cylinder_types ct','ct.id=cu.cylinder_type_id')->where(['cu.location_id'=>$loc,'cu.status'=>'filled'])->where('cu.gas_weight_kg >',0)->orderBy('ct.sort_order')->orderBy('cu.unit_code')->get()->getResultArray();
   $filterFrom=(string)($this->request->getGet('from') ?? ''); $filterTo=(string)($this->request->getGet('to') ?? ''); $filterType=(string)($this->request->getGet('cylinder_type_id') ?? '');
   $typeId=$filterType!==''?(int)$filterType:null;

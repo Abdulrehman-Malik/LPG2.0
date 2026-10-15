@@ -61,7 +61,7 @@ class InventoryOpening extends Controller
 
         return view('inventory/opening', [
             'title' => 'Opening Inventory',
-            'types' => $this->types->where('is_active', 1)->orderBy('sort_order')->findAll(),
+            'types' => $this->types->activeOrdered(),
             'rows' => $rows,
         ]);
     }
@@ -97,7 +97,7 @@ class InventoryOpening extends Controller
             return redirect()->back()->withInput()->with('error', 'Comments cannot exceed 500 characters.');
         }
 
-        $ct = $this->types->find($typeId);
+        $ct = \App\Services\BusinessContext::cylinderType((int) $typeId, (int) session()->get('location_id'));
         if (!$ct) {
             return redirect()->back()->withInput()->with('error', 'Cylinder type not found.');
         }
@@ -140,7 +140,7 @@ class InventoryOpening extends Controller
         // while editing an opening entry.
         if ($existing) {
             $typeId = (int) $existing['cylinder_type_id'];
-            $ct = $this->types->find($typeId);
+            $ct = \App\Services\BusinessContext::cylinderType((int) $typeId, (int) session()->get('location_id'));
             if (!$ct) {
                 return redirect()->back()->withInput()->with('error', 'The cylinder type used by this opening record no longer exists.');
             }
@@ -443,7 +443,7 @@ class InventoryOpening extends Controller
                 }
 
                 if (!array_key_exists($code, $typeCache)) {
-                    $typeCache[$code] = $db->table('cylinder_types')->where('code', $code)->get()->getRowArray();
+                    $typeCache[$code] = $db->table('cylinder_types')->where(['code' => $code, 'business_id' => \App\Services\BusinessContext::currentBusinessId()])->get()->getRowArray();
                 }
                 $type = $typeCache[$code];
 
@@ -516,8 +516,9 @@ class InventoryOpening extends Controller
                 foreach ($validated as $index => $row) {
                     $typeId = (int) ($row['type_id'] ?? 0);
                     if ($typeId <= 0) {
-                        $maxSort = (int) ($db->table('cylinder_types')->selectMax('sort_order')->get()->getRow('sort_order') ?? 0);
+                        $maxSort = (int) ($db->table('cylinder_types')->where('business_id', \App\Services\BusinessContext::currentBusinessId())->selectMax('sort_order')->get()->getRow('sort_order') ?? 0);
                         $ok = $db->table('cylinder_types')->insert([
+                            'business_id' => \App\Services\BusinessContext::currentBusinessId(),
                             'code' => $row['code'],
                             'name' => $row['code'],
                             'capacity_kg' => $row['effective_capacity'],

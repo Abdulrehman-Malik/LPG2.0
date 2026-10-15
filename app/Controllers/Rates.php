@@ -25,7 +25,7 @@ class Rates extends Controller
     {
         if($r=$this->guard()) return $r;
         $locationId=(int)(session()->get('location_id') ?? 0);
-        $allTypes=$this->types->orderBy('sort_order')->findAll(); $activeTypes=array_values(array_filter($allTypes,static fn($t)=>(int)$t['is_active']===1)); $rateCylinderTypes=[]; foreach($allTypes as $t) $rateCylinderTypes[(string)$t['id']]=$t; return view('rates/index',['title'=>'LPG Rates','types'=>$activeTypes,'rates'=>$this->rates->history($locationId),'rateCylinderTypes'=>$rateCylinderTypes]);
+        $allTypes=$this->types->forBusiness(); $activeTypes=array_values(array_filter($allTypes,static fn($t)=>(int)$t['is_active']===1)); $rateCylinderTypes=[]; foreach($allTypes as $t) $rateCylinderTypes[(string)$t['id']]=$t; return view('rates/index',['title'=>'LPG Rates','types'=>$activeTypes,'rates'=>$this->rates->history($locationId),'rateCylinderTypes'=>$rateCylinderTypes]);
     }
 
     public function save()
@@ -40,6 +40,7 @@ class Rates extends Controller
         if(!in_array($type,['gas_per_kg','cylinder_package'],true)||$value<0||$effective==='') return redirect()->back()->withInput()->with('error','Valid rate type, value and effective date/time are required.');
         if($type==='gas_per_kg') $typeId=null;
         if($type==='cylinder_package' && !$typeId) return redirect()->back()->withInput()->with('error','Select a cylinder type for package rates.');
+        if($typeId && !\App\Services\BusinessContext::cylinderType($typeId,$locationId)) return redirect()->back()->withInput()->with('error','Cylinder type not found for this business.');
 
         $db=Database::connect();
         $db->transStart();

@@ -114,7 +114,7 @@ class Catalog extends Controller
         }
 
         $db = Database::connect();
-        $type = $db->table('cylinder_types')->where(['id' => $cylinderTypeId, 'is_active' => 1])->get()->getRowArray();
+        $type = $db->table('cylinder_types')->where(['id' => $cylinderTypeId, 'business_id' => $businessId, 'is_active' => 1])->get()->getRowArray();
         if (!$type) {
             return $this->fail(422, 'INVALID_CYLINDER_TYPE', 'Select an active cylinder type.');
         }

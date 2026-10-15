@@ -38,10 +38,10 @@ class Inventory extends Controller
                ON cu.cylinder_type_id=ct.id
               AND cu.location_id=?
               AND cu.status IN ('filled','empty')
-             WHERE ct.is_active=1
+             WHERE ct.is_active=1 AND ct.business_id=?
              GROUP BY ct.id,ct.code,ct.name,ct.capacity_kg
              ORDER BY ct.sort_order,ct.id",
-            [$locationId]
+            [$locationId, \App\Services\BusinessContext::businessIdForLocation($locationId)]
         )->getResultArray();
 
         $totalGas = 0.0;
@@ -74,7 +74,7 @@ class Inventory extends Controller
 
         $db = Database::connect();
         $locationId = $this->locationId();
-        $type = $db->table('cylinder_types')->where('id',$typeId)->where('is_active',1)->get()->getRowArray();
+        $type = \App\Services\BusinessContext::cylinderType($typeId, $locationId, true);
         if (!$type) return $this->response->setStatusCode(404)->setBody('Cylinder type not found.');
 
         $search = trim((string)$this->request->getGet('q'));
@@ -189,7 +189,7 @@ class Inventory extends Controller
 
         $db = Database::connect();
         $locationId = $this->locationId();
-        $type = $db->table('cylinder_types')->where('id',$typeId)->where('is_active',1)->get()->getRowArray();
+        $type = \App\Services\BusinessContext::cylinderType($typeId, $locationId, true);
         if (!$type) return $this->response->setStatusCode(404)->setBody('Cylinder type not found.');
 
         $from = $this->validDate($this->request->getGet('from_date'),date('Y-m-d'));
@@ -297,11 +297,11 @@ class Inventory extends Controller
                     COALESCE(SUM(CASE WHEN cu.status='custody' THEN 1 ELSE 0 END),0) issued_count
              FROM cylinder_types ct
              LEFT JOIN cylinder_units cu ON cu.cylinder_type_id=ct.id AND cu.location_id=?
-             WHERE ct.is_active=1
+             WHERE ct.is_active=1 AND ct.business_id=?
              GROUP BY ct.id,ct.code,ct.name,ct.capacity_kg,ct.is_active,ct.sort_order
              HAVING shop_count>0 OR issued_count>0
              ORDER BY ct.sort_order,ct.id",
-            [$locationId]
+            [$locationId, \App\Services\BusinessContext::businessIdForLocation($locationId)]
         )->getResultArray();
 
         $availableTypes=array_values(array_filter($types,static fn($t)=>(int)$t['shop_count']>0));

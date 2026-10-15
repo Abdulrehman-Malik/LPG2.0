@@ -16,6 +16,7 @@
 <form method="post" action="<?= site_url('supplier-payments/save') ?>" class="card shadow-sm" id="supplierPaymentForm">
     <?= csrf_field() ?>
     <div class="card-body">
+        <?= view('partials/transaction_date', ['dateFieldClass' => 'mb-3 col-md-4']) ?>
         <div class="row g-3 align-items-end">
             <div class="col-lg-5">
                 <label class="form-label fw-semibold">Supplier</label>
