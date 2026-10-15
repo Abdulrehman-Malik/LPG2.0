@@ -277,7 +277,7 @@ test('E2E-007 POS rejects an invalid zero-quantity gas sale without posting', as
   await page.locator('#saveBtn').click();
   await expect(page.locator('#posValidationAlert')).toBeVisible();
   await expect(page.locator('#posValidationAlert')).toContainText(/valid quantity|invalid/i);
-  await expect(page).toHaveURL(/\\/sales$/);
+  await expect(page).toHaveURL(/sales$/);
 });
 test('E2E-008 Configuration navigation remains available after POS regression', async ({ page }) => {
   await login(page); await page.getByText('Configuration',{exact:false}).first().click();
