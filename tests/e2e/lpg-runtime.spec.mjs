@@ -181,6 +181,8 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   await login(page);
   await page.goto('/sales', { waitUntil: 'networkidle' });
   await page.locator('#transactionType').selectOption('gas_sale', { timeout: 5000 });
+  // The source-cylinder selector is intentionally hidden in cylinder-count mode.
+  await page.locator('#gasEntryMode').selectOption('quantity', { timeout: 5000 });
   await expect(page.locator('#customer_id')).toContainText('QA-E2E-CREDIT');
   await page.locator('#customer_id').selectOption({ label: 'QA-E2E-CREDIT — QA E2E Credit Customer' }, { timeout: 5000 });
   const line = page.locator('#lines tbody tr').first();
