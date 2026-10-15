@@ -647,6 +647,39 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(Number(visibleOrder?.business_id)).toBe(Number(customer.business.id));
   expect(visibleOrder?.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
 
+  // A different approved customer in the same shop must not read or cancel this order.
+  const otherUsername = 'qa_mobile_other_' + unique;
+  const otherSignupResponse = await request.post('/api/v1/customer/auth/signup', {
+    data: {
+      shop_id: shopId,
+      username: otherUsername,
+      password,
+      customer_name: 'QA Other Mobile Customer',
+      phone: '03000000002',
+      city: 'Lahore',
+      address: '2 QA Test Street'
+    }
+  });
+  expect(otherSignupResponse.status()).toBe(202);
+  const otherSignup = await otherSignupResponse.json();
+  const otherApproval = await request.post('/api/v1/staff/customer-signups/' + otherSignup.request_id + '/approve', {
+    headers: staffHeaders,
+    data: {}
+  });
+  expect(otherApproval.status()).toBe(201);
+  const otherLogin = await request.post('/api/v1/customer/auth/login', {
+    data: { username: otherUsername, password }
+  });
+  expect(otherLogin.status()).toBe(200);
+  const otherCustomerHeaders = { Authorization: 'Bearer ' + (await otherLogin.json()).data.tokens.access_token };
+  const foreignOrderRead = await request.get('/api/v1/customer/orders/' + firstOrder.id, { headers: otherCustomerHeaders });
+  expect(foreignOrderRead.status()).toBe(404);
+  const foreignOrderCancel = await request.post('/api/v1/customer/orders/' + firstOrder.id + '/cancel', {
+    headers: otherCustomerHeaders,
+    data: { reason: 'Attempt to access another customer order in QA.' }
+  });
+  expect(foreignOrderCancel.status()).toBe(404);
+
   const invalidStatusFilter = await request.get('/api/v1/customer/orders?status=not-a-real-status', { headers: customerHeaders });
   expect(invalidStatusFilter.status()).toBe(422);
   expect((await invalidStatusFilter.json()).error?.code).toBe('VALIDATION_FAILED');
