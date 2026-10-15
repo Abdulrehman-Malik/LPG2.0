@@ -1088,12 +1088,12 @@ test('E2E-029 Mixed gas, filled-cylinder, and empty-cylinder order fulfills only
   expect(reaccept.status()).toBe(200);
   expect((await reaccept.json()).data.order.status).toBe('accepted');
 
-  const confirmedOrder = (await request.get('/api/v1/customer/orders/' + order.id, { headers: customerHeaders })).json
-    ? await (await request.get('/api/v1/customer/orders/' + order.id, { headers: customerHeaders })).json()
-    : null;
-  expect(confirmedOrder?.data?.order?.price_reconfirmation_required).not.toBe(1);
+  const confirmedOrderResponse = await request.get('/api/v1/customer/orders/' + order.id, { headers: customerHeaders });
+  expect(confirmedOrderResponse.status()).toBe(200);
+  const confirmedOrder = (await confirmedOrderResponse.json()).data.order;
+  expect(confirmedOrder.price_reconfirmation_required).not.toBe(1);
 
-  const total = Number(confirmedOrder.data.order.total_amount);
+  const total = Number(confirmedOrder.total_amount);
   const finalPayload = {
     fulfillment_lines: fulfillmentLines,
     payments: [{ payment_mode: 'cash', amount: Number(total.toFixed(2)) }]
