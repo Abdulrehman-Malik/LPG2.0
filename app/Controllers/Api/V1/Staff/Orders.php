@@ -153,26 +153,27 @@ class Orders extends Controller
             ]]);
         } catch (\Throwable $e) {
             $message = $e->getMessage();
-            if (str_contains($message, 'manual review') || str_contains($message, 'inconsistent') || str_contains($message, 'states disagree')) {
+            $messageLower = strtolower($message);
+            if (str_contains($messageLower, 'manual review') || str_contains($messageLower, 'inconsistent') || str_contains($messageLower, 'states disagree')) {
                 log_message('error', 'Customer order POS link integrity failure for order {orderId}: {message}', [
                     'orderId' => $orderId,
                     'message' => $message,
                 ]);
                 return $this->apiError(409, 'POS_FULFILLMENT_INTEGRITY_CONFLICT', 'The order and POS sale records do not agree. Do not retry posting; an administrator must review the linked records.');
             }
-            if (str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED')) {
+            if (str_contains($messageLower, 'order_price_reconfirmation_required') || str_contains($messageLower, 'price_reconfirmation_required')) {
                 return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The customer must review and reconfirm the current order total before fulfillment.');
             }
-            if (str_contains($message, 'not found')) {
+            if (str_contains($messageLower, 'not found')) {
                 return $this->apiError(404, 'ORDER_NOT_FOUND', 'Order not found in the selected shop.');
             }
-            if (str_contains($message, 'You do not have access')) {
+            if (str_contains($messageLower, 'you do not have access')) {
                 return $this->apiError(403, 'SHOP_ACCESS_DENIED', 'You do not have access to this shop.');
             }
-            if (str_contains($message, 'Only an accepted order') || str_contains($message, 'not eligible for physical-cylinder') || str_contains($message, 'changed before') || str_contains($message, 'unavailable') || str_contains($message, 'no longer available') || str_contains($message, 'changed while posting') || str_contains($message, 'Insufficient') || str_contains($message, 'stock changed') || str_contains($message, 'counter cash session')) {
+            if (str_contains($messageLower, 'only an accepted order') || str_contains($messageLower, 'not eligible for physical-cylinder') || str_contains($messageLower, 'changed before') || str_contains($messageLower, 'unavailable') || str_contains($messageLower, 'no longer available') || str_contains($messageLower, 'changed while posting') || str_contains($messageLower, 'insufficient') || str_contains($messageLower, 'stock changed') || str_contains($messageLower, 'counter cash session')) {
                 return $this->apiError(409, 'POS_FULFILLMENT_CONFLICT', 'The order cannot be fulfilled with the current order state, stock, or cash-counter state. Refresh the order and try again.');
             }
-            if (str_contains($message, 'Select ') || str_contains($message, 'Provide a fulfillment') || str_contains($message, 'fulfillment selection') || str_contains($message, 'line numbers') || str_contains($message, 'Unknown order line') || str_contains($message, 'At least one payment') || str_contains($message, 'payment')) {
+            if (str_contains($messageLower, 'select ') || str_contains($messageLower, 'provide a fulfillment') || str_contains($messageLower, 'fulfillment selection') || str_contains($messageLower, 'line numbers') || str_contains($messageLower, 'unknown order line') || str_contains($messageLower, 'at least one payment') || str_contains($messageLower, 'payment')) {
                 return $this->apiError(422, 'INVALID_FULFILLMENT_REQUEST', $message);
             }
             log_message('error', 'Staff order fulfillment failed: {message}', ['message' => $message]);
