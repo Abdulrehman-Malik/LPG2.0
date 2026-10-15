@@ -191,7 +191,14 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   expect(cylinderType.value, 'C6 cylinder type option was not available: ' + JSON.stringify(cylinderType.available || cylinderType.label)).not.toBe('');
   await line.locator('.cyl').selectOption(cylinderType.value, { timeout: 5000 });
   await expect(line.locator('.sourceCyl')).toBeEnabled({ timeout: 5000 });
-  await line.locator('.sourceCyl').selectOption({ label: /QA-E2E-C6-001/ }, { timeout: 5000 });
+  const sourceCylinderOption = await line.locator('.sourceCyl option').evaluateAll(options => {
+    const option = options.find(item => item.textContent.includes('QA-E2E-C6-001'));
+    return option
+      ? { value: option.value, label: option.textContent.trim() }
+      : { value: '', available: options.map(item => item.textContent.trim()) };
+  });
+  expect(sourceCylinderOption.value, 'QA-E2E-C6-001 source cylinder was not available: ' + JSON.stringify(sourceCylinderOption.available || sourceCylinderOption.label)).not.toBe('');
+  await line.locator('.sourceCyl').selectOption(sourceCylinderOption.value, { timeout: 5000 });
   await line.locator('.entryValue').fill('1');
   const total = Number(await page.locator('#saleTotal').innerText());
   expect(total).toBeGreaterThan(50);
