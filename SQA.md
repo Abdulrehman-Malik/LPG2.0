@@ -512,7 +512,9 @@ Before considering the application release-ready, explicitly execute and record:
 
 ## Customer-order duplicate fulfillment / idempotency regression
 
-**Execution status: NOT EXECUTED — run against a disposable MySQL 8+ test database. Do not mark PASS from code inspection alone.**
+**Execution status: PARTIALLY EXECUTED — selected integration scenarios passed in disposable MySQL 8 CI on 2026-10-15. Full DPF04 fault injection and detailed payment/cash/customer-ledger cardinality checks remain open.**
+
+Evidence: [LPG CI run #356](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38724252049), commit `71781c722fef8d26941abd707831efeecb490495`. Playwright passed 26/26 tests. E2E-028 covers a valid POS fulfillment, payment-mismatch rejection, and replay returning the same completed sale. E2E-029 covers mixed gas/filled/empty lines, physical-cylinder overlap rejection and customer price reconfirmation. E2E-030 sends two concurrent fulfillment requests, verifies both return the same sale ID, and checks that the selected source cylinder gas is reduced once. CI SQL assertions reconcile order/sale links and item quantity, gas-weight and line-total snapshots.
 
 ### DPF01 — Sequential retry after a successful fulfillment
 1. Create and accept a customer order with known lines, payment, and available physical cylinders.
@@ -546,7 +548,8 @@ Before considering the application release-ready, explicitly execute and record:
 - `SalesService::postForCustomerOrder()` checks for an existing sale and validates the order/shop/customer association.
 - The posting transaction locks the `customer_orders` row with `SELECT ... FOR UPDATE`; if a competing request has already completed the order and linked a sale, the second request follows the idempotent replay path.
 - `database/schema.sql` defines a unique key on `sales.customer_order_id`, preventing more than one non-NULL sale link per order at the database level.
-- These are code/schema safeguards, not runtime proof. DPF01–DPF04 remain **NOT EXECUTED** until the concurrency and recovery scenarios are run and evidence is recorded.
+- The CI evidence above validates selected sequential retry, concurrent retry and sale-line reconciliation paths; it is not exhaustive financial audit evidence.
+- **Still open:** DPF04 corruption/fault-injection for conflicting or missing links; explicit before/after row-count checks for sale payments and cash transactions; full customer-ledger reconciliation; and a true network interruption between server commit and response delivery.
 
 
 ## Financial posting, inventory concurrency, credit-limit and reversal regression
