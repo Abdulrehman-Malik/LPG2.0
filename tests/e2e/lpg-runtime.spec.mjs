@@ -532,3 +532,37 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   const revoked = await request.get('/api/v1/customer/me', { headers: customerHeaders });
   expect(revoked.status()).toBe(401);
 });
+
+
+test('E2E-027 Staff API rejects cross-shop scope overrides and platform-only business creation', async ({ request }) => {
+  const login = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'qa_scoped_manager', password: 'admin123' }
+  });
+  expect(login.status()).toBe(200);
+  const staff = (await login.json()).data;
+  expect(Number(staff.current_shop_id)).toBeGreaterThan(0);
+
+  const publicShops = await request.get('/api/v1/customer/auth/shops');
+  expect(publicShops.status()).toBe(200);
+  const shops = (await publicShops.json()).data?.shops || [];
+  const otherShop = shops.find(shop => shop.business_name === 'QA Isolation Business');
+  expect(otherShop, 'CI must seed a second business and shop').toBeTruthy();
+  expect(Number(otherShop.id)).not.toBe(Number(staff.current_shop_id));
+
+  const headers = {
+    Authorization: 'Bearer ' + staff.tokens.access_token,
+    'X-Shop-Id': String(otherShop.id)
+  };
+  const crossShopOrders = await request.get('/api/v1/staff/orders', { headers });
+  expect(crossShopOrders.status()).toBe(403);
+  expect((await crossShopOrders.json()).error?.code).toBe('SHOP_ACCESS_DENIED');
+
+  const crossBusinessSettings = await request.get('/api/v1/staff/configuration/shops/' + otherShop.id, { headers });
+  expect(crossBusinessSettings.status()).toBe(403);
+
+  const createBusiness = await request.post('/api/v1/staff/businesses', {
+    headers,
+    data: { code: 'UNAUTHORIZED-QA', name: 'Must Not Be Created' }
+  });
+  expect(createBusiness.status()).toBe(403);
+});
