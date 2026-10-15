@@ -267,11 +267,11 @@ jobs:
               WHERE im.source_type='qa_order_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
 
           INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
-          SELECT l.id,ct.id,'QA-ORDER-FILLED-C6-001','filled',6.000,'qa_order_filled_seed',u.id
+          SELECT l.id,ct.id,'QA-ORDER-FILLED-C6-001','filled',5.500,'qa_order_filled_seed',u.id
           FROM locations l JOIN cylinder_types ct ON ct.code='C6' JOIN users u ON u.username='admin'
           WHERE l.code='MAIN'
           ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
-            gas_weight_kg=6.000,source_type='qa_order_filled_seed',created_by=VALUES(created_by);
+            gas_weight_kg=5.500,source_type='qa_order_filled_seed',created_by=VALUES(created_by);
 
           INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
             source_type,source_id,cylinder_unit_id,created_by,notes)
@@ -284,7 +284,7 @@ jobs:
 
           INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
             source_type,source_id,cylinder_unit_id,created_by,notes)
-          SELECT cu.location_id,'gas_kg',NULL,6.000,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+          SELECT cu.location_id,'gas_kg',NULL,5.500,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
             'Disposable filled-cylinder order QA gas fixture'
           FROM cylinder_units cu JOIN users u ON u.username='admin'
           WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
