@@ -73,7 +73,7 @@ class Orders extends Controller
             || str_contains($message, 'required')
             || str_contains($message, 'Choose')
             || str_contains($message, 'between')
-            || str_contains($message, 'idempotency-key')
+            || str_contains(strtolower($message), 'idempotency-key')
             || str_contains($message, 'positive')
             || str_contains($message, 'unsupported sale mode')
             || str_contains($message, 'numeric quantity')
