@@ -895,7 +895,7 @@ class CustomerOrderService
                 if (!$this->db->transStatus()) throw new RuntimeException('Customer order fulfillment integrity check failed.');
                 $this->db->transCommit();
                 return $result;
-            } catch (\\Throwable $e) {
+            } catch (\Throwable $e) {
                 $this->db->transRollback();
                 throw $e;
             }
