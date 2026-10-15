@@ -179,8 +179,14 @@ jobs:
           ON DUPLICATE KEY UPDATE name=VALUES(name),phone=VALUES(phone),city=VALUES(city),
             address=VALUES(address),credit_limit=0,allow_credit_sale=0,opening_balance=0,is_active=1;
 
+          INSERT INTO customers(location_id,code,name,phone,city,address,credit_limit,allow_credit_sale,opening_balance,is_active)
+          SELECT l.id,'QA-E2E-CREDIT','QA E2E Credit Customer','03000000001','Lahore','QA Credit Test Street',50,1,0,1
+          FROM locations l WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE name=VALUES(name),phone=VALUES(phone),city=VALUES(city),
+            address=VALUES(address),credit_limit=50,allow_credit_sale=1,opening_balance=0,is_active=1;
+
           UPDATE shop_settings
-          SET individual_cylinder_tracking=1,allow_pos_source_cylinder_selection=1
+          SET individual_cylinder_tracking=1,allow_pos_source_cylinder_selection=1,credit_limit_validation_mode='customer'
           WHERE location_id=(SELECT id FROM locations WHERE code='MAIN');
 
           INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
@@ -275,7 +281,7 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-3]|E2E-02[0-7]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-7]' --reporter=line,json
 
       - name: Upload Playwright runtime QA evidence
         if: always()
