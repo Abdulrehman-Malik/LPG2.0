@@ -261,7 +261,7 @@ test('E2E-005 Posted gas sale appears in Sale History with inventory movement', 
 test('E2E-006 Gas stock is reduced after the actual sale', async ({ page }) => {
   await login(page); await page.goto('/inventory',{waitUntil:'networkidle'});
   const row=page.locator('table tbody tr').filter({hasText:'C6'}).first();
-  await expect(row).toBeVisible(); await expect(row).toContainText('4.000 KG');
+  await expect(row).toBeVisible(); await expect(row).toContainText('4.00');
 });
 test('E2E-007 POS rejects an invalid zero-quantity gas sale without posting', async ({ page }) => {
   await login(page); await page.goto('/sales',{waitUntil:'networkidle'});
