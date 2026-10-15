@@ -730,8 +730,8 @@ For each PQA row, link the detailed individual page/case IDs and evidence in the
 ## Automated web/API runtime evidence — 2026-10-15
 
 **Result:** PASS for the selected automated scenarios below.  
-**Commit tested:** `c0362338de21a1a3feb7439b1974fd30069634a9`  
-**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38672750978)  
+**Commit tested:** `f3680f4ed6218bc2f35cc3f3d6dc8d3526908a5a`  
+**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38673077099)  
 **Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter development server and Playwright Chromium. CI creates its own QA catalog/rate and second-business fixtures; no production database is used.
 
 | Case | Coverage | Actual result | Status |
@@ -742,8 +742,8 @@ For each PQA row, link the detailed individual page/case IDs and evidence in the
 | E2E-023 | Customer order queue authentication and permissions | Page loaded in browser | PASS |
 | E2E-024 | API health, public registration-shop discovery, missing-token guards and invalid staff credentials | Expected HTTP/status behavior observed | PASS |
 | E2E-025 | Staff API login, access-token use, refresh rotation, refresh-token replay revocation, logout and revoked-token denial | Session lifecycle checks passed | PASS |
-| E2E-026 | Customer signup and staff approval, customer login/profile/catalog, order create, idempotent retry, reused-key conflict, staff queue/acceptance and customer-safe order details | End-to-end API flow passed; order remained separate from POS sale | PASS |
-| E2E-027 | Scoped staff cannot override shop scope; non-system administrator cannot create a business | Cross-scope requests denied as expected | PASS |
+| E2E-026 | Customer signup and staff approval, customer login/profile/catalog, application/business/shop configuration reads, catalog API reads, second-shop provisioning, order create, idempotent retry, reused-key conflict, staff queue/acceptance and customer-safe order details | End-to-end API flow passed; order remained separate from POS sale | PASS |
+| E2E-027 | Scoped staff cannot override shop scope for a sibling shop or another business; non-system administrator cannot create a business | Cross-scope requests denied as expected | PASS |
 
 **Fix found by these tests:** Access-token creation time is now written explicitly in the application timezone so the token's creation and expiry boundaries are evaluated consistently. Logout now returns a JSON `200` response after revoking the session, which is reliable for mobile API clients.
 
