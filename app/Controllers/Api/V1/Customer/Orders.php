@@ -45,10 +45,31 @@ class Orders extends Controller
         if (str_contains($message, 'not found')) {
             return $this->apiError(404, 'ORDER_NOT_FOUND', $message);
         }
-        if (str_contains($message, 'currently unavailable') || str_contains($message, 'no longer active')) {
-            return $this->apiError(403, 'ORDERING_UNAVAILABLE', 'Customer ordering is unavailable because the customer, shop, or business is inactive or disabled.');
+        if (str_contains($message, 'currently unavailable')
+            || str_contains($message, 'no longer active')
+            || str_contains($message, 'not linked to an active customer')
+            || str_contains($message, 'account is not active')) {
+            return $this->apiError(403, 'ORDERING_UNAVAILABLE', 'Customer ordering is unavailable because the customer account, customer, shop, or business is inactive.');
         }
-        if (str_contains($message, 'reconfirmation') || str_contains($message, 'quantity') || str_contains($message, 'required') || str_contains($message, 'Choose') || str_contains($message, 'between')) {
+        if (str_contains($message, 'Only pending orders can be cancelled')
+            || str_contains($message, 'This order does not need price reconfirmation')) {
+            return $this->apiError(409, 'ORDER_STATE_CONFLICT', 'The requested action is not allowed for the order’s current state.');
+        }
+        if (str_contains($message, 'does not currently offer')) {
+            return $this->apiError(409, 'ORDERING_METHOD_UNAVAILABLE', 'The selected fulfilment method is not currently available for this shop.');
+        }
+        if (str_contains($message, 'Unsupported order status filter')
+            || str_contains($message, 'quantities must be positive')
+            || str_contains($message, 'may appear only once')
+            || str_contains($message, 'order line needs')
+            || str_contains($message, 'Invalid order line')
+            || str_contains($message, 'notes cannot exceed')
+            || str_contains($message, 'too long')
+            || str_contains($message, 'reconfirmation')
+            || str_contains($message, 'quantity')
+            || str_contains($message, 'required')
+            || str_contains($message, 'Choose')
+            || str_contains($message, 'between')) {
             return $this->apiError(422, 'VALIDATION_FAILED', $message);
         }
         log_message('error', 'Customer order API failed: {message}', ['message' => $message]);
