@@ -725,3 +725,26 @@ Follow `PAGE_TEST_WORKFLOW.md` for the full route/page inventory and the require
 | PQA16 | Browser customer order management | Queue/detail/history, valid status transitions, physical-cylinder selection and fulfillment through POS with reconciliation | | | NOT EXECUTED |
 
 For each PQA row, link the detailed individual page/case IDs and evidence in the result comments. Split a row into multiple entries when individual pages have different outcomes. A page must not be marked PASS merely because its controller or route exists.
+
+
+## Automated web/API runtime evidence — 2026-10-15
+
+**Result:** PASS for the selected automated scenarios below.  
+**Commit tested:** `c0362338de21a1a3feb7439b1974fd30069634a9`  
+**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38672750978)  
+**Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter development server and Playwright Chromium. CI creates its own QA catalog/rate and second-business fixtures; no production database is used.
+
+| Case | Coverage | Actual result | Status |
+|---|---|---|---|
+| E2E-020 | Business/shop administration page renders for System Administrator | Page loaded in browser | PASS |
+| E2E-021 | Customer ordering catalog page and separate business/shop controls | Page loaded in browser | PASS |
+| E2E-022 | Customer App account review page | Page loaded in browser | PASS |
+| E2E-023 | Customer order queue authentication and permissions | Page loaded in browser | PASS |
+| E2E-024 | API health, public registration-shop discovery, missing-token guards and invalid staff credentials | Expected HTTP/status behavior observed | PASS |
+| E2E-025 | Staff API login, access-token use, refresh rotation, refresh-token replay revocation, logout and revoked-token denial | Session lifecycle checks passed | PASS |
+| E2E-026 | Customer signup and staff approval, customer login/profile/catalog, order create, idempotent retry, reused-key conflict, staff queue/acceptance and customer-safe order details | End-to-end API flow passed; order remained separate from POS sale | PASS |
+| E2E-027 | Scoped staff cannot override shop scope; non-system administrator cannot create a business | Cross-scope requests denied as expected | PASS |
+
+**Fix found by these tests:** Access-token creation time is now written explicitly in the application timezone so the token's creation and expiry boundaries are evaluated consistently. Logout now returns a JSON `200` response after revoking the session, which is reliable for mobile API clients.
+
+This is evidence for the listed CI scenarios only. It does **not** mark the complete PQA01–PQA12 route-by-route suite or concurrency/reversal cases as passed. Those still require their own execution evidence, and WP-10 still needs full two-shop pilot/owner acceptance before release.
