@@ -258,10 +258,16 @@ test('E2E-005 Posted gas sale appears in Sale History with inventory movement', 
   await expect(page.locator('#saleDetailsBody')).toContainText(/gas_kg/i);
   await expect(page.locator('#saleDetailsBody')).toContainText(/out/i);
 });
-test('E2E-006 Gas stock is reduced after the actual sale', async ({ page }) => {
+test('E2E-006 The selected source cylinder gas is reduced after the actual sale', async ({ page }) => {
   await login(page); await page.goto('/inventory',{waitUntil:'networkidle'});
-  const row=page.locator('table tbody tr').filter({hasText:'C6'}).first();
-  await expect(row).toBeVisible(); await expect(row).toContainText('4.00');
+  const typeRow=page.locator('table tbody tr').filter({hasText:'C6'}).first();
+  await expect(typeRow).toBeVisible();
+  await typeRow.getByRole('link',{name:/View Cylinders/i}).click();
+  await expect(page).toHaveURL(/inventory\/cylinders\/\d+/);
+  const sourceRow=page.locator('table tbody tr').filter({hasText:'QA-E2E-C6-001'}).first();
+  await expect(sourceRow).toBeVisible();
+  await expect(sourceRow).toContainText('4.00 KG');
+  await expect(sourceRow).toContainText('Partially Filled');
 });
 test('E2E-007 POS rejects an invalid zero-quantity gas sale without posting', async ({ page }) => {
   await login(page);
