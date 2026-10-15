@@ -570,8 +570,12 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(ordersResponse.status()).toBe(200);
   expect(Array.isArray((await ordersResponse.json()).data?.orders)).toBe(true);
 
+  const unassignedBusinessShop = publicShops.find(shop => shop.business_name === 'QA Isolation Business');
+  expect(unassignedBusinessShop, 'CI must seed another business for customer-order tenant-isolation checks').toBeTruthy();
   const idempotencyKey = 'qa-order-' + unique;
   const orderPayload = {
+    // A client-supplied shop_id must never override the customer's assigned shop.
+    shop_id: Number(unassignedBusinessShop.id),
     fulfilment_method: 'delivery',
     delivery_address: '1 QA Test Street',
     delivery_city: 'Lahore',
@@ -585,6 +589,8 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(firstOrderResponse.status()).toBe(201);
   const firstOrder = (await firstOrderResponse.json()).data?.order;
   expect(firstOrder?.status).toBe('pending');
+  expect(Number(firstOrder?.location_id)).toBe(shopId);
+  expect(Number(firstOrder?.business_id)).toBe(Number(customer.business.id));
   expect(firstOrder?.pos_sale_id).toBeFalsy();
 
   const retryResponse = await request.post('/api/v1/customer/orders', {
@@ -618,6 +624,10 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(customerOrder.status()).toBe(200);
   const visibleOrder = (await customerOrder.json()).data?.order;
   expect(visibleOrder?.status).toBe('accepted');
+  // Accepting an order is a workflow change only, never a POS/financial posting.
+  expect(visibleOrder?.pos_sale_id).toBeFalsy();
+  expect(Number(visibleOrder?.location_id)).toBe(shopId);
+  expect(Number(visibleOrder?.business_id)).toBe(Number(customer.business.id));
   expect(visibleOrder?.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
 
   // A valid customer session must not bypass shop-level order controls.
