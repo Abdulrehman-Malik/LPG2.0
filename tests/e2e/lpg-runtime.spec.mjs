@@ -400,7 +400,7 @@ test('E2E-025 Staff API token refresh rotation and logout revocation', async ({ 
   const logout = await request.post('/api/v1/staff/auth/logout', {
     headers: auth(rotatedTokens.access_token)
   });
-  expect(logout.status()).toBe(200);
+  expect(logout.status()).toBe(204);
 
   const afterLogout = await request.get('/api/v1/staff/me', {
     headers: auth(rotatedTokens.access_token)
