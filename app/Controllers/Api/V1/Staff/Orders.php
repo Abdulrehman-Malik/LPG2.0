@@ -176,7 +176,27 @@ class Orders extends Controller
             if (str_contains($messageLower, 'select ') || str_contains($messageLower, 'provide a fulfillment') || str_contains($messageLower, 'fulfillment selection') || str_contains($messageLower, 'physical cylinder selection') || str_contains($messageLower, 'overlaps with another order line') || str_contains($messageLower, 'line numbers') || str_contains($messageLower, 'unknown order line') || str_contains($messageLower, 'at least one payment') || str_contains($messageLower, 'payment')) {
                 return $this->apiError(422, 'INVALID_FULFILLMENT_REQUEST', $message);
             }
-            log_message('error', 'Staff order fulfillment failed: {message}', ['message' => $message]);
+            log_message('error', 'Staff order fulfillment failed for order {orderId}: {message} ({exception}) at {file}:{line}', [
+                'orderId' => $orderId,
+                'message' => $message,
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            if (getenv('LPG_QA_DEBUG_ERRORS') === '1') {
+                return $this->response->setStatusCode(503)->setJSON([
+                    'error' => [
+                        'code' => 'POS_FULFILLMENT_UNAVAILABLE',
+                        'message' => 'The order could not be posted to POS right now.',
+                    ],
+                    'debug' => [
+                        'exception' => get_class($e),
+                        'message' => $message,
+                        'file' => basename($e->getFile()),
+                        'line' => $e->getLine(),
+                    ],
+                ]);
+            }
             return $this->apiError(503, 'POS_FULFILLMENT_UNAVAILABLE', 'The order could not be posted to POS right now.');
         }
     }
