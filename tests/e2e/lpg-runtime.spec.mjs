@@ -251,7 +251,7 @@ test('E2E-005 Posted gas sale appears in Sale History with inventory movement', 
   await page.locator('#historyCustomer').fill('QA-E2E-CUST');
   await page.locator('#historySearch').click(); await page.waitForTimeout(500);
   const row=page.locator('#saleHistoryBody tr.sale-history-row').first();
-  await expect(row).toBeVisible(); await expect(row).toContainText('QA-E2E-CUST');
+  await expect(row).toBeVisible(); await expect(row).toContainText('QA E2E Customer');
   await expect(row).toContainText(/Gas Sale/i); await expect(row).toContainText(/POSTED/i);
   await row.click();
   await expect(page.locator('#saleDetailsBody')).toContainText(/Inventory \/ Reversal Movements/i);
