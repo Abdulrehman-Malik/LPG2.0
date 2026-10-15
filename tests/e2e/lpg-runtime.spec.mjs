@@ -645,6 +645,7 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   await page.locator('#saveBtn').click();
   await expect(page.locator('#posValidationAlert')).toBeVisible();
   await expect(page.locator('#posValidationAlert')).toContainText(/customer credit limit exceeded/i);
-  await page.goto('/inventory', { waitUntil: 'networkidle' });
-  await expect(page.locator('table tbody tr').filter({ hasText: 'C6' }).first()).toContainText('4.000 KG');
+  // The rejected post must leave the selected physical source at its original weight.
+  await expect(line.locator('.sourceCyl')).toContainText('QA-E2E-C6-001');
+  await expect(line.locator('.sourceCyl')).toContainText('6.00 KG');
 });
