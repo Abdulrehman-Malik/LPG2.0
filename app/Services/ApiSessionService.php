@@ -114,6 +114,10 @@ class ApiSessionService
         $this->db->table('api_access_tokens')->insert([
             'api_session_id' => $sessionId,
             'token_hash' => hash('sha256', $raw),
+            // Keep this timestamp in the same PHP timezone as expires_at. Relying on
+            // MySQL CURRENT_TIMESTAMP (UTC in CI) makes accessBoundary think the token
+            // was created hours earlier when the application timezone is Asia/Karachi.
+            'created_at' => $this->now(),
             'expires_at' => $expiresAt,
         ]);
 
