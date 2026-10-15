@@ -193,9 +193,12 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   await page.locator('#saveBtn').click();
   await expect(page.locator('#posValidationAlert')).toBeVisible();
   await expect(page.locator('#posValidationAlert')).toContainText(/customer credit limit exceeded/i);
-  // The rejected post must leave the selected physical source at its original weight.
-  await expect(line.locator('.sourceCyl')).toContainText('QA-E2E-C6-001');
-  await expect(line.locator('.sourceCyl')).toContainText('6.00 KG');
+  // Reload so the assertion reads persisted stock from the server, not the pre-submit DOM.
+  await page.reload({ waitUntil: 'networkidle' });
+  const refreshedLine = page.locator('#lines tbody tr').first();
+  await refreshedLine.locator('.cyl').selectOption({ label: 'C6 — 6 kg' });
+  await expect(refreshedLine.locator('.sourceCyl')).toContainText('QA-E2E-C6-001');
+  await expect(refreshedLine.locator('.sourceCyl')).toContainText('6.00 KG');
 });
 
 test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
