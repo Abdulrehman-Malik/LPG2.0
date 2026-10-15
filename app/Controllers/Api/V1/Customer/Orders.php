@@ -42,6 +42,9 @@ class Orders extends Controller
         if (str_contains($message, 'IDEMPOTENCY_KEY_REUSED')) {
             return $this->apiError(409, 'IDEMPOTENCY_KEY_REUSED', 'This idempotency key was already used for a different order request.');
         }
+        if (str_contains($message, 'Product #') && str_contains($message, 'no longer available at this shop')) {
+            return $this->apiError(409, 'ORDER_PRODUCT_UNAVAILABLE', 'One or more products are no longer available at this shop. Refresh the catalog before submitting the order again.');
+        }
         if (str_contains($message, 'not found')) {
             return $this->apiError(404, 'ORDER_NOT_FOUND', $message);
         }
@@ -69,7 +72,12 @@ class Orders extends Controller
             || str_contains($message, 'quantity')
             || str_contains($message, 'required')
             || str_contains($message, 'Choose')
-            || str_contains($message, 'between')) {
+            || str_contains($message, 'between')
+            || str_contains($message, 'idempotency-key')
+            || str_contains($message, 'positive')
+            || str_contains($message, 'unsupported sale mode')
+            || str_contains($message, 'numeric quantity')
+            || str_contains($message, 'whole cylinders')) {
             return $this->apiError(422, 'VALIDATION_FAILED', $message);
         }
         log_message('error', 'Customer order API failed: {message}', ['message' => $message]);
