@@ -222,7 +222,7 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-7]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-011|E2E-02[0-7]' --reporter=line,json
 
       - name: Upload Playwright runtime QA evidence
         if: always()
