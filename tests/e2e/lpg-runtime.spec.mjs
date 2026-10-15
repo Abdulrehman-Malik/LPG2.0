@@ -49,9 +49,9 @@ test('E2E-009 Inventory adjustment screen is usable and enforces shop-available 
   await expect(page.locator('[data-adjust-panel="new"]')).toBeVisible();
 
   // Color legend is present for gas, filled and empty stock.
-  await expect(page.locator('.stock-color-box.gas')).toHaveCount(1);
-  await expect(page.locator('.stock-color-box.filled')).toHaveCount(1);
-  await expect(page.locator('.stock-color-box.empty')).toHaveCount(1);
+  await expect(page.locator('.stock-color-box.gas:visible')).toHaveCount(1);
+  await expect(page.locator('.stock-color-box.filled:visible')).toHaveCount(1);
+  await expect(page.locator('.stock-color-box.empty:visible')).toHaveCount(1);
 
   // Visible stock numbers use two decimal places.
   const summaryNumbers = await page.locator('.row.g-2.mb-3 .fs-5').allInnerTexts();
