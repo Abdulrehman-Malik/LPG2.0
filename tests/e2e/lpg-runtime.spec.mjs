@@ -1136,3 +1136,112 @@ test('E2E-029 Mixed gas, filled-cylinder, and empty-cylinder order fulfills only
   expect(customerVisible.status()).toBe(200);
   expect((await customerVisible.json()).data.order.status).toBe('completed');
 });
+
+
+test('E2E-030 Concurrent POS fulfillment requests post one sale and consume stock once', async ({ request, page }) => {
+  const staffLogin = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'admin123' }
+  });
+  expect(staffLogin.status()).toBe(200);
+  const staff = (await staffLogin.json()).data;
+  const shopId = Number(staff.current_shop_id);
+  const staffHeaders = {
+    Authorization: 'Bearer ' + staff.tokens.access_token,
+    'X-Shop-Id': String(shopId)
+  };
+
+  const unique = Date.now().toString();
+  const username = 'qa_concurrent_fulfill_' + unique;
+  const password = 'QA-Mobile-Strong-123!';
+  const signup = await request.post('/api/v1/customer/auth/signup', {
+    data: {
+      shop_id: shopId,
+      username,
+      password,
+      customer_name: 'QA Concurrent POS Customer',
+      phone: '03000000005',
+      city: 'Lahore',
+      address: '5 QA Test Street'
+    }
+  });
+  expect(signup.status()).toBe(202);
+  const signupData = await signup.json();
+  const approval = await request.post('/api/v1/staff/customer-signups/' + signupData.request_id + '/approve', {
+    headers: staffHeaders,
+    data: {}
+  });
+  expect(approval.status()).toBe(201);
+
+  const customerLogin = await request.post('/api/v1/customer/auth/login', {
+    data: { username, password }
+  });
+  expect(customerLogin.status()).toBe(200);
+  const customerHeaders = {
+    Authorization: 'Bearer ' + (await customerLogin.json()).data.tokens.access_token
+  };
+  const catalogResponse = await request.get('/api/v1/customer/products', { headers: customerHeaders });
+  expect(catalogResponse.status()).toBe(200);
+  const product = ((await catalogResponse.json()).data.products || []).find(item =>
+    item.sale_mode === 'sell_gas_only'
+    && item.cylinder_type?.code === 'C6'
+    && item.price?.price_available === true
+  );
+  expect(product).toBeTruthy();
+
+  const orderResponse = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': 'qa-concurrent-pos-' + unique },
+    data: {
+      fulfilment_method: 'collection',
+      customer_notes: 'E2E concurrent POS commit test',
+      items: [{ product_id: Number(product.id), quantity: 1 }]
+    }
+  });
+  expect(orderResponse.status()).toBe(201);
+  const order = (await orderResponse.json()).data.order;
+  const accept = await request.post('/api/v1/staff/orders/' + order.id + '/status', {
+    headers: staffHeaders,
+    data: { status: 'accepted' }
+  });
+  expect(accept.status()).toBe(200);
+
+  const optionsResponse = await request.get('/api/v1/staff/orders/' + order.id + '/fulfillment-options', {
+    headers: staffHeaders
+  });
+  expect(optionsResponse.status()).toBe(200);
+  const line = (await optionsResponse.json()).data.options.lines[0];
+  const source = (line.cylinders || []).find(unit => unit.unit_code === 'QA-ORDER-C6-001');
+  expect(source).toBeTruthy();
+  const sourceWeightBefore = Number(source.gas_weight_kg);
+  expect(sourceWeightBefore).toBeGreaterThan(1);
+
+  const payload = {
+    fulfillment_lines: [{
+      line_no: Number(line.line_no),
+      source_cylinder_unit_id: Number(source.id)
+    }],
+    payments: [{ payment_mode: 'cash', amount: Number(Number(order.total_amount).toFixed(2)) }]
+  };
+  const concurrentResponses = await Promise.all([
+    request.post('/api/v1/staff/orders/' + order.id + '/fulfill', { headers: staffHeaders, data: payload }),
+    request.post('/api/v1/staff/orders/' + order.id + '/fulfill', { headers: staffHeaders, data: payload })
+  ]);
+  expect(concurrentResponses.map(response => response.status())).toEqual([200, 200]);
+  const concurrentResults = await Promise.all(concurrentResponses.map(response => response.json()));
+  for (const result of concurrentResults) {
+    expect(result.data.status).toBe('completed');
+    expect(Number(result.data.order.pos_sale_id)).toBeGreaterThan(0);
+  }
+  const linkedSaleIds = new Set(concurrentResults.map(result => Number(result.data.order.pos_sale_id)));
+  expect(linkedSaleIds.size).toBe(1);
+
+  const customerOrderResponse = await request.get('/api/v1/customer/orders/' + order.id, { headers: customerHeaders });
+  expect(customerOrderResponse.status()).toBe(200);
+  expect((await customerOrderResponse.json()).data.order.status).toBe('completed');
+
+  // Independently confirm the physical source changed exactly once despite two simultaneous requests.
+  await login(page);
+  await page.goto('/inventory/cylinders/' + Number(line.cylinder_type_id), { waitUntil: 'networkidle' });
+  const sourceRow = page.locator('table tbody tr').filter({ hasText: 'QA-ORDER-C6-001' }).first();
+  await expect(sourceRow).toBeVisible();
+  await expect(sourceRow).toContainText((sourceWeightBefore - 1).toFixed(2) + ' KG');
+});
