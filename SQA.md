@@ -826,3 +826,18 @@ This evidence covers the listed automated cases only. It does **not** mark the c
 **Regression on the same code:** Playwright 26/26 passed; PHPUnit 15 tests OK; Phase 8 checks P8-01…P8-11 passed. One Phase 8 run showed two transient check failures caused by the test harness reading an empty value; the database showed the correct outcomes, and an immediate rerun passed.
 
 **Not covered yet:** MySQL 8 run in CI, page-by-page browser QA of the changed screens (Configuration, Suppliers, Cylinder Types, Expenses, Receipts, Supplier Payments, Purchases, POS date field), and Head Office reporting (9.5.5).
+
+### Phase 9.5.4 — inter-branch stock transfer — 2026-10-15
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P9-13 | Transfers screen and posting while `stock_transfer_enabled` is off | Page explains the feature is off and links to business configuration; posting rejected | PASS |
+| P9-14 | Two-step: MAIN dispatches one filled (6 kg) and one empty cylinder to QA-B2 | `TR-000001` in transit; cylinders keep code and gas weight; MAIN available gas −6 kg; POS cannot sell the in-transit cylinder | PASS |
+| P9-15 | Who may receive / cancel | Sender cannot confirm receipt; receiver sees "Awaiting your receipt" and confirms; second receipt refused (exactly 3 IN movements); receiver cannot cancel; cancel requires a reason; sender cancel returns cylinders to stock | PASS |
+| P9-16 | One-step flow | Cylinder moved to the receiving branch immediately with status Received | PASS |
+| P9-17 | Isolation | Transfer to another business's shop rejected; cylinder at another branch cannot be sent; a branch that is neither sender nor receiver gets 404 | PASS |
+| P9-18 | Permission | Cashier (no `STOCK_TRANSFER_MANAGE`) gets 403 and does not see the menu entry | PASS |
+| P9-19 | Reconciliation | At both branches, gas movement history (in − out) equals gas in filled cylinders | PASS |
+| P9-20 | Browser walkthrough (Playwright, Chromium): enable settings in Business Configuration, select cylinders, dispatch, switch branch, confirm receipt; open Suppliers, Cylinder Types, Expenses, POS | Completed with no browser console/page errors; screenshots reviewed | PASS |
+
+Regression after 9.5.4: Playwright 26/26, Phase 9 checks 28/28, Phase 8 checks passed (the two no-session credit checks need a temporary CLI command and were verified in the earlier run).

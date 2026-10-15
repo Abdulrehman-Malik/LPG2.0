@@ -18,7 +18,7 @@ Legend:
 | 0–6 | Core POS / ERP foundation | — | Development complete; SQA execution pending |
 | 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
 | 8 | Stabilization & security hardening | P0 | [/] In progress |
-| 9 | Multi-branch back-office completion | P1 | [/] In progress (9.5.1–9.5.3 done) |
+| 9 | Multi-branch back-office completion | P1 | [/] In progress (9.5.1–9.5.4 done) |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
 | 11 | UI/UX modernization | P1 | [ ] Pending |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
@@ -235,7 +235,7 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 9.5.1 Configuration: add `choice` setting type and the business-level keys above (Configuration → Business screen).
 - [x] 9.5.2 `TransactionDatePolicy` service applied to every financial posting path (closes Phase 10.4).
 - [x] 9.5.3 Migration 040: business ownership for cylinder types, expense categories and suppliers (+ optional supplier branch); scoped screens, lookups and validation; provisioning of defaults for new businesses.
-- [ ] 9.5.4 Migration 041 + `StockTransferService`: transfer documents, one-step/two-step flow, screens, permission `STOCK_TRANSFER_MANAGE`, reports.
+- [x] 9.5.4 Migration 041 + `StockTransferService`: transfer documents, one-step/two-step flow, screens, permission `STOCK_TRANSFER_MANAGE`, reports.
 - [ ] 9.5.5 Head Office consolidated dashboard/reports (9.2) and branch administration UX (9.3).
 - [ ] 9.5.6 Branch-scope audit register and fixes (9.1).
 

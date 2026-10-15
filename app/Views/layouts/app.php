@@ -105,6 +105,7 @@ $groups=[
             ['permission'=>'INVENTORY_MANAGE','url'=>'inventory/adjustments','label'=>'Stock Adjustment & History','icon'=>'bi-sliders2-vertical'],
             ['permission'=>'INVENTORY_CONTROLS_MANAGE','url'=>'inventory/controls','label'=>'Inventory Controls','icon'=>'bi-sliders'],
             ['permission'=>'GAS_WASTAGE_MANAGE','url'=>'inventory/wastage','label'=>'Gas Wastage','icon'=>'bi-droplet-half'],
+            ['permission'=>'STOCK_TRANSFER_MANAGE','url'=>'inventory/transfers','label'=>'Branch Stock Transfers','icon'=>'bi-arrow-left-right'],
         ],
     ],
     'parties'=>[

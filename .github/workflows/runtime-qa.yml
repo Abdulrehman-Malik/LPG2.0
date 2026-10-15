@@ -95,6 +95,16 @@ jobs:
           curl -fsS http://localhost:8080/ -o /tmp/lpg-login-after-migrations.html
           grep -qi 'login' /tmp/lpg-login-after-migrations.html
           grep -qi 'password' /tmp/lpg-login-after-migrations.html
+      - name: Seed disposable Playwright fixtures
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          # The POS browser tests need the same customers, physical cylinders and open
+          # cash session that LPG CI seeds; without them E2E-004 and later cases fail.
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < tests/e2e/fixtures/seed_catalog.sql
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg < tests/e2e/fixtures/seed_pos.sql
+
       - name: Login and application access
         run: |
           set -e
