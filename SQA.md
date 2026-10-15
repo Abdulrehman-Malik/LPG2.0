@@ -730,11 +730,12 @@ For each PQA row, link the detailed individual page/case IDs and evidence in the
 ## Automated web/API runtime evidence — 2026-10-15
 
 **Result:** PASS for the selected automated scenarios below.  
-**Commit tested:** `f3680f4ed6218bc2f35cc3f3d6dc8d3526908a5a`  
-**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38673077099)  
+**Commit tested:** `8f632643a691f061a3a79db73c1c1703c2d23cf7`  
+**Evidence:** [GitHub Actions runtime QA run](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38673310726)  
 **Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter development server and Playwright Chromium. CI creates its own QA catalog/rate and second-business fixtures; no production database is used.
 
 | Case | Coverage | Actual result | Status |
+| E2E-011 | Smoke-load 24 existing web routes from dashboard through inventory opening | Every listed route returned HTTP 200 with no detected PHP/browser errors | PASS |
 |---|---|---|---|
 | E2E-020 | Business/shop administration page renders for System Administrator | Page loaded in browser | PASS |
 | E2E-021 | Customer ordering catalog page and separate business/shop controls | Page loaded in browser | PASS |
