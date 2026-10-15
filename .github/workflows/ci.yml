@@ -133,6 +133,38 @@ jobs:
           JOIN users u ON u.username='admin'
           WHERE l.code='MAIN' AND p.sale_mode='sell_gas_only'
           ON DUPLICATE KEY UPDATE is_active=1,updated_by=VALUES(updated_by);
+          INSERT INTO shop_product_availability(business_id,location_id,business_catalog_product_id,is_active,updated_by)
+          SELECT l.business_id,l.id,p.id,1,u.id
+          FROM locations l
+          JOIN business_catalog_products p ON p.business_id=l.business_id
+          JOIN cylinder_types ct ON ct.id=p.cylinder_type_id AND ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN' AND p.sale_mode='sell_gas_only'
+          ON DUPLICATE KEY UPDATE is_active=1,updated_by=VALUES(updated_by);
+
+          INSERT INTO businesses(code,name,city,is_active)
+          VALUES('QA-ISOLATION','QA Isolation Business','Lahore',1)
+          ON DUPLICATE KEY UPDATE name=VALUES(name),city=VALUES(city),is_active=1;
+
+          INSERT INTO locations(business_id,code,name,city,is_active)
+          SELECT b.id,'QA-OTHER','QA Other Shop','Lahore',1
+          FROM businesses b WHERE b.code='QA-ISOLATION'
+          ON DUPLICATE KEY UPDATE business_id=VALUES(business_id),name=VALUES(name),is_active=1;
+
+          INSERT INTO users(location_id,is_system_admin,role_id,full_name,username,email,password_hash,is_active)
+          SELECT l.id,0,r.id,'QA Scoped Manager','qa_scoped_manager','qa_scoped_manager@perfectlpg.local',
+                 admin.password_hash,1
+          FROM locations l
+          JOIN roles r ON r.code='MANAGER'
+          JOIN users admin ON admin.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE location_id=VALUES(location_id),is_system_admin=0,
+            password_hash=VALUES(password_hash),is_active=1;
+
+          INSERT INTO user_shop_access(user_id,location_id,is_default)
+          SELECT u.id,l.id,1 FROM users u JOIN locations l ON l.code='MAIN'
+          WHERE u.username='qa_scoped_manager'
+          ON DUPLICATE KEY UPDATE is_default=1;
           SQL
 
       - name: CodeIgniter smoke check
@@ -190,7 +222,7 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-6]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-7]' --reporter=line,json
 
       - name: Upload Playwright runtime QA evidence
         if: always()
