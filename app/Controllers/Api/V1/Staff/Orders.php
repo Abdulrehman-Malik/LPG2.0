@@ -153,6 +153,13 @@ class Orders extends Controller
             ]]);
         } catch (\Throwable $e) {
             $message = $e->getMessage();
+            if (str_contains($message, 'manual review') || str_contains($message, 'inconsistent') || str_contains($message, 'states disagree')) {
+                log_message('error', 'Customer order POS link integrity failure for order {orderId}: {message}', [
+                    'orderId' => $orderId,
+                    'message' => $message,
+                ]);
+                return $this->apiError(409, 'POS_FULFILLMENT_INTEGRITY_CONFLICT', 'The order and POS sale records do not agree. Do not retry posting; an administrator must review the linked records.');
+            }
             if (str_contains($message, 'ORDER_PRICE_RECONFIRMATION_REQUIRED') || str_contains($message, 'PRICE_RECONFIRMATION_REQUIRED')) {
                 return $this->apiError(409, 'PRICE_RECONFIRMATION_REQUIRED', 'The customer must review and reconfirm the current order total before fulfillment.');
             }
