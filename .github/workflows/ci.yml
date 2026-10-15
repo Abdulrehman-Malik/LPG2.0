@@ -92,6 +92,49 @@ jobs:
           LPG_DB_NAME: perfect_lpg
         run: php spark migrations:run
 
+      - name: Seed disposable mobile API test catalog
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root perfect_lpg <<'SQL'
+          INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+          SELECT l.id,'gas_per_kg',NULL,100.0000,'2026-01-01 00:00:00',NULL,u.id
+          FROM locations l JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+            AND NOT EXISTS (
+              SELECT 1 FROM rate_cards rc
+              WHERE rc.location_id=l.id AND rc.rate_type='gas_per_kg'
+                AND rc.cylinder_type_id IS NULL
+                AND rc.effective_from <= NOW()
+                AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
+            );
+
+          INSERT INTO business_catalog_products(
+            business_id,cylinder_type_id,sale_mode,display_name,description,
+            quantity_unit,min_quantity,quantity_step,is_active,sort_order,created_by,updated_by
+          )
+          SELECT l.business_id,ct.id,'sell_gas_only','QA Mobile Gas',
+                 'Disposable CI API smoke-test product','kg',1.000,1.000,1,999,u.id,u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE
+            display_name=VALUES(display_name),description=VALUES(description),
+            quantity_unit=VALUES(quantity_unit),min_quantity=1.000,
+            quantity_step=1.000,is_active=1,updated_by=VALUES(updated_by);
+
+          INSERT INTO shop_product_availability(business_id,location_id,business_catalog_product_id,is_active,updated_by)
+          SELECT l.business_id,l.id,p.id,1,u.id
+          FROM locations l
+          JOIN business_catalog_products p ON p.business_id=l.business_id
+          JOIN cylinder_types ct ON ct.id=p.cylinder_type_id AND ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN' AND p.sale_mode='sell_gas_only'
+          ON DUPLICATE KEY UPDATE is_active=1,updated_by=VALUES(updated_by);
+          SQL
+
       - name: CodeIgniter smoke check
         env:
           CI_ENVIRONMENT: testing
@@ -147,7 +190,7 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-6]' --reporter=line,json
 
       - name: Upload Playwright runtime QA evidence
         if: always()
