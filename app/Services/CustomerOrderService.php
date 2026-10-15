@@ -800,6 +800,76 @@ class CustomerOrderService
         ];
     }
 
+    /**
+     * Validate an already-posted order before returning an idempotent fulfillment response.
+     * This method is called with the customer_orders row locked in an active transaction.
+     */
+    protected function completedFulfillmentReplay(array $order, int $userId): array
+    {
+        $orderId = (int) $order['id'];
+        $shopId = (int) $order['location_id'];
+        $customerId = (int) $order['customer_id'];
+        $posSaleId = (int) ($order['pos_sale_id'] ?? 0);
+        $saleByOrder = $this->db->table('sales')
+            ->where('customer_order_id', $orderId)
+            ->get()->getRowArray();
+
+        if ((string) $order['status'] !== 'completed') {
+            throw new RuntimeException('Customer order and POS sale states disagree; manual review is required.');
+        }
+
+        if ($posSaleId > 0) {
+            $saleById = $this->db->table('sales')->where('id', $posSaleId)->get()->getRowArray();
+            if (!$saleById
+                || (int) ($saleById['customer_order_id'] ?? 0) !== $orderId
+                || !$saleByOrder
+                || (int) $saleByOrder['id'] !== $posSaleId) {
+                throw new RuntimeException('Customer order POS sale link is inconsistent; manual review is required.');
+            }
+            $sale = $saleById;
+        } else {
+            // Recover only the safe missing-pointer case: a completed order has exactly one
+            // posted sale that points back to it and matches its customer and shop.
+            $sale = $saleByOrder;
+            if (!$sale) {
+                throw new RuntimeException('Customer order is completed without a linked POS sale; manual review is required.');
+            }
+        }
+
+        if ((string) ($sale['status'] ?? '') !== 'posted'
+            || (int) ($sale['customer_order_id'] ?? 0) !== $orderId
+            || (int) ($sale['location_id'] ?? 0) !== $shopId
+            || (int) ($sale['customer_id'] ?? 0) !== $customerId) {
+            throw new RuntimeException('Customer order POS sale does not match the posted sale; manual review is required.');
+        }
+
+        if ($posSaleId === 0) {
+            $this->db->table('customer_orders')->where('id', $orderId)->update([
+                'pos_sale_id' => (int) $sale['id'],
+            ]);
+            $this->statusHistory(
+                $orderId,
+                (int) $order['business_id'],
+                'completed',
+                'completed',
+                'staff',
+                null,
+                $userId,
+                'Recovered the missing POS sale pointer for an already-completed order after validating the unique posted sale.',
+                null
+            );
+            if (!$this->db->transStatus()) {
+                throw new RuntimeException('The existing POS sale pointer could not be safely recovered; manual review is required.');
+            }
+        }
+
+        return [
+            'status' => 'completed',
+            'message' => 'This order has already been fulfilled.',
+            'order' => $this->orderById($orderId, null),
+        ];
+    }
+
     public function fulfill(int $userId, int $shopId, int $orderId, array $payload): array
     {
         if (!(new ShopScopeService())->canAccessShop($shopId, $userId)) {
@@ -810,8 +880,25 @@ class CustomerOrderService
             ->where(['id' => $orderId, 'location_id' => $shopId])
             ->get()->getRowArray();
         if (!$existingOrder) throw new RuntimeException('Order not found in this shop.');
-        if ((string) $existingOrder['status'] === 'completed' && !empty($existingOrder['pos_sale_id'])) {
-            return ['status' => 'completed', 'message' => 'This order has already been fulfilled.', 'order' => $this->orderById($orderId, null)];
+
+        // A completed order is an idempotent replay only when its POS link is internally consistent.
+        // Lock before reading the sale/order relationship so concurrent retries observe one outcome.
+        if ((string) $existingOrder['status'] === 'completed' || !empty($existingOrder['pos_sale_id'])) {
+            $this->db->transBegin();
+            try {
+                $lockedOrder = $this->db->query(
+                    'SELECT * FROM customer_orders WHERE id=? AND location_id=? LIMIT 1 FOR UPDATE',
+                    [$orderId, $shopId]
+                )->getRowArray();
+                if (!$lockedOrder) throw new RuntimeException('Order not found in this shop.');
+                $result = $this->completedFulfillmentReplay($lockedOrder, $userId);
+                if (!$this->db->transStatus()) throw new RuntimeException('Customer order fulfillment integrity check failed.');
+                $this->db->transCommit();
+                return $result;
+            } catch (\\Throwable $e) {
+                $this->db->transRollback();
+                throw $e;
+            }
         }
 
         $requestedLines = is_array($payload['fulfillment_lines'] ?? null) ? $payload['fulfillment_lines'] : [];
@@ -840,9 +927,11 @@ class CustomerOrderService
                 [$orderId, $shopId]
             )->getRowArray();
             if (!$order) throw new RuntimeException('Order not found in this shop.');
-            if ((string) $order['status'] === 'completed' && !empty($order['pos_sale_id'])) {
+            if ((string) $order['status'] === 'completed' || !empty($order['pos_sale_id'])) {
+                $result = $this->completedFulfillmentReplay($order, $userId);
+                if (!$this->db->transStatus()) throw new RuntimeException('Customer order fulfillment integrity check failed.');
                 $this->db->transCommit();
-                return ['status' => 'completed', 'message' => 'This order has already been fulfilled.', 'order' => $this->orderById($orderId, null)];
+                return $result;
             }
             if (!in_array((string) $order['status'], ['accepted', 'preparing', 'ready', 'out_for_delivery'], true)) {
                 throw new RuntimeException('Only an accepted order can be fulfilled.');
