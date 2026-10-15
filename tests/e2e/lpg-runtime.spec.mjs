@@ -347,3 +347,188 @@ test('E2E-023 Browser customer order queue renders without bypassing login or pa
   await expect(page.locator('body')).toContainText('No customer orders match this filter.');
   expect(pageErrors).toEqual([]);
 });
+
+
+test('E2E-024 Mobile API health, public registration discovery, and auth guards', async ({ request }) => {
+  const health = await request.get('/api/v1/health');
+  expect(health.status()).toBe(200);
+  expect((await health.json()).status).toBe('ok');
+
+  const shops = await request.get('/api/v1/customer/auth/shops');
+  expect(shops.status()).toBe(200);
+  const shopPayload = await shops.json();
+  expect(Array.isArray(shopPayload.data?.shops)).toBe(true);
+
+  const customerMe = await request.get('/api/v1/customer/me');
+  expect(customerMe.status()).toBe(401);
+  const staffMe = await request.get('/api/v1/staff/me');
+  expect(staffMe.status()).toBe(401);
+
+  const invalidLogin = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'definitely-not-the-password' }
+  });
+  expect(invalidLogin.status()).toBe(401);
+});
+
+test('E2E-025 Staff API token refresh rotation and logout revocation', async ({ request }) => {
+  const login = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'admin123' }
+  });
+  expect(login.status()).toBe(200);
+  const loginPayload = await login.json();
+  const originalTokens = loginPayload.data?.tokens;
+  expect(originalTokens?.access_token).toMatch(/^[a-f0-9]{64}$/);
+  expect(originalTokens?.refresh_token).toBeTruthy();
+
+  const auth = token => ({ Authorization: 'Bearer ' + token });
+  const me = await request.get('/api/v1/staff/me', { headers: auth(originalTokens.access_token) });
+  expect(me.status()).toBe(200);
+
+  const refreshed = await request.post('/api/v1/staff/auth/refresh', {
+    data: { refresh_token: originalTokens.refresh_token }
+  });
+  expect(refreshed.status()).toBe(200);
+  const rotatedTokens = (await refreshed.json()).data?.tokens;
+  expect(rotatedTokens?.access_token).toMatch(/^[a-f0-9]{64}$/);
+  expect(rotatedTokens.access_token).not.toBe(originalTokens.access_token);
+
+  const replayedRefresh = await request.post('/api/v1/staff/auth/refresh', {
+    data: { refresh_token: originalTokens.refresh_token }
+  });
+  expect(replayedRefresh.status()).toBe(401);
+
+  const logout = await request.post('/api/v1/staff/auth/logout', {
+    headers: auth(rotatedTokens.access_token)
+  });
+  expect(logout.status()).toBe(200);
+
+  const afterLogout = await request.get('/api/v1/staff/me', {
+    headers: auth(rotatedTokens.access_token)
+  });
+  expect(afterLogout.status()).toBe(401);
+});
+
+test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent order lifecycle', async ({ request }) => {
+  const staffLogin = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'admin123' }
+  });
+  expect(staffLogin.status()).toBe(200);
+  const staffData = (await staffLogin.json()).data;
+  const staffToken = staffData.tokens.access_token;
+  const shopId = Number(staffData.current_shop_id);
+  expect(shopId).toBeGreaterThan(0);
+  const staffHeaders = {
+    Authorization: 'Bearer ' + staffToken,
+    'X-Shop-Id': String(shopId)
+  };
+
+  const publicShopsResponse = await request.get('/api/v1/customer/auth/shops');
+  expect(publicShopsResponse.status()).toBe(200);
+  const publicShops = (await publicShopsResponse.json()).data?.shops || [];
+  expect(publicShops.some(shop => Number(shop.id) === shopId)).toBe(true);
+
+  const unique = Date.now().toString();
+  const username = 'qa_mobile_' + unique;
+  const password = 'QA-Mobile-Strong-123!';
+  const signup = await request.post('/api/v1/customer/auth/signup', {
+    data: {
+      shop_id: shopId,
+      username,
+      password,
+      customer_name: 'QA Mobile Customer',
+      phone: '03000000000',
+      city: 'Lahore',
+      address: '1 QA Test Street'
+    }
+  });
+  expect(signup.status()).toBe(202);
+  const signupData = await signup.json();
+  expect(signupData.status).toBe('pending_approval');
+  expect(signupData.request_id).toBeTruthy();
+
+  const approval = await request.post('/api/v1/staff/customer-signups/' + signupData.request_id + '/approve', {
+    headers: staffHeaders,
+    data: {}
+  });
+  expect(approval.status()).toBe(200);
+
+  const customerLogin = await request.post('/api/v1/customer/auth/login', {
+    data: { username, password }
+  });
+  expect(customerLogin.status()).toBe(200);
+  const customerTokens = (await customerLogin.json()).data?.tokens;
+  expect(customerTokens?.access_token).toMatch(/^[a-f0-9]{64}$/);
+  const customerHeaders = { Authorization: 'Bearer ' + customerTokens.access_token };
+
+  const me = await request.get('/api/v1/customer/me', { headers: customerHeaders });
+  expect(me.status()).toBe(200);
+  const customer = (await me.json()).data?.customer;
+  expect(Number(customer.shop.id)).toBe(shopId);
+  expect(Number(customer.business.id)).toBeGreaterThan(0);
+
+  const catalogResponse = await request.get('/api/v1/customer/products', { headers: customerHeaders });
+  expect(catalogResponse.status()).toBe(200);
+  const catalog = (await catalogResponse.json()).data;
+  expect(Number(catalog.shop.id)).toBe(shopId);
+  const product = (catalog.products || []).find(item => item.sale_mode === 'sell_gas_only' && item.price?.price_available === true);
+  expect(product, 'CI must seed one priced gas-only catalog product').toBeTruthy();
+
+  const ordersResponse = await request.get('/api/v1/customer/orders', { headers: customerHeaders });
+  expect(ordersResponse.status()).toBe(200);
+  expect(Array.isArray((await ordersResponse.json()).data?.orders)).toBe(true);
+
+  const idempotencyKey = 'qa-order-' + unique;
+  const orderPayload = {
+    fulfilment_method: 'delivery',
+    delivery_address: '1 QA Test Street',
+    delivery_city: 'Lahore',
+    customer_notes: 'Automated API smoke test',
+    items: [{ product_id: Number(product.id), quantity: 2 }]
+  };
+  const firstOrderResponse = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': idempotencyKey },
+    data: orderPayload
+  });
+  expect(firstOrderResponse.status()).toBe(201);
+  const firstOrder = (await firstOrderResponse.json()).data?.order;
+  expect(firstOrder?.status).toBe('pending');
+  expect(firstOrder?.pos_sale_id).toBeFalsy();
+
+  const retryResponse = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': idempotencyKey },
+    data: orderPayload
+  });
+  expect(retryResponse.status()).toBe(201);
+  const retriedOrder = (await retryResponse.json()).data?.order;
+  expect(Number(retriedOrder.id)).toBe(Number(firstOrder.id));
+
+  const reusedKeyResponse = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': idempotencyKey },
+    data: { ...orderPayload, items: [{ product_id: Number(product.id), quantity: 3 }] }
+  });
+  expect(reusedKeyResponse.status()).toBe(409);
+  expect((await reusedKeyResponse.json()).error?.code).toBe('IDEMPOTENCY_KEY_REUSED');
+
+  const staffOrdersResponse = await request.get('/api/v1/staff/orders', { headers: staffHeaders });
+  expect(staffOrdersResponse.status()).toBe(200);
+  const staffOrders = (await staffOrdersResponse.json()).data?.orders || [];
+  expect(staffOrders.some(order => Number(order.id) === Number(firstOrder.id))).toBe(true);
+
+  const accept = await request.post('/api/v1/staff/orders/' + firstOrder.id + '/status', {
+    headers: staffHeaders,
+    data: { status: 'accepted' }
+  });
+  expect(accept.status()).toBe(200);
+  expect((await accept.json()).data?.order?.status).toBe('accepted');
+
+  const customerOrder = await request.get('/api/v1/customer/orders/' + firstOrder.id, { headers: customerHeaders });
+  expect(customerOrder.status()).toBe(200);
+  const visibleOrder = (await customerOrder.json()).data?.order;
+  expect(visibleOrder?.status).toBe('accepted');
+  expect(visibleOrder?.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
+
+  const logout = await request.post('/api/v1/customer/auth/logout', { headers: customerHeaders });
+  expect(logout.status()).toBe(200);
+  const revoked = await request.get('/api/v1/customer/me', { headers: customerHeaders });
+  expect(revoked.status()).toBe(401);
+});
