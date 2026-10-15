@@ -486,6 +486,37 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(Number(customer.shop.id)).toBe(shopId);
   expect(Number(customer.business.id)).toBeGreaterThan(0);
 
+  // Exercise the business/shop configuration and catalog services used by the staff app.
+  for (const url of [
+    '/api/v1/staff/configuration/application',
+    '/api/v1/staff/configuration/businesses/' + customer.business.id,
+    '/api/v1/staff/configuration/shops/' + shopId,
+    '/api/v1/staff/businesses',
+    '/api/v1/staff/businesses/' + customer.business.id + '/shops',
+    '/api/v1/staff/businesses/' + customer.business.id + '/catalog',
+    '/api/v1/staff/shops/' + shopId + '/products'
+  ]) {
+    const response = await request.get(url, { headers: staffHeaders });
+    expect(response.status(), 'GET ' + url).toBe(200);
+  }
+
+  // Provision a second shop under the same business and verify default shop records are created.
+  const secondShopName = 'QA API Second Shop ' + unique.slice(-4);
+  const createSecondShop = await request.post('/api/v1/staff/businesses/' + customer.business.id + '/shops', {
+    headers: staffHeaders,
+    data: {
+      code: 'QA' + unique.slice(-8).toUpperCase(),
+      name: secondShopName,
+      city: 'Lahore'
+    }
+  });
+  expect(createSecondShop.status()).toBe(201);
+  const secondShopId = Number((await createSecondShop.json()).data?.shop_id);
+  expect(secondShopId).toBeGreaterThan(0);
+  const shopsAfterCreate = await request.get('/api/v1/staff/businesses/' + customer.business.id + '/shops', { headers: staffHeaders });
+  expect(shopsAfterCreate.status()).toBe(200);
+  expect(((await shopsAfterCreate.json()).data?.shops || []).some(shop => Number(shop.id) === secondShopId)).toBe(true);
+
   const catalogResponse = await request.get('/api/v1/customer/products', { headers: customerHeaders });
   expect(catalogResponse.status()).toBe(200);
   const catalog = (await catalogResponse.json()).data;
@@ -568,6 +599,9 @@ test('E2E-027 Staff API rejects cross-shop scope overrides and platform-only bus
   const otherShop = shops.find(shop => shop.business_name === 'QA Isolation Business');
   expect(otherShop, 'CI must seed a second business and shop').toBeTruthy();
   expect(Number(otherShop.id)).not.toBe(Number(staff.current_shop_id));
+  const siblingShop = shops.find(shop => shop.name.startsWith('QA API Second Shop '));
+  expect(siblingShop, 'The first API test must provision a second shop under the main business').toBeTruthy();
+  expect(Number(siblingShop.id)).not.toBe(Number(staff.current_shop_id));
 
   const headers = {
     Authorization: 'Bearer ' + staff.tokens.access_token,
@@ -576,6 +610,12 @@ test('E2E-027 Staff API rejects cross-shop scope overrides and platform-only bus
   const crossShopOrders = await request.get('/api/v1/staff/orders', { headers });
   expect(crossShopOrders.status()).toBe(403);
   expect((await crossShopOrders.json()).error?.code).toBe('SHOP_ACCESS_DENIED');
+
+  const siblingShopOrders = await request.get('/api/v1/staff/orders', {
+    headers: { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(siblingShop.id) }
+  });
+  expect(siblingShopOrders.status()).toBe(403);
+  expect((await siblingShopOrders.json()).error?.code).toBe('SHOP_ACCESS_DENIED');
 
   const crossBusinessSettings = await request.get('/api/v1/staff/configuration/shops/' + otherShop.id, { headers });
   expect(crossBusinessSettings.status()).toBe(403);
