@@ -45,8 +45,8 @@ class Orders extends Controller
         if (str_contains($message, 'not found')) {
             return $this->apiError(404, 'ORDER_NOT_FOUND', $message);
         }
-        if (str_contains($message, 'currently unavailable')) {
-            return $this->apiError(403, 'ORDERING_UNAVAILABLE', $message);
+        if (str_contains($message, 'currently unavailable') || str_contains($message, 'no longer active')) {
+            return $this->apiError(403, 'ORDERING_UNAVAILABLE', 'Customer ordering is unavailable because the customer, shop, or business is inactive or disabled.');
         }
         if (str_contains($message, 'reconfirmation') || str_contains($message, 'quantity') || str_contains($message, 'required') || str_contains($message, 'Choose') || str_contains($message, 'between')) {
             return $this->apiError(422, 'VALIDATION_FAILED', $message);
