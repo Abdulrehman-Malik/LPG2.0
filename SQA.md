@@ -749,3 +749,26 @@ For each PQA row, link the detailed individual page/case IDs and evidence in the
 **Fix found by these tests:** Access-token creation time is now written explicitly in the application timezone so the token's creation and expiry boundaries are evaluated consistently. Logout now returns a JSON `200` response after revoking the session, which is reliable for mobile API clients.
 
 This is evidence for the listed CI scenarios only. It does **not** mark the complete PQA01–PQA12 route-by-route suite or concurrency/reversal cases as passed. Those still require their own execution evidence, and WP-10 still needs full two-shop pilot/owner acceptance before release.
+
+
+## Mobile-ordering security regression evidence — 2026-10-15
+
+**Result:** PASS for the selected automated runtime suite.  
+**Commit tested:** `e80e12f9700848e7f5df746f387ef5b64466951f`  
+**GitHub Actions:** [Run 38699695263](https://github.com/Abdulrehman-Malik/LPG2.0/actions/runs/38699695263)  
+**Environment:** Disposable MySQL 8 CI database, PHP 8.2, CodeIgniter server and Playwright Chromium. No production database was used.
+
+The run passed PHP syntax validation, schema bootstrap, application migration gate, PHPUnit, and all **23 Playwright tests**.
+
+Additional regression coverage verified:
+
+| Case | Coverage | Actual result | Status |
+|---|---|---|---|
+| E2E-007 | Zero-quantity gas sale is rejected after valid source-cylinder setup | Validation message shown; no sale posted | PASS |
+| E2E-026 | Customer signup/approval, shop-scoped catalog and order creation, idempotent retry and reused-key conflict, disabled shop ordering, unavailable catalog product, malformed idempotency key, and acceptance without POS posting | Expected API responses observed, including 403 for disabled ordering, 409 for stale catalog product, and 422 for malformed idempotency key | PASS |
+| E2E-026 ownership checks | A second approved customer in the same shop attempts to read and cancel another customer’s order | Both requests returned 404; order ownership was enforced server-side | PASS |
+| E2E-027 | Staff attempts to override shop scope for a sibling shop or a different business | Cross-scope requests denied as expected | PASS |
+
+The order lifecycle checks also confirmed that creating or accepting a customer order does not itself link a POS sale. The existing validated POS fulfilment path remains the posting boundary.
+
+This evidence covers the listed automated cases only. It does **not** mark the complete page-by-page PQA01–PQA16 suite, concurrency/reversal tests, Flutter device QA, or the two-shop owner pilot as complete.
