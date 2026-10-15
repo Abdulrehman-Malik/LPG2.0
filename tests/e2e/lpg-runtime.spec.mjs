@@ -392,10 +392,10 @@ test('E2E-025 Staff API token refresh rotation and logout revocation', async ({ 
   expect(rotatedTokens?.access_token).toMatch(/^[a-f0-9]{64}$/);
   expect(rotatedTokens.access_token).not.toBe(originalTokens.access_token);
 
-  const replayedRefresh = await request.post('/api/v1/staff/auth/refresh', {
-    data: { refresh_token: originalTokens.refresh_token }
+  const rotatedMe = await request.get('/api/v1/staff/me', {
+    headers: auth(rotatedTokens.access_token)
   });
-  expect(replayedRefresh.status()).toBe(401);
+  expect(rotatedMe.status()).toBe(200);
 
   const logout = await request.post('/api/v1/staff/auth/logout', {
     headers: auth(rotatedTokens.access_token)
@@ -406,6 +406,26 @@ test('E2E-025 Staff API token refresh rotation and logout revocation', async ({ 
     headers: auth(rotatedTokens.access_token)
   });
   expect(afterLogout.status()).toBe(401);
+
+  // Reusing a consumed refresh token must revoke that token family.
+  const secondLogin = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'admin123' }
+  });
+  expect(secondLogin.status()).toBe(200);
+  const secondTokens = (await secondLogin.json()).data?.tokens;
+  const secondRefresh = await request.post('/api/v1/staff/auth/refresh', {
+    data: { refresh_token: secondTokens.refresh_token }
+  });
+  expect(secondRefresh.status()).toBe(200);
+  const secondRotated = (await secondRefresh.json()).data?.tokens;
+  const replayedRefresh = await request.post('/api/v1/staff/auth/refresh', {
+    data: { refresh_token: secondTokens.refresh_token }
+  });
+  expect(replayedRefresh.status()).toBe(401);
+  const replayRevokedSession = await request.get('/api/v1/staff/me', {
+    headers: auth(secondRotated.access_token)
+  });
+  expect(replayRevokedSession.status()).toBe(401);
 });
 
 test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent order lifecycle', async ({ request }) => {
