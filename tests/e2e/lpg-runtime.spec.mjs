@@ -690,6 +690,27 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
     expect(restore.status(), 'shop order setting must be restored after the disabled-ordering regression test').toBe(200);
   }
 
+  // A stale customer catalog must yield a product conflict, not a generic server error.
+  const deactivateProduct = await request.post('/api/v1/staff/shops/' + shopId + '/products/' + product.id + '/availability', {
+    headers: staffHeaders,
+    data: { is_active: false }
+  });
+  expect(deactivateProduct.status()).toBe(200);
+  try {
+    const staleProductOrder = await request.post('/api/v1/customer/orders', {
+      headers: { ...customerHeaders, 'Idempotency-Key': 'qa-stale-product-' + unique },
+      data: orderPayload
+    });
+    expect(staleProductOrder.status()).toBe(409);
+    expect((await staleProductOrder.json()).error?.code).toBe('ORDER_PRODUCT_UNAVAILABLE');
+  } finally {
+    const restoreProduct = await request.post('/api/v1/staff/shops/' + shopId + '/products/' + product.id + '/availability', {
+      headers: staffHeaders,
+      data: { is_active: true }
+    });
+    expect(restoreProduct.status(), 'catalog availability must be restored after the stale-catalog regression test').toBe(200);
+  }
+
   const logout = await request.post('/api/v1/customer/auth/logout', { headers: customerHeaders });
   expect(logout.status()).toBe(200);
   const revoked = await request.get('/api/v1/customer/me', { headers: customerHeaders });
