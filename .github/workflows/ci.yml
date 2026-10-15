@@ -186,7 +186,7 @@ jobs:
             address=VALUES(address),credit_limit=50,allow_credit_sale=1,opening_balance=0,is_active=1;
 
           UPDATE shop_settings
-          SET individual_cylinder_tracking=1,allow_pos_source_cylinder_selection=1,credit_limit_validation_mode='customer'
+          SET individual_cylinder_tracking=1,allow_pos_source_cylinder_selection=1,default_gas_entry_mode='quantity',credit_limit_validation_mode='customer'
           WHERE location_id=(SELECT id FROM locations WHERE code='MAIN');
 
           INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
