@@ -110,6 +110,20 @@ jobs:
                 AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
             );
 
+          INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+          SELECT l.id,'cylinder_package',ct.id,250.0000,'2026-01-01 00:00:00',NULL,u.id
+          FROM locations l
+          JOIN cylinder_types ct ON ct.code='C6'
+          JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+            AND NOT EXISTS (
+              SELECT 1 FROM rate_cards rc
+              WHERE rc.location_id=l.id AND rc.rate_type='cylinder_package'
+                AND rc.cylinder_type_id=ct.id
+                AND rc.effective_from <= NOW()
+                AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
+            );
+
           INSERT INTO business_catalog_products(
             business_id,cylinder_type_id,sale_mode,display_name,description,
             quantity_unit,min_quantity,quantity_step,is_active,sort_order,created_by,updated_by
@@ -252,6 +266,47 @@ jobs:
             AND NOT EXISTS (SELECT 1 FROM inventory_movements im
               WHERE im.source_type='qa_order_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
 
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-ORDER-FILLED-C6-001','filled',6.000,'qa_order_filled_seed',u.id
+          FROM locations l JOIN cylinder_types ct ON ct.code='C6' JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
+            gas_weight_kg=6.000,source_type='qa_order_filled_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+            'Disposable filled-cylinder order QA fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_filled_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'gas_kg',NULL,6.000,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+            'Disposable filled-cylinder order QA gas fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_filled_seed' AND im.source_id=cu.id AND im.inventory_type='gas_kg');
+
+          INSERT INTO cylinder_units(location_id,cylinder_type_id,unit_code,status,gas_weight_kg,source_type,created_by)
+          SELECT l.id,ct.id,'QA-ORDER-EMPTY-C6-001','empty',0.000,'qa_order_empty_seed',u.id
+          FROM locations l JOIN cylinder_types ct ON ct.code='C6' JOIN users u ON u.username='admin'
+          WHERE l.code='MAIN'
+          ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='empty',
+            gas_weight_kg=0.000,source_type='qa_order_empty_seed',created_by=VALUES(created_by);
+
+          INSERT INTO inventory_movements(location_id,inventory_type,cylinder_type_id,quantity,direction,
+            source_type,source_id,cylinder_unit_id,created_by,notes)
+          SELECT cu.location_id,'empty_cylinder',cu.cylinder_type_id,1,'in','qa_order_empty_seed',cu.id,cu.id,u.id,
+            'Disposable empty-cylinder order QA fixture'
+          FROM cylinder_units cu JOIN users u ON u.username='admin'
+          WHERE cu.unit_code='QA-ORDER-EMPTY-C6-001'
+            AND NOT EXISTS (SELECT 1 FROM inventory_movements im
+              WHERE im.source_type='qa_order_empty_seed' AND im.source_id=cu.id AND im.inventory_type='empty_cylinder');
+
           INSERT INTO cash_sessions(register_id,opened_by,opening_cash,status,notes)
           SELECT cr.id,u.id,0,'open','Disposable Playwright POS regression session'
           FROM cash_registers cr
@@ -317,7 +372,7 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-8]' --reporter=line,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-9]' --reporter=line,json
 
       - name: Assert customer-order POS linkage integrity in disposable CI database
         if: always()
@@ -354,6 +409,24 @@ jobs:
             exit 1
           fi
           echo "Customer-order / POS sale links are consistent."
+
+          line_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM customer_orders o
+            JOIN customer_order_items oi ON oi.order_id=o.id
+            LEFT JOIN sales s ON s.customer_order_id=o.id
+            LEFT JOIN sale_items si ON si.sale_id=s.id AND si.line_no=oi.line_no
+            WHERE o.status='completed'
+              AND (si.id IS NULL
+                OR ABS(si.quantity-oi.quantity)>0.001
+                OR ABS(si.gas_weight_kg-oi.estimated_gas_kg)>0.001
+                OR ABS(si.line_total-oi.line_total)>0.01);
+          ")"
+          if [ "$line_mismatches" != "0" ]; then
+            echo "Completed customer-order sale lines with quantity, gas-weight, or total mismatches: $line_mismatches"
+            exit 1
+          fi
+          echo "Customer-order POS line quantities, actual gas weights, and line totals reconcile."
           
       - name: Upload Playwright runtime QA evidence
         if: always()
