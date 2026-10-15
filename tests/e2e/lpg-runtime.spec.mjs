@@ -235,7 +235,7 @@ test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
   const line=page.locator('#lines tbody tr').first();
   await selectOptionByTextPrefix(line.locator('.cyl'), 'C6 — 6 kg');
   await expect(line.locator('.sourceCyl')).toBeEnabled();
-  await line.locator('.sourceCyl').selectOption({label:/QA-E2E-C6-001/});
+  await selectOptionByTextPrefix(line.locator('.sourceCyl'), 'QA-E2E-C6-001');
   await line.locator('.entryValue').fill('2');
   const total=await page.locator('#saleTotal').innerText();
   expect(Number(total)).toBeGreaterThan(0);
