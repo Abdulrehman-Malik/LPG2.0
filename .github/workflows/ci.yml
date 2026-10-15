@@ -319,6 +319,42 @@ jobs:
           cd tests/e2e
           PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-8]' --reporter=line,json
 
+      - name: Assert customer-order POS linkage integrity in disposable CI database
+        if: always()
+        env:
+          MYSQL_PWD: root
+        shell: bash
+        run: |
+          set -euo pipefail
+          completed_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM customer_orders o
+            LEFT JOIN sales s ON s.id=o.pos_sale_id
+            WHERE o.status='completed'
+              AND (o.pos_sale_id IS NULL OR s.id IS NULL OR s.status<>'posted'
+                OR s.customer_order_id<>o.id OR s.location_id<>o.location_id
+                OR s.customer_id<>o.customer_id);
+          ")"
+          if [ "$completed_mismatches" != "0" ]; then
+            echo "Completed customer orders with missing or inconsistent POS sale links: $completed_mismatches"
+            exit 1
+          fi
+
+          linked_sale_mismatches="$(mysql -N -h 127.0.0.1 -P 3306 -u root perfect_lpg -e "
+            SELECT COUNT(*)
+            FROM sales s
+            LEFT JOIN customer_orders o ON o.id=s.customer_order_id
+            WHERE s.customer_order_id IS NOT NULL
+              AND (o.id IS NULL OR o.pos_sale_id IS NULL OR o.pos_sale_id<>s.id
+                OR o.status<>'completed' OR s.status<>'posted'
+                OR s.location_id<>o.location_id OR s.customer_id<>o.customer_id);
+          ")"
+          if [ "$linked_sale_mismatches" != "0" ]; then
+            echo "POS sales with inconsistent customer-order links: $linked_sale_mismatches"
+            exit 1
+          fi
+          echo "Customer-order / POS sale links are consistent."
+          
       - name: Upload Playwright runtime QA evidence
         if: always()
         uses: actions/upload-artifact@v4
