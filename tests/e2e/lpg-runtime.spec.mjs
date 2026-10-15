@@ -548,7 +548,7 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(visibleOrder?.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
 
   const logout = await request.post('/api/v1/customer/auth/logout', { headers: customerHeaders });
-  expect(logout.status()).toBe(200);
+  expect(logout.status()).toBe(204);
   const revoked = await request.get('/api/v1/customer/me', { headers: customerHeaders });
   expect(revoked.status()).toBe(401);
 });
