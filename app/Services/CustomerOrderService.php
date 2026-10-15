@@ -947,6 +947,7 @@ class CustomerOrderService
 
             $quoteInput = [];
             $saleLines = [];
+            $reservedPhysicalUnitIds = [];
             foreach ($oldItems as $item) {
                 $lineNo = (int) $item['line_no'];
                 if (!isset($lineSelections[$lineNo])) throw new RuntimeException('Missing fulfillment selection for order line ' . $lineNo . '.');
@@ -964,6 +965,18 @@ class CustomerOrderService
                     throw new RuntimeException('Select a filled source cylinder for gas line ' . $lineNo . '.');
                 }
 
+                // A physical cylinder can be assigned to only one sale line in the order.
+                // This also prevents the same filled unit being used as both a gas source and
+                // a full-cylinder sale in a mixed-mode order.
+                $lineUnitIds = $mode === 'sell_gas_only' ? [$sourceId] : $selectedIds;
+                foreach ($lineUnitIds as $unitId) {
+                    if ($unitId <= 0) continue;
+                    if (isset($reservedPhysicalUnitIds[$unitId])) {
+                        throw new RuntimeException('Physical cylinder selection overlaps with another order line (cylinder ID ' . $unitId . '). Select a different cylinder for each line.');
+                    }
+                    $reservedPhysicalUnitIds[$unitId] = $lineNo;
+                }
+
                 $quoteInput[] = [
                     'product_id' => (int) $item['business_catalog_product_id'],
                     'quantity' => $quantity,
@@ -974,7 +987,9 @@ class CustomerOrderService
                     'sale_mode' => $mode,
                     'cylinder_type_id' => (int) $item['cylinder_type_id'],
                     'quantity' => $quantity,
-                    'gas_weight_kg' => $quantity,
+                    // Use the confirmed order quote, not cylinder count, for gas-weight fields.
+                    // POS still rechecks selected physical units under its inventory locks.
+                    'gas_weight_kg' => (float) $item['estimated_gas_kg'],
                     'gas_rate' => (float) $item['gas_rate_snapshot'],
                     'cylinder_rate' => (float) $item['cylinder_rate_snapshot'],
                     'source_cylinder_unit_id' => $sourceId > 0 ? $sourceId : null,
