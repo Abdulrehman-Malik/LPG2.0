@@ -213,7 +213,12 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   // Reload so the assertion reads persisted stock from the server, not the pre-submit DOM.
   await page.reload({ waitUntil: 'networkidle' });
   const refreshedLine = page.locator('#lines tbody tr').first();
-  await refreshedLine.locator('.cyl').selectOption({ label: 'C6 — 6 kg' });
+  const refreshedCylinderType = await refreshedLine.locator('.cyl option').evaluateAll(options => {
+    const option = options.find(item => item.textContent.trim().startsWith('C6 — 6 kg'));
+    return option ? option.value : '';
+  });
+  expect(refreshedCylinderType, 'C6 cylinder type option was not available after reload').not.toBe('');
+  await refreshedLine.locator('.cyl').selectOption(refreshedCylinderType, { timeout: 5000 });
   await expect(refreshedLine.locator('.sourceCyl')).toContainText('QA-E2E-C6-001');
   await expect(refreshedLine.locator('.sourceCyl')).toContainText('6.00 KG');
 });
