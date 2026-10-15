@@ -97,7 +97,7 @@ Legend:
 **Implementation branch:** `feature/mobile-multishop-ordering`  
 **Planning branch:** `docs/mobile-multishop-final-plan`  
 **Main baseline:** `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6`  
-**Current status:** Web administration and the mobile backend/API foundation are implemented on this feature branch. CI validation is being extended for the newest changes; browser/database regression and two-shop pilot remain pending. `main` remains untouched.
+**Current status:** Web administration and the customer/staff API foundation are implemented on this feature branch. CI passes PHP/schema/PHPUnit checks plus selected Playwright browser, API session, customer-order and shop-isolation scenarios against a disposable MySQL database. Full route-by-route SQA, financial/inventory concurrency regression and the owner two-shop pilot remain pending. `main` remains untouched.
 
 ### Confirmed product decisions
 
@@ -141,7 +141,7 @@ Legend:
 - All work stays on `feature/mobile-multishop-ordering`; no direct commits to `main`.
 - No production database is queried or modified by this development workflow.
 - Preserve current POS, ledgers, receipts, deposits, cylinder custody, cash, inventory and custom-role behavior.
-- Do not report tests as PASS without execution evidence. CI covers PHP syntax, Composer, MySQL 8 schema/migration smoke checks and PHPUnit. Playwright browser tests and customer/staff API security scenarios must still be run against an explicitly provisioned safe QA environment; a green CI run is not browser/runtime proof.
+- Do not report tests as PASS without execution evidence. CI covers PHP syntax, Composer, MySQL 8 schema/migration smoke checks, PHPUnit, and selected Playwright browser/API runtime scenarios against disposable test data. Full route-by-route SQA, mobile-device validation, concurrency/reversal tests and owner acceptance still require separate evidence; CI is not proof that every page/device scenario passed.
 - Do not merge or deploy until all security, isolation, POS-regression and owner-acceptance gates pass.
 
 See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the detailed implementation plan](docs/mobile-multishop/09-implementation-plan-and-decision-register.md), and [centralized configuration requirements](docs/mobile-multishop/10-configuration-management.md).
