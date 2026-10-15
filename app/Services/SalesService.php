@@ -50,6 +50,24 @@ class SalesService
     }
 
     /**
+     * A previously posted sale may only be replayed or recovered when all financial and ownership
+     * fields still agree with the approved customer-order snapshot.
+     */
+    protected function assertCustomerOrderSaleMatches(array $order, array $sale, int $orderId, int $locationId): void
+    {
+        if ((string) ($sale['status'] ?? '') !== 'posted'
+            || (int) ($sale['customer_order_id'] ?? 0) !== $orderId
+            || (int) ($sale['location_id'] ?? 0) !== $locationId
+            || (int) ($sale['customer_id'] ?? 0) !== (int) $order['customer_id']
+            || abs((float) ($sale['subtotal'] ?? 0) - (float) $order['subtotal']) > 0.009
+            || abs((float) ($sale['discount_amount'] ?? 0) - (float) $order['discount_amount']) > 0.009
+            || abs((float) ($sale['delivery_fee_amount'] ?? 0) - (float) $order['delivery_fee']) > 0.009
+            || abs((float) ($sale['total_amount'] ?? 0) - (float) $order['total_amount']) > 0.009) {
+            throw new RuntimeException('Customer order POS sale link is inconsistent with the approved order totals; manual review is required.');
+        }
+    }
+
+    /**
      * Internal service entry point for validated customer-order fulfillment.
      * Delivery fees are accepted only through this path, never from a normal POS request.
      */
@@ -78,13 +96,7 @@ class SalesService
 
         $existing = $this->db->table('sales')->where('customer_order_id', $orderId)->get()->getRowArray();
         if ($existing) {
-            if ((string) $existing['status'] !== 'posted') {
-                throw new RuntimeException('The linked POS sale is not posted; manual review is required.');
-            }
-            if ((int) $existing['location_id'] !== $locationId
-                || (int) ($existing['customer_id'] ?? 0) !== (int) $order['customer_id']) {
-                throw new RuntimeException('The linked POS sale customer or shop does not match the order; manual review is required.');
-            }
+            $this->assertCustomerOrderSaleMatches($order, $existing, $orderId, $locationId);
             if (!empty($order['pos_sale_id']) && (int) $order['pos_sale_id'] !== (int) $existing['id']) {
                 throw new RuntimeException('Customer order is linked to a different POS sale.');
             }
@@ -96,6 +108,7 @@ class SalesService
                         [$orderId, $locationId]
                     )->getRowArray();
                     if (!$lockedOrder) throw new RuntimeException('Customer order was not found in this shop.');
+                    $this->assertCustomerOrderSaleMatches($lockedOrder, $existing, $orderId, $locationId);
                     if (!empty($lockedOrder['pos_sale_id']) && (int) $lockedOrder['pos_sale_id'] !== (int) $existing['id']) {
                         throw new RuntimeException('Customer order is linked to a different POS sale.');
                     }
@@ -345,6 +358,7 @@ class SalesService
                 if((string)$lockedOrder['status']==='completed' && !empty($lockedOrder['pos_sale_id'])){
                     $existingSale=$this->db->table('sales')->where(['id'=>(int)$lockedOrder['pos_sale_id'],'customer_order_id'=>$this->currentOrderId])->get()->getRowArray();
                     if($existingSale){
+                        $this->assertCustomerOrderSaleMatches($lockedOrder, $existingSale, (int)$this->currentOrderId, $locationId);
                         $this->db->transRollback();
                         return ['id'=>(int)$existingSale['id'],'sale_no'=>(string)$existingSale['sale_no'],'total'=>(float)$existingSale['total_amount'],'customer_id'=>(int)$existingSale['customer_id'],'credit_amount'=>(float)$existingSale['credit_amount'],'idempotent_replay'=>true];
                     }
