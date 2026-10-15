@@ -450,7 +450,7 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
     headers: staffHeaders,
     data: {}
   });
-  expect(approval.status()).toBe(200);
+  expect(approval.status()).toBe(201);
 
   const customerLogin = await request.post('/api/v1/customer/auth/login', {
     data: { username, password }
