@@ -914,6 +914,27 @@ class CustomerOrderService
             throw new RuntimeException('At least one payment is required to fulfill an order.');
         }
 
+        // Validate payment input against the customer-approved total before opening the
+        // fulfillment transaction or invoking POS. This keeps malformed/overpaid requests
+        // classified as client errors and guarantees they cannot reach inventory posting.
+        $paymentTotal = 0.0;
+        foreach ($payments as $payment) {
+            if (!is_array($payment)) {
+                throw new RuntimeException('Invalid payment entry.');
+            }
+            $paymentMode = (string) ($payment['payment_mode'] ?? '');
+            $paymentAmount = $payment['amount'] ?? null;
+            if (!in_array($paymentMode, ['cash', 'cheque', 'online', 'credit'], true)
+                || !is_numeric($paymentAmount)
+                || (float) $paymentAmount <= 0) {
+                throw new RuntimeException('Invalid payment details.');
+            }
+            $paymentTotal += (float) $paymentAmount;
+        }
+        if (abs(round($paymentTotal, 2) - (float) $existingOrder['total_amount']) > 0.01) {
+            throw new RuntimeException('Payment total must equal the approved order total.');
+        }
+
         $lineSelections = [];
         foreach ($requestedLines as $selection) {
             if (!is_array($selection)) throw new RuntimeException('Invalid fulfillment line selection.');
