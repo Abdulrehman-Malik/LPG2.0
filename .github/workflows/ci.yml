@@ -372,7 +372,13 @@ jobs:
           fi
           mkdir -p writable/runtime-qa
           cd tests/e2e
-          PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-9]|E2E-030' --reporter=line,json
+          if ! PLAYWRIGHT_JSON_OUTPUT_NAME=../../writable/runtime-qa/playwright-results.json npx playwright test lpg-runtime.spec.mjs --grep 'E2E-00[1-9]|E2E-01[0-4]|E2E-02[0-9]|E2E-030' --reporter=line,json; then
+            echo '--- CodeIgniter application logs ---'
+            find writable/logs -maxdepth 1 -type f -name '*.log' -print -exec tail -n 250 {} \; 2>/dev/null || true
+            echo '--- PHP server log ---'
+            tail -n 250 /tmp/lpg-playwright-server.log || true
+            exit 1
+          fi
 
       - name: Assert customer-order POS linkage integrity in disposable CI database
         if: always()
