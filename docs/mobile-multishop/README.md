@@ -1,5 +1,7 @@
 # Mobile App + Multi-Shop Ordering — Requirements Pack
 
+> **2026-10-15 owner decision:** Flutter mobile app development (Customer App, Business/Staff App) is **postponed** — see Phase 13 in `DEVELOPMENT_PLAN.md`. The back-office web application is the current priority. The multi-shop requirements in modules 02, 03 and 10 still apply to the web back office, and the `/api/v1` backend services are retained for the future apps.
+
 **Status:** The feature branch contains the customer/staff API foundation, scoped business/shop services, browser Business & Shops administration, Customer Ordering Catalog, Customer App Accounts and Customer Orders/fulfilment screens, plus initial Flutter client source flows. CI now verifies PHP/schema/PHPUnit checks and selected live Playwright browser/API flows for account approval, token lifecycle, idempotent ordering and cross-shop denial. Full route-by-route SQA, mobile/device testing and owner two-shop pilot remain required. Android/iOS runner projects/signing and store builds are not complete.
 **Working branch:** `feature/mobile-multishop-ordering`
 **Baseline:** `main` at `0ef0f3ff41eaa4aae1d66c4549892ab77f3898e6` (verified 2026-10-14). Do not modify `main` as part of this work.

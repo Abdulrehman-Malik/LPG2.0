@@ -5,6 +5,26 @@ Legend:
 - [/] In Progress
 - [x] Done
 - [!] Blocked / user business decision required
+- [~] Postponed by owner decision
+
+## Roadmap v2 — Back Office First (re-planned 2026-10-15)
+
+**Owner direction (2026-10-15):** the first priority is to complete the **multi-branch back-office web application**: review and correct the code logic, harden security, and modernize the UI/UX so it is attractive and easy to use. **Mobile app development (Flutter Customer App and Business/Staff App) is postponed.** The mobile-facing API and backend services already built in Phase 7 are **retained and maintained** so the apps can be built on them later without rework.
+
+**Working branch:** `feature/backoffice-completion` (from `main` at `4b0dc5e`). No merge to `main` without explicit owner approval.
+
+| Phase | Name | Priority | Status |
+|---|---|---|---|
+| 0–6 | Core POS / ERP foundation | — | Development complete; SQA execution pending |
+| 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
+| 8 | Stabilization & security hardening | P0 | [/] In progress |
+| 9 | Multi-branch back-office completion | P1 | [ ] Pending |
+| 10 | Code-logic review & refactoring | P1 | [ ] Pending |
+| 11 | UI/UX modernization | P1 | [ ] Pending |
+| 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
+| 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
+
+Phases 8–11 can overlap: Phase 8 must finish first because it fixes data-integrity and security defects. Phase 9 and 10 changes are done service-first so that the retained mobile API benefits from the same fixes. Phase 11 is done page by page after the page's logic has been reviewed.
 
 ## Phase 0 — Architecture
 - [x] Repository reviewed
@@ -121,10 +141,10 @@ Legend:
 - [x] WP-4 — order tables, state machine, status history, request idempotency, price reconfirmation, selected physical-cylinder snapshots and unique order-to-sale linkage.
 - [x] WP-5 — backend order/catalog/configuration services plus browser Order Management, Business/Shop administration, Customer App Account review and Catalog/Shop Availability pages.
 - [x] WP-6 — versioned Customer/Staff API, authentication/session lifecycle, permission/scope checks and CI schema assertions. Dedicated security/isolation runtime cases remain pending.
-- [ ] WP-7 — separate Customer App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
-- [ ] WP-8 — separate Business/Staff App (Flutter). Mobile screens/app packaging were explicitly excluded from this web/backend task.
+- [~] WP-7 — separate Customer App (Flutter). **Postponed 2026-10-15** — moved to Phase 13.
+- [~] WP-8 — separate Business/Staff App (Flutter). **Postponed 2026-10-15** — moved to Phase 13.
 - [x] WP-9 — POS fulfilment service integration uses the existing validated sale/cash/inventory/ledger posting path with idempotent order linkage. Financial/inventory regression execution remains pending in `SQA.md`.
-- [ ] WP-10 — two-shop pilot, release validation, owner acceptance and rollback plan.
+- [ ] WP-10 — two-shop pilot, release validation, owner acceptance and rollback plan. The **web back-office** part of the two-shop pilot moves to Phase 12; the mobile part moves to Phase 13.
 
 
 ### Web/backend delivery completed on this branch
@@ -145,6 +165,108 @@ Legend:
 - Do not merge or deploy until all security, isolation, POS-regression and owner-acceptance gates pass.
 
 See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the detailed implementation plan](docs/mobile-multishop/09-implementation-plan-and-decision-register.md), and [centralized configuration requirements](docs/mobile-multishop/10-configuration-management.md).
+
+## Phase 8 — Stabilization & Security Hardening (P0)
+
+**Goal:** fix the defects found in the 2026-10-15 architecture review before any new feature or UI work, so later phases build on correct posting logic. Every item needs a regression case in `SQA.md`.
+
+### 8.1 Security
+- [x] 8.1.1 Stop tracking the misnamed `..env` (it contained live hosted-database credentials); ignore all `.env` variants; the committed `env` file is the only configuration template (its example `app.baseURL` was corrected).
+- [!] 8.1.2 **Owner action:** rotate the exposed database password and any other secret that was in `..env`. Removing the file from the current tree does not remove it from Git history; purge history if the repository is or becomes public.
+- [x] 8.1.3 `POST migrations/run` no longer runs for anonymous visitors: it requires a signed-in System Administrator, or the documented installer flag (`FRESH_DATABASE_SETUP=true`) during a controlled first deployment.
+- [x] 8.1.4 Disabled users are signed out on their next request (the auth filter re-checks `users.is_active`).
+- [x] 8.1.5 Login throttling: repeated failed logins for the same login name / IP are temporarily blocked.
+- [x] 8.1.6 The web/CLI migration runner ignores `USE <database>;` statements found in older migration files, so a migration can never switch to and alter a different database on the same server (installs whose database is not named `perfect_lpg`).
+- [x] 8.1.7 The migration runner's SQL splitter ignores whole-line comments. Previously a `;` inside a comment (migration 039 header) split the statement, so 039 failed when applied by the web/CLI runner. CI did not catch it because CI pre-applies 039 with the `mysql` client. Verified locally: fresh schema + `php spark migrations:run` now completes.
+
+### 8.2 Permissions
+- [x] 8.2.1 `PermissionService::syncStandardRolePermissions()` no longer re-grants permissions that an administrator removed from a standard role. Default role grants are applied only when a permission code is first created.
+
+### 8.3 Posting integrity (SalesService)
+- [x] 8.3.1 Sales posting uses the shop passed by the caller, not the browser session. Fixes customer-balance and credit-limit checks for API order fulfilment, where there is no browser session.
+- [x] 8.3.2 Sale void refuses to restore a physical cylinder whose state changed after the sale (later sold, issued to custody, refilled, consumed). The void fails atomically and asks for a controlled stock adjustment instead of corrupting stock (SQA REV02).
+- [x] 8.3.3 Sale void no longer posts cash reversals into a closed cash session; the reversal goes to the shop's current open session (and requires one).
+- [x] 8.3.4 Security Deposit / Issue Cylinder: payment plan and credit-limit checks run inside the posting transaction after the customer row is locked.
+- [x] 8.3.5 Cylinder Return / Refund Deposit: refundable deposit balance is re-checked inside the transaction under the customer lock (prevents double refunds), and inventory locks are taken.
+- [ ] 8.3.6 Business-logic PHPUnit suite against a disposable MySQL database for the four POS types, void, credit modes and deposit refund (CI job).
+
+**Verification (2026-10-15):** items 8.1.1–8.3.5 were verified at runtime on a disposable local database. Each defect reproduced on the original code and passed after the fix (SQA.md, "Phase 8 stabilization & security regression", P8-01…P8-11). The 26-test Playwright regression and PHPUnit also pass. Remaining for Phase 8: owner credential rotation (8.1.2), the committed business-logic test suite (8.3.6), concurrency cases, and a CI run on MySQL 8.
+
+**Exit criteria:** all 8.x items done, regression cases recorded in `SQA.md`, CI green.
+
+## Phase 9 — Multi-Branch Back-Office Completion (P1)
+
+**Goal:** the web back office fully supports the approved hierarchy (Business → Head Office → Shops/branches; staff assigned to one or more shops; each customer belongs to one shop) with no cross-branch or cross-business data leakage, plus Head Office oversight. Requirements: `docs/mobile-multishop/02-business-shops-users-permissions.md`, `03-customer-accounts.md`, `10-configuration-management.md`.
+
+### 9.1 Branch-scope audit and fixes
+- [ ] 9.1.1 Audit every controller/service query for business/shop scope; record results in a scope register (`docs/branch-scope-register.md`).
+- [ ] 9.1.2 Fix known gaps: `Reports::ledger` loads the customer without a shop check; suppliers, cylinder types and expense categories are global tables.
+- [ ] 9.1.3 Suppliers become business-owned (migration 040, backward compatible). Supplier balances stay per shop.
+- [ ] 9.1.4 Cylinder types and expense categories: decide platform-wide vs business-owned (decision D9-1), then implement.
+
+### 9.2 Head Office oversight
+- [ ] 9.2.1 "All branches" view for users with business scope: consolidated dashboard with per-branch breakdown.
+- [ ] 9.2.2 Consolidated reports with a branch filter: sales, payment modes, purchases, expenses, cash, stock by branch, customer OS by branch, deposits/custody.
+- [ ] 9.2.3 Branch comparison report (sales, gas KG sold, margin indicators, cash variance).
+
+### 9.3 Branch administration UX
+- [ ] 9.3.1 Branch switcher in the top bar with a clear active-branch badge on every page and on printed receipts.
+- [ ] 9.3.2 Users screen: assign shops / Head Office scope and default branch when creating or editing a user (today this is split across screens).
+- [ ] 9.3.3 Branch onboarding checklist (settings, cash register, rates, opening stock, users).
+
+### 9.4 Decisions required
+- [!] D9-1 Are cylinder types and expense categories shared by all businesses, or owned per business?
+- [!] D9-2 Is inter-branch stock transfer (moving physical cylinders between shops of the same business) required? It is not in the current requirements; if yes, it becomes a new posting type with paired out/in movements.
+- [!] D9-3 Do branches share one supplier ledger per business, or keep separate supplier balances per branch? (Plan assumes business-owned suppliers with per-branch balances.)
+
+## Phase 10 — Code-Logic Review & Refactoring (P1)
+
+**Goal:** controllers stay thin, posting and reporting logic lives in services that can be reused by the API later, and pages are fast.
+
+- [ ] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
+- [ ] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
+- [ ] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
+- [ ] 10.4 Validate and normalize `transaction_at` (format, no far-future dates; back-dating policy decision D10-1).
+- [ ] 10.5 Concurrency-safe document numbering for sales and receipts (sequence table) instead of `MAX()+1` / timestamp+random.
+- [ ] 10.6 Retire or isolate the legacy five-mode POS path in `SalesService::post()`; it is still used by customer-order fulfilment. Move fulfilment onto the four header transaction types, then remove dead code.
+- [ ] 10.7 Split `SalesService` (1,700+ lines) into per-transaction-type posting classes sharing payment-plan, credit and inventory-lock components (aligned with the agent.md transaction-type isolation rule).
+- [ ] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
+- [!] D10-1 Is back-dated posting allowed? If yes, for which roles and how many days?
+
+## Phase 11 — UI/UX Modernization (P1)
+
+**Goal:** a consistent, attractive and fast back office that is easy for counter staff and managers, on desktop and tablet/mobile browsers.
+
+- [ ] 11.1 Design system: extract inline layout CSS into `public/assets/css/app.css`; define color, spacing, typography and radius tokens; standard components (page header with actions, KPI tile, card, data table, form section, empty state, status badge, confirm dialog, toast).
+- [ ] 11.2 App shell: grouped sidebar with icons and search, top bar with branch switcher, user menu and breadcrumbs, working dark mode, mobile off-canvas navigation.
+- [ ] 11.3 Dashboard redesign: KPI tiles, sales trend and payment-mix charts, stock alerts (low filled stock, partial cylinders), open cash session status, Head Office branch comparison.
+- [ ] 11.4 POS UX: keyboard-first entry, customer quick search, clear sticky totals/payment panel, large touch targets, clear errors before submit, print-friendly receipt (A4 and 80 mm).
+- [ ] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
+- [ ] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
+- [ ] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
+
+## Phase 12 — Back-Office SQA, UAT & Release (P1)
+
+- [ ] 12.1 Execute `PAGE_TEST_WORKFLOW.md` page by page (PQA01–PQA16 web rows) on a disposable staging database.
+- [ ] 12.2 Execute financial/concurrency/reversal cases (FIP01, INV01, CRL01/02, REV01/02) and the Phase 8 regression cases.
+- [ ] 12.3 Two-branch web pilot with the owner (WP-10, web part).
+- [ ] 12.4 Deployment runbook, backup/restore drill, rollback plan.
+- [ ] 12.5 Owner sign-off; merge to `main` only after approval.
+
+## Phase 13 — Mobile Apps (Postponed)
+
+**Status:** [~] Postponed by owner decision on 2026-10-15. Resume after Phase 12 sign-off.
+
+What stays in place now so mobile work can resume without rework:
+- `/api/v1` customer and staff API, token sessions, business/shop scope checks, order state machine, idempotent order-to-POS fulfilment (`CustomerOrderService`, `ApiSessionService`, `ShopScopeService`, `ConfigurationService`).
+- Web screens that the apps depend on: Customer App Accounts, Customer Ordering Catalog, Customer Orders.
+- CI API scenarios keep running so back-office changes do not break the API.
+- Rule: back-office changes in Phases 8–11 must be made in services (not only controllers/views) so the API inherits them.
+
+Postponed items:
+- [~] 13.1 Customer App (WP-7): runner projects, signup/approval screens, offline order queue (decision register §8), device QA.
+- [~] 13.2 Business/Staff App (WP-8): runner projects, order handling, fulfilment, device QA.
+- [~] 13.3 Store packaging/signing, push notifications, mobile pilot (WP-10 mobile part).
 
 ## Workflow Gate
 

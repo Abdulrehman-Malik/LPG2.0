@@ -19,3 +19,14 @@ php_errors.log
 .env.*
 !.env.example
 .env
+
+# Any local environment file variant (including misnamed copies such as ..env)
+*.env
+.env*
+!.env.example
+
+# Local Playwright install for tests/e2e
+node_modules/
+
+# PHPUnit cache and reports
+/build/

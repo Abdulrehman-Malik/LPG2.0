@@ -11,6 +11,9 @@ use CodeIgniter\HTTP\RedirectResponse;
 
 class Auth extends Controller
 {
+    private const MAX_FAILED_LOGINS = 5;
+    private const LOGIN_LOCKOUT_SECONDS = 900;
+
     protected UserModel $userModel;
 
     public function __construct()
@@ -69,11 +72,20 @@ class Auth extends Controller
 
         $login=$this->request->getPost('login');
         $password=$this->request->getPost('password');
+
+        $throttleKey='login_fail_'.sha1($this->request->getIPAddress().'|'.strtolower(trim((string)$login)));
+        $failedAttempts=(int)(cache($throttleKey) ?? 0);
+        if($failedAttempts>=self::MAX_FAILED_LOGINS){
+            return redirect()->back()->withInput()->with('error','Too many failed sign-in attempts. Please wait 15 minutes and try again.');
+        }
+
         $user=$this->userModel->findByLogin($login);
 
         if(!$user || !password_verify($password,$user['password_hash'])){
+            cache()->save($throttleKey,$failedAttempts+1,self::LOGIN_LOCKOUT_SECONDS);
             return redirect()->back()->withInput()->with('error','Invalid username/email or password.');
         }
+        cache()->delete($throttleKey);
         if(!(int)$user['is_active']){
             return redirect()->back()->withInput()->with('error','This account has been disabled. Contact an administrator.');
         }

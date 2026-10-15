@@ -5,7 +5,9 @@
 - Preserve atomic posting, physical cylinder identity, customer custody history, separate deposit balance, and server-side validation.
 - Update relevant documentation/test cases when changing these workflows.
 - **Branch safety:** work on the task's designated feature branch. Do not commit task changes to `main), do not merge automatically, and do not change unrelated feature branches. Merge only after explicit owner approval.
-- The current mobile/multi-shop requirements branch is `feature/mobile-multishop-ordering-requirements`. Start with `docs/mobile-multishop/README.md) and complete the documented gap analysis before implementing schema or application code.
+- **Current priority (2026-10-15):** complete the multi-branch back-office web application on `feature/backoffice-completion` following Roadmap v2 in `DEVELOPMENT_PLAN.md` (Phases 8–12). Flutter mobile app development is **postponed** (Phase 13); do not start mobile app work without owner approval.
+- Keep the `/api/v1` API and its services (`CustomerOrderService`, `ApiSessionService`, `ShopScopeService`, `ConfigurationService`) working. Implement back-office logic changes in services so the API inherits them.
+- Multi-branch requirements remain defined in `docs/mobile-multishop/` (modules 02, 03 and 10 apply to the web back office).
 
 ## Mobile / Multi-Shop Ordering Rules — MUST FOLLOW
 

@@ -9,6 +9,19 @@ use CodeIgniter\Filters\FilterInterface;
 
 class AuthFilter implements FilterInterface
 {
+    /**
+     * Ends the signed-in identity and shows the reason on the login page. The session is
+     * cleared and its ID rotated rather than destroyed, because a destroyed session cannot
+     * carry the flash message to the next request.
+     */
+    private function signOut(string $flashKey, string $message)
+    {
+        $session = session();
+        $session->remove(['user_id','location_id','full_name','username','role','role_name','isLoggedIn']);
+        $session->regenerate(true);
+        return redirect()->to(site_url('login'))->with($flashKey, $message);
+    }
+
     public function before(RequestInterface $request,$arguments=null)
     {
         if(!session()->get('isLoggedIn')) {
@@ -18,26 +31,29 @@ class AuthFilter implements FilterInterface
         try {
             $migrationGate=(new MigrationRunnerService())->status();
             if(!$migrationGate['ready']) {
-                session()->destroy();
-                return redirect()->to(site_url('login'))
-                    ->with('migration_error',$migrationGate['blocked_message'] ?? 'Database migrations are pending. Execute them before signing in.');
+                return $this->signOut('migration_error',$migrationGate['blocked_message'] ?? 'Database migrations are pending. Execute them before signing in.');
             }
         } catch (\Throwable $e) {
-            session()->destroy();
-            return redirect()->to(site_url('login'))
-                ->with('migration_error','Database migration status could not be checked: '.$e->getMessage());
+            return $this->signOut('migration_error','Database migration status could not be checked: '.$e->getMessage());
         }
 
         $userId = (int) (session()->get('user_id') ?? 0);
+        $activeUser = \Config\Database::connect()->table('users')
+            ->select('id')
+            ->where(['id' => $userId, 'is_active' => 1])
+            ->get()->getRowArray();
+        if (!$activeUser) {
+            // An administrator disabled this account after sign-in: end the session now.
+            return $this->signOut('error', 'This account has been disabled. Contact an administrator.');
+        }
+
         $scope = new ShopScopeService();
         if (!$scope->canAccessCurrentShop($userId)) {
             // Repair a stale current-shop context only by selecting a shop this
             // identity is still authorized to access. Never trust a request ID.
             $defaultShopId = $scope->defaultShopIdForUser($userId);
             if ($defaultShopId === null) {
-                session()->destroy();
-                return redirect()->to(site_url('login'))
-                    ->with('error', 'Your account is not assigned to an active shop. Contact an administrator.');
+                return $this->signOut('error', 'Your account is not assigned to an active shop. Contact an administrator.');
             }
 
             session()->set('location_id', $defaultShopId);

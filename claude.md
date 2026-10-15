@@ -28,8 +28,11 @@ This file is a concise continuation point for development.
 - Credit sales must enforce the customer's credit limit.
 - Controllers should not contain financial posting logic; use application services.
 
-## Next Development Gate
-After Phase 1 PASS, implement Phase 2 master data. If Phase 1 has FAIL entries, fix those first and update TESTING.md before continuing.
+## Next Development Gate (updated 2026-10-15)
+Roadmap v2 in DEVELOPMENT_PLAN.md is authoritative: **back office first**.
+- Current work: Phase 8 (stabilization & security) → Phase 9 (multi-branch back office) → Phase 10 (code-logic refactor) → Phase 11 (UI/UX) → Phase 12 (SQA/UAT/release).
+- Working branch: `feature/backoffice-completion`. No merge to `main` without owner approval.
+- Mobile apps (Flutter) are **postponed** (Phase 13). Keep `/api/v1` and its services working; put business logic in services so the API inherits back-office fixes.
 
 
 ---

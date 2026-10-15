@@ -775,3 +775,29 @@ Additional regression coverage verified:
 The order lifecycle checks also confirmed that creating or accepting a customer order does not itself link a POS sale. The existing validated POS fulfilment path remains the posting boundary.
 
 This evidence covers the listed automated cases only. It does **not** mark the complete page-by-page PQA01–PQA16 suite, concurrency/reversal tests, Flutter device QA, or the two-shop owner pilot as complete.
+
+
+## Phase 8 stabilization & security regression — 2026-10-15
+
+**Branch:** `feature/backoffice-completion` (uncommitted working tree on top of `main` `4b0dc5e`).
+**Environment:** local Windows/XAMPP, PHP 8.2.12, **MariaDB 10.4.32** (not the MySQL 8 production target), CodeIgniter dev server, disposable database `lpg_qa_phase8` built from `database/schema.sql` + `php spark migrations:run` + the CI Playwright seed fixtures. The schema's `CAST(... AS JSON)` literals were stripped in a scratch copy only, because MariaDB does not support them. No production or business database was used.
+**Method:** each case was executed through the real HTTP endpoints (or, for P8-09, `SalesService` called from the CLI with no browser session), then verified by querying the resulting rows. Every case was also run against the original code: each defect reproduced before the fix and passed after it.
+
+| ID | Plan item | Scenario | Before fix | After fix | Status |
+|---|---|---|---|---|---|
+| P8-01 | 8.3.3 | Cash gas sale → close cash session → open new session → void sale | Reversal posted into the **closed** session (its balance changed 100.00 → 0.00) | Closed session unchanged; reversal posted to the open session; cylinder restored to 6 kg | PASS |
+| P8-02 | 8.3.2 / REV02 | Sale B (1 kg) and later sale C (1 kg) from the same cylinder → void B | B voided; stock reconstructed incorrectly (gas re-created after voiding C) | Void of B refused with a clear message; no stock or movement change; void of latest sale C succeeds and restores 5 kg | PASS |
+| P8-03 | 8.2 | System Administrator reduces CASHIER to DASHBOARD_VIEW, then later requests run | Permissions re-granted (count back to 5) | Count stays 1 | PASS |
+| P8-04 | 8.3.4 | Security deposit issue (empty C6, deposit 500, combined cash payment) | Posted | Posted | PASS |
+| P8-05 | 8.3.5 | Cylinder return with refund 9,999 vs balance 500, then refund 500 | Rejected / posted | Rejected / posted; cylinder back in empty stock; deposit balance 0 | PASS |
+| P8-06 | 8.1.3 | Anonymous POST `migrations/run` | **Runner executed** (history rows 39 → 72) | Refused; migration history unchanged | PASS |
+| P8-07 | 8.1.3 | `migrations/run` with wrong / correct System Administrator password | Accepted (no check) | Wrong refused; correct accepted | PASS |
+| P8-08 | 8.1.4 | Manager signed in → account disabled → next request | Redirected to login without a reason | Redirected to login with "This account has been disabled" | PASS |
+| P8-09 | 8.3.1 | Credit gas sale for a customer (limit 50, customer mode) posted with **no browser session** (API fulfilment path), then a second sale exceeding the limit | First sale failed ("Customer not found in current shop") | First sale posted; second rejected with "Customer credit limit exceeded" using the real balance | PASS |
+| P8-10 | 8.1.5 | 5 failed logins for `admin`, then the correct password; another login name | Not throttled | 6th attempt blocked for 15 minutes; other login names unaffected | PASS |
+| P8-11 | 8.1.7 | Fresh schema + `php spark migrations:run` | Migration 039 failed (`;` inside a comment) | All migrations up to date | PASS |
+
+**Regression:** Playwright `lpg-runtime.spec.mjs` (the CI selection E2E-001…E2E-030, 26 tests) — **26 passed** on the final code against `lpg_qa_phase8` (run with `--timeout=120000` because CDN assets load slowly on this machine; pages render server-side in ~0.3 s). PHPUnit — **15 tests, 36 assertions, OK** (`sqlite3` extension enabled for the test run).
+**Test fix:** E2E-004 now captures the `/sales/save` JSON through a route handler. Previously Chromium could discard the response body when the POS page redirected after a successful save, which made the test fail although the sale posted correctly.
+
+**Not covered here (remain NOT EXECUTED):** concurrent double-refund / concurrent deposit-credit requests (8.3.4/8.3.5 are concurrency fixes; sequential tests only show no regression), MySQL 8 execution of these cases (CI), browser-level page-by-page QA (PQA01–PQA16), and a committed automated business-logic suite (plan item 8.3.6).

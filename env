@@ -22,9 +22,8 @@ CI_ENVIRONMENT = development
 
 # Public base URL of the app; include the trailing slash.
 # Local example:
-app.baseURL = 'http://localhost:/LPG2.0public/'
+app.baseURL = 'http://localhost/LPG2.0/public/'
 # Alternative spelling supported by CodeIgniter if dotted keys are awkward:
-app_baseURL = 'http://localhost:LPG2.0/public/'
 
 # Optional: force all requests to HTTPS. Enable only when HTTPS/proxy configuration is correct.
 # app.forceGlobalSecureRequests = false

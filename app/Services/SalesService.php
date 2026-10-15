@@ -178,6 +178,9 @@ class SalesService
 
     public function post(array $payload,int $userId,int $locationId): array
     {
+        // Balance, credit-limit and settings lookups must use the posting shop, not the
+        // browser session: API fulfilment has no session and staff may switch shops.
+        $this->currentLocationId=$locationId;
         $customerId=!empty($payload['customer_id'])?(int)$payload['customer_id']:null;
         $headerType=(string)($payload['transaction_type']??'');
         if(in_array($headerType,['gas_sale','cylinder_sale','security_deposit','cylinder_return'],true)){
@@ -1145,42 +1148,46 @@ class SalesService
                 $salePayments[]=['payment_mode'=>$mode,'amount'=>$amount,'reference_no'=>$p['reference_no']??null];
             }
         }
-        $gasPreviousOs=$this->customerGasBalance($customerId);
-        $gasDue=max(0,round($chargeTotal+$gasPreviousOs,2));
-        $combinedReceived=array_sum(array_map(static fn($p)=>(float)$p['amount'],$combinedPayments));
-        if($combinedPayments && $combinedReceived>$gasDue+$depositRequired+0.01){
-            throw new RuntimeException('Payment exceeds the combined Gas / Cylinder balance and Security Deposit amount.');
-        }
-        if($combinedPayments){
-            if($allocationRule==='manual')throw new RuntimeException('Manual payment allocation is enabled. Enter the Gas / Cylinder and Security Deposit allocations separately.');
-            foreach($combinedPayments as $p){
-                $remaining=(float)$p['amount'];
-                if($allocationRule==='gas_first'){
-                    $toGas=min($remaining,$gasDue); if($toGas>0){$salePayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toGas,'reference_no'=>$p['reference_no']??null];$gasDue-=$toGas;$remaining-=$toGas;}
-                    $toDeposit=min($remaining,$deposit); if($toDeposit>0){$depositPayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toDeposit,'reference_no'=>$p['reference_no']??null];$deposit-=$toDeposit;$remaining-=$toDeposit;}
-                }else{
-                    $toDeposit=min($remaining,$deposit); if($toDeposit>0){if($p['payment_mode']==='credit')throw new RuntimeException('Security Deposit cannot be received on credit.');$depositPayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toDeposit,'reference_no'=>$p['reference_no']??null];$deposit-=$toDeposit;$remaining-=$toDeposit;}
-                    $toGas=min($remaining,$gasDue); if($toGas>0){$salePayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toGas,'reference_no'=>$p['reference_no']??null];$gasDue-=$toGas;$remaining-=$toGas;}
-                }
-                if($remaining>0.01)throw new RuntimeException('Payment exceeds the combined amount due.');
-            }
-        }
-        // Security deposit receipt is independent of the amount entered for the issue transaction.
-        // Accept any non-negative receipt amount; only actual receipts increase the refundable balance.
-        $depositPaid=array_sum(array_map(static fn($p)=>(float)$p['amount'],$depositPayments));
-        if($chargeTotal>0.00001){
-            if(!$salePayments)$salePayments=[['payment_mode'=>'credit','amount'=>0,'reference_no'=>null]];
-            $paymentPlan=$this->prepareSalePaymentPlan($salePayments,$customerId,$chargeTotal);
-        }else{
-            if($salePayments)throw new RuntimeException('No gas/cylinder amount is payable; sale payment rows are not allowed.');
-            $paymentPlan=['sale_payments'=>[],'settlements'=>[],'credit_amount'=>0,'previous_os'=>$gasPreviousOs,'payment_total'=>0,'net_receivable'=>$gasPreviousOs,'remaining_os'=>$gasPreviousOs];
-        }
-        if($allocationRule==='manual'){
-            // Manual mode is represented by explicit payment_type rows from the POS.
-            if($combinedPayments)throw new RuntimeException('Manual allocation requires separate payment rows.');
-        }
+        // Balance, payment-allocation and credit-limit checks run under the customer row lock
+        // so concurrent postings for the same customer cannot both pass the credit check.
         $this->db->transBegin();
         try{
+            $lockedCustomer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
+            if(!$lockedCustomer||!(int)$lockedCustomer['is_active'])throw new RuntimeException('Customer is unavailable.');
+            $gasPreviousOs=$this->customerGasBalance($customerId);
+            $gasDue=max(0,round($chargeTotal+$gasPreviousOs,2));
+            $combinedReceived=array_sum(array_map(static fn($p)=>(float)$p['amount'],$combinedPayments));
+            if($combinedPayments && $combinedReceived>$gasDue+$depositRequired+0.01){
+                throw new RuntimeException('Payment exceeds the combined Gas / Cylinder balance and Security Deposit amount.');
+            }
+            if($combinedPayments){
+                if($allocationRule==='manual')throw new RuntimeException('Manual payment allocation is enabled. Enter the Gas / Cylinder and Security Deposit allocations separately.');
+                foreach($combinedPayments as $p){
+                    $remaining=(float)$p['amount'];
+                    if($allocationRule==='gas_first'){
+                        $toGas=min($remaining,$gasDue); if($toGas>0){$salePayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toGas,'reference_no'=>$p['reference_no']??null];$gasDue-=$toGas;$remaining-=$toGas;}
+                        $toDeposit=min($remaining,$deposit); if($toDeposit>0){$depositPayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toDeposit,'reference_no'=>$p['reference_no']??null];$deposit-=$toDeposit;$remaining-=$toDeposit;}
+                    }else{
+                        $toDeposit=min($remaining,$deposit); if($toDeposit>0){if($p['payment_mode']==='credit')throw new RuntimeException('Security Deposit cannot be received on credit.');$depositPayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toDeposit,'reference_no'=>$p['reference_no']??null];$deposit-=$toDeposit;$remaining-=$toDeposit;}
+                        $toGas=min($remaining,$gasDue); if($toGas>0){$salePayments[]=['payment_mode'=>$p['payment_mode'],'amount'=>$toGas,'reference_no'=>$p['reference_no']??null];$gasDue-=$toGas;$remaining-=$toGas;}
+                    }
+                    if($remaining>0.01)throw new RuntimeException('Payment exceeds the combined amount due.');
+                }
+            }
+            // Security deposit receipt is independent of the amount entered for the issue transaction.
+            // Accept any non-negative receipt amount; only actual receipts increase the refundable balance.
+            $depositPaid=array_sum(array_map(static fn($p)=>(float)$p['amount'],$depositPayments));
+            if($chargeTotal>0.00001){
+                if(!$salePayments)$salePayments=[['payment_mode'=>'credit','amount'=>0,'reference_no'=>null]];
+                $paymentPlan=$this->prepareSalePaymentPlan($salePayments,$customerId,$chargeTotal);
+            }else{
+                if($salePayments)throw new RuntimeException('No gas/cylinder amount is payable; sale payment rows are not allowed.');
+                $paymentPlan=['sale_payments'=>[],'settlements'=>[],'credit_amount'=>0,'previous_os'=>$gasPreviousOs,'payment_total'=>0,'net_receivable'=>$gasPreviousOs,'remaining_os'=>$gasPreviousOs];
+            }
+            if($allocationRule==='manual'){
+                // Manual mode is represented by explicit payment_type rows from the POS.
+                if($combinedPayments)throw new RuntimeException('Manual allocation requires separate payment rows.');
+            }
             $this->acquireInventoryLocks($locationId,array_map(static fn($x)=>['type'=>$x['status']==='filled'?'filled_cylinder':'empty_cylinder','cylinder_type_id'=>(int)$x['row']['cylinder_type_id']],$prepared));
             foreach($selectedIds as $id){
                 $locked=$this->db->query("SELECT cu.*,ct.capacity_kg FROM cylinder_units cu JOIN cylinder_types ct ON ct.id=cu.cylinder_type_id WHERE cu.id=? AND cu.location_id=? FOR UPDATE",[$id,$locationId])->getRowArray();
@@ -1306,12 +1313,21 @@ class SalesService
 
         $this->db->transBegin();
         try{
+            // Same lock order as the other posting paths: customer, inventory keys, units.
+            $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
+            if(!$customer||!(int)$customer['is_active'])throw new RuntimeException('Customer is unavailable.');
+            $lockRows=[];
+            foreach($rows as $row){
+                $lockRows[]=['type'=>($returnById[(int)$row['cylinder_unit_id']]['gas']??0)>0?'filled_cylinder':'empty_cylinder','cylinder_type_id'=>(int)$row['cylinder_type_id']];
+            }
+            $this->acquireInventoryLocks($locationId,$lockRows);
             foreach($selected as $id){
                 $locked=$this->db->query("SELECT cu.*,ct.capacity_kg FROM cylinder_units cu JOIN cylinder_types ct ON ct.id=cu.cylinder_type_id JOIN cylinder_custody cc ON cc.cylinder_unit_id=cu.id AND cc.status='issued' WHERE cu.id=? AND cc.customer_id=? FOR UPDATE",[$id,$customerId])->getRowArray();
                 if(!$locked)throw new RuntimeException('Cylinder selection changed while posting. Refresh and retry.');
             }
-            $customer=$this->db->query("SELECT * FROM customers WHERE id=? AND location_id=? FOR UPDATE",[$customerId,$locationId])->getRowArray();
-            if(!$customer||!(int)$customer['is_active'])throw new RuntimeException('Customer is unavailable.');
+            // Re-check under the customer lock so two concurrent refunds cannot both pass.
+            $depositBalance=$this->securityDepositBalance($locationId,$customerId);
+            if($refund>$depositBalance+0.01)throw new RuntimeException('Refund amount cannot exceed the customer refundable security deposit balance of Rs. '.number_format($depositBalance,2).'.');
 
             $previousGasOs=$this->customerGasBalance($customerId);
             $newGasOs=$previousGasOs-$returnLedger;
@@ -1354,9 +1370,9 @@ class SalesService
                 }
             }
             if(!$this->db->transStatus())throw new RuntimeException('Cylinder return failed.');
-            $this->db->transCommit();
+            $this->db->transCommit();$this->releaseInventoryLocks();
             return ['id'=>$saleId,'sale_no'=>$saleNo,'total'=>0,'customer_id'=>$customerId,'credit_amount'=>0];
-        }catch(\Throwable $e){$this->db->transRollback();throw $e;}
+        }catch(\Throwable $e){$this->releaseInventoryLocks();$this->db->transRollback();throw $e;}
     }
 
     protected function prepareSalePaymentPlan(array $payments,?int $customerId,float $saleTotal): array
@@ -1529,6 +1545,7 @@ class SalesService
 
     public function void(int $saleId,int $userId,int $locationId,string $reason): string
     {
+        $this->currentLocationId=$locationId;
         $reason=trim($reason);
         if($reason==='') throw new RuntimeException('Void reason is required.');
         $this->db->transBegin();
@@ -1544,6 +1561,7 @@ class SalesService
 
             $movements=$this->db->table('inventory_movements')->where('source_type','sale')->where('source_id',$saleId)->get()->getResultArray();
             $this->acquireInventoryLocks($locationId,$movements);
+            $this->assertUnitsUnchangedSinceSale($movements,(string)$sale['sale_no']);
 
             // A single physical filled-cylinder sale/refill can have two OUT movements:
             // gas_kg and filled_cylinder. Restore the physical cylinder only once.
@@ -1592,9 +1610,20 @@ class SalesService
             $cashRows=$this->db->table('cash_transactions')->where('reference_type','sale')->where('reference_id',$saleId)->where('transaction_type','sale_cash')->where('direction','in')->get()->getResultArray();
             $existingReversal=(int)$this->db->table('cash_transactions')->where('reference_type','sale_void')->where('reference_id',$saleId)->where('transaction_type','sale_cash')->where('direction','out')->countAllResults();
             if($existingReversal>0) throw new RuntimeException('Cash reversal for this sale already exists.');
+            // Cash paid back on a void leaves the drawer now, so it is posted to the shop's
+            // current open session. A closed session's reconciliation must never change.
+            $voidSessionId=null;
+            $resolveVoidSession=function() use (&$voidSessionId,$locationId): int{
+                if($voidSessionId!==null) return $voidSessionId;
+                $open=$this->cash->openSessionForLocation($locationId);
+                if(!$open) throw new RuntimeException('Open the counter cash session before voiding a sale that was paid in cash.');
+                $locked=$this->db->query("SELECT id,status FROM cash_sessions WHERE id=? FOR UPDATE",[(int)$open['id']])->getRowArray();
+                if(!$locked || $locked['status']!=='open') throw new RuntimeException('The counter cash session closed while voiding. Please retry.');
+                return $voidSessionId=(int)$locked['id'];
+            };
             foreach($cashRows as $cash){
                 $this->db->table('cash_transactions')->insert([
-                    'cash_session_id'=>$cash['cash_session_id'],'transaction_type'=>'sale_cash','direction'=>'out',
+                    'cash_session_id'=>$resolveVoidSession(),'transaction_type'=>'sale_cash','direction'=>'out',
                     'amount'=>$cash['amount'],'transaction_at'=>date('Y-m-d H:i:s'),'reference_type'=>'sale_void',
                     'reference_id'=>$saleId,'created_by'=>$userId,'notes'=>'Cash reversal of sale '.$sale['sale_no']
                 ]);
@@ -1624,11 +1653,10 @@ class SalesService
                             'reference_id'=>$saleId,
                             'transaction_type'=>'customer_receipt',
                             'direction'=>'out',
-                            'cash_session_id'=>$receiptCash['cash_session_id']
-                        ])->where('notes','Reversal of customer receipt '.$receipt['receipt_no'])->countAllResults();
+                        ])->like('notes','Reversal of customer receipt '.$receipt['receipt_no'].' ','after')->countAllResults();
                     if($alreadyReversed===0){
                         $this->db->table('cash_transactions')->insert([
-                            'cash_session_id'=>$receiptCash['cash_session_id'],
+                            'cash_session_id'=>$resolveVoidSession(),
                             'transaction_type'=>'customer_receipt',
                             'direction'=>'out',
                             'amount'=>$receiptCash['amount'],
@@ -1651,6 +1679,34 @@ class SalesService
             $this->releaseInventoryLocks();
             $this->db->transRollback();
             throw $e;
+        }
+    }
+
+    /**
+     * A void may only reverse a physical cylinder that is still exactly as the sale left it.
+     * If the unit has later inventory activity (sold, issued to custody, refilled, adjusted,
+     * wasted) the reversal cannot be reconstructed safely, so the whole void is rejected.
+     */
+    protected function assertUnitsUnchangedSinceSale(array $movements,string $saleNo): void
+    {
+        $byUnit=[];
+        foreach($movements as $m){
+            $unitId=(int)($m['cylinder_unit_id']??0);
+            if($unitId<=0) continue;
+            $byUnit[$unitId]['last_id']=max((int)($byUnit[$unitId]['last_id']??0),(int)$m['id']);
+            $byUnit[$unitId]['types'][]=$m['inventory_type'].'|'.$m['direction'];
+        }
+        foreach($byUnit as $unitId=>$info){
+            $unit=$this->db->query("SELECT id,unit_code,status FROM cylinder_units WHERE id=? FOR UPDATE",[$unitId])->getRowArray();
+            if(!$unit) throw new RuntimeException('Sale '.$saleNo.' cannot be voided: a physical cylinder from this sale no longer exists.');
+            $later=(int)$this->db->table('inventory_movements')->where('cylinder_unit_id',$unitId)->where('id >',$info['last_id'])->countAllResults();
+            $types=$info['types'];
+            if(in_array('empty_cylinder|in',$types,true)) $expected='empty';
+            elseif(in_array('filled_cylinder|out',$types,true)||in_array('empty_cylinder|out',$types,true)) $expected='sold';
+            else $expected='filled';
+            if($later>0 || (string)$unit['status']!==$expected){
+                throw new RuntimeException('Sale '.$saleNo.' cannot be voided: cylinder '.$unit['unit_code'].' has been used in a later transaction. Correct stock with a stock adjustment instead.');
+            }
         }
     }
 

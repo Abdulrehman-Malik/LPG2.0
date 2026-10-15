@@ -68,10 +68,22 @@ class PermissionService
             'CUSTOMER_ACCOUNT_MANAGE' => 'Manage customer app accounts',
         ];
 
-        foreach ($permissions as $code => $name) {
+        // Only permission codes that do not exist yet are created and granted to the
+        // standard roles. Existing role mappings are never re-granted, so a permission
+        // an administrator removed from a standard role stays removed.
+        $existingCodes = array_map('strval', array_column(
+            $db->table('permissions')->select('code')->get()->getResultArray(),
+            'code'
+        ));
+        $missingCodes = array_values(array_diff(array_keys($permissions), $existingCodes));
+        if (!$missingCodes) {
+            return;
+        }
+
+        foreach ($missingCodes as $code) {
             $db->table('permissions')->ignore(true)->insert([
                 'code' => $code,
-                'name' => $name,
+                'name' => $permissions[$code],
             ]);
         }
 
@@ -94,7 +106,7 @@ class PermissionService
                 continue;
             }
 
-            foreach ($permissionCodes as $permissionCode) {
+            foreach (array_intersect($permissionCodes, $missingCodes) as $permissionCode) {
                 $permission = $db->table('permissions')
                     ->select('id')
                     ->where('code', $permissionCode)

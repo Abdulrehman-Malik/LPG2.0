@@ -319,6 +319,12 @@ class MigrationRunnerService
                         if ($statement === '') {
                             continue;
                         }
+                        // Migrations always target the configured application database.
+                        // Older files contain "USE perfect_lpg;" for manual execution; running it
+                        // here would switch to (and alter) a different database on the server.
+                        if (preg_match('/^\s*USE\s+[`\w$]+\s*;?\s*$/i', $this->stripSqlComments($statement))) {
+                            continue;
+                        }
                         $this->db->query($statement);
                         $statementCount++;
                         $this->db->table($this->historyTable)->where('id', $attemptId)->update([
@@ -401,6 +407,12 @@ class MigrationRunnerService
         foreach ($lines as $line) {
             if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match)) {
                 $delimiter = $match[1];
+                continue;
+            }
+
+            // Whole-line comments are dropped before delimiter scanning: a ";" inside a
+            // comment (e.g. migration 039's header) must not end a statement.
+            if (preg_match('/^\s*(--(\s|$)|#)/', $line)) {
                 continue;
             }
 

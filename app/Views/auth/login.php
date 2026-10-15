@@ -148,6 +148,14 @@
 
                         <form action="<?= site_url('migrations/run') ?>" method="post" onsubmit="this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').innerHTML='<span class=&quot;spinner-border spinner-border-sm me-1&quot;></span> Executing...';">
                             <?= csrf_field() ?>
+                            <div class="mb-2">
+                                <label for="admin_login" class="form-label small fw-semibold">System Administrator username or email</label>
+                                <input type="text" class="form-control" id="admin_login" name="admin_login" autocomplete="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="admin_password" class="form-label small fw-semibold">Password</label>
+                                <input type="password" class="form-control" id="admin_password" name="admin_password" autocomplete="current-password" required>
+                            </div>
                             <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold">
                                 <i class="bi bi-database-up me-1"></i>
                                 Execute Pending Migrations

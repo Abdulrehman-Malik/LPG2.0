@@ -81,7 +81,7 @@ See [First-Time Database Installation](docs/first-install-setup.md) for the full
 
 ## Important Environment Rule
 
-Do not commit a local `.env` file. Use `.env.example` as the template for local configuration.
+Do not commit a local `.env` file (or any variant such as `..env`; `.gitignore` blocks them). Copy the committed `env` template to `.env` for local configuration.
 
 ## Shop Settings Migration
 

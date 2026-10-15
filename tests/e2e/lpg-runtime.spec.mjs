@@ -240,16 +240,22 @@ test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
   const total=await page.locator('#saleTotal').innerText();
   expect(Number(total)).toBeGreaterThan(0);
   await page.locator('.payment .amount').first().fill(total);
-  // The POS submits asynchronously, then redirects to reset the form. Assert the
-  // authoritative JSON response before that navigation instead of looking for a
-  // transient success message on the freshly loaded POS page.
-  const postResponsePromise = page.waitForResponse(response =>
-    response.url().includes('/sales/save') && response.request().method() === 'POST'
-  );
+  // The POS submits asynchronously, then redirects to reset the form. The browser may
+  // discard the response body once that navigation starts, so capture the authoritative
+  // JSON response in a route handler before it is handed to the page.
+  let resolvePost;
+  const postCaptured = new Promise(resolve => { resolvePost = resolve; });
+  await page.route('**/sales/save', async route => {
+    const response = await route.fetch();
+    const body = await response.text();
+    resolvePost({ status: response.status(), body });
+    await route.fulfill({ response, body });
+  });
   await page.locator('#saveBtn').click();
-  const postResponse = await postResponsePromise;
-  expect(postResponse.ok(), 'POS save endpoint returned HTTP ' + postResponse.status()).toBeTruthy();
-  const postResult = await postResponse.json();
+  const postResponse = await postCaptured;
+  await page.unroute('**/sales/save');
+  expect(postResponse.status, 'POS save endpoint returned HTTP ' + postResponse.status).toBeLessThan(400);
+  const postResult = JSON.parse(postResponse.body);
   expect(postResult.success, JSON.stringify(postResult)).toBe(true);
   expect(postResult.sale_no).toBeTruthy();
   expect(String(postResult.receipt_url)).toContain('/sales/receipt/');
