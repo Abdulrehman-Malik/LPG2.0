@@ -929,8 +929,9 @@ test('E2E-028 Customer order fulfillment posts to POS once and safely replays', 
     headers: staffHeaders,
     data: fulfillmentPayload
   });
-  expect(fulfilledResponse.status()).toBe(200);
-  const fulfilled = (await fulfilledResponse.json()).data;
+  const fulfilledBody = await fulfilledResponse.json();
+  expect(fulfilledResponse.status(), 'POS fulfillment response: ' + JSON.stringify(fulfilledBody)).toBe(200);
+  const fulfilled = fulfilledBody.data;
   expect(fulfilled.status).toBe('completed');
   expect(fulfilled.order.status).toBe('completed');
   const saleId = Number(fulfilled.order.pos_sale_id);
