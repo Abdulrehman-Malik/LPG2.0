@@ -618,6 +618,38 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(visibleOrder?.status).toBe('accepted');
   expect(visibleOrder?.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
 
+  // A valid customer session must not bypass shop-level order controls.
+  const settingsResponse = await request.get('/api/v1/staff/configuration/shops/' + shopId, { headers: staffHeaders });
+  expect(settingsResponse.status()).toBe(200);
+  const shopSettings = (await settingsResponse.json()).data?.settings || [];
+  const previousOrdersSetting = shopSettings.find(setting => setting.key === 'orders_enabled');
+  expect(previousOrdersSetting, 'orders_enabled must be present in the shop configuration').toBeTruthy();
+
+  const disableOrders = await request.post('/api/v1/staff/configuration/save', {
+    headers: staffHeaders,
+    data: { scope: 'shop', owner_id: shopId, key: 'orders_enabled', value: false }
+  });
+  expect(disableOrders.status()).toBe(200);
+  try {
+    const blockedOrder = await request.post('/api/v1/customer/orders', {
+      headers: { ...customerHeaders, 'Idempotency-Key': 'qa-disabled-' + unique },
+      data: orderPayload
+    });
+    expect(blockedOrder.status()).toBe(403);
+    expect((await blockedOrder.json()).error?.code).toBe('ORDERING_UNAVAILABLE');
+  } finally {
+    const restore = previousOrdersSetting.has_override
+      ? await request.post('/api/v1/staff/configuration/save', {
+          headers: staffHeaders,
+          data: { scope: 'shop', owner_id: shopId, key: 'orders_enabled', value: Boolean(previousOrdersSetting.value) }
+        })
+      : await request.post('/api/v1/staff/configuration/reset', {
+          headers: staffHeaders,
+          data: { scope: 'shop', owner_id: shopId, key: 'orders_enabled' }
+        });
+    expect(restore.status(), 'shop order setting must be restored after the disabled-ordering regression test').toBe(200);
+  }
+
   const logout = await request.post('/api/v1/customer/auth/logout', { headers: customerHeaders });
   expect(logout.status()).toBe(200);
   const revoked = await request.get('/api/v1/customer/me', { headers: customerHeaders });
