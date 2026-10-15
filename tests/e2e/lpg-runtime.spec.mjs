@@ -240,9 +240,20 @@ test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
   const total=await page.locator('#saleTotal').innerText();
   expect(Number(total)).toBeGreaterThan(0);
   await page.locator('.payment .amount').first().fill(total);
+  // The POS submits asynchronously, then redirects to reset the form. Assert the
+  // authoritative JSON response before that navigation instead of looking for a
+  // transient success message on the freshly loaded POS page.
+  const postResponsePromise = page.waitForResponse(response =>
+    response.url().includes('/sales/save') && response.request().method() === 'POST'
+  );
   await page.locator('#saveBtn').click();
-  await page.waitForLoadState('networkidle');
-  await expect(page.locator('body')).toContainText(/posted successfully/i);
+  const postResponse = await postResponsePromise;
+  expect(postResponse.ok(), 'POS save endpoint returned HTTP ' + postResponse.status()).toBeTruthy();
+  const postResult = await postResponse.json();
+  expect(postResult.success, JSON.stringify(postResult)).toBe(true);
+  expect(postResult.sale_no).toBeTruthy();
+  expect(postResult.receipt_url).toMatch(/\\/sales\\/receipt\\/\\d+/);
+  await expect(page).toHaveURL(/\\/sales(?:[/?#]|$)/);
 });
 test('E2E-005 Posted gas sale appears in Sale History with inventory movement', async ({ page }) => {
   await login(page); await page.goto('/sales/history',{waitUntil:'networkidle'});
