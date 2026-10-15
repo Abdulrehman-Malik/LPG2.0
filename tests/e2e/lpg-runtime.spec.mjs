@@ -658,6 +658,13 @@ test('E2E-026 Customer signup approval, shop-scoped catalog, and idempotent orde
   expect(invalidQuantity.status()).toBe(422);
   expect((await invalidQuantity.json()).error?.code).toBe('VALIDATION_FAILED');
 
+  const invalidIdempotencyKey = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': 'invalid key ' + unique },
+    data: orderPayload
+  });
+  expect(invalidIdempotencyKey.status()).toBe(422);
+  expect((await invalidIdempotencyKey.json()).error?.code).toBe('VALIDATION_FAILED');
+
   // A valid customer session must not bypass shop-level order controls.
   const settingsResponse = await request.get('/api/v1/staff/configuration/shops/' + shopId, { headers: staffHeaders });
   expect(settingsResponse.status()).toBe(200);
