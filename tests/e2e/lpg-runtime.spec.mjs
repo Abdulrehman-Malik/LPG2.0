@@ -626,3 +626,25 @@ test('E2E-027 Staff API rejects cross-shop scope overrides and platform-only bus
   });
   expect(createBusiness.status()).toBe(403);
 });
+
+
+test('E2E-014 Credit limit is enforced without changing stock', async ({ page }) => {
+  await login(page);
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  await page.locator('#transactionType').selectOption('gas_sale');
+  await page.locator('#customer_id').selectOption({ label: 'QA-E2E-CREDIT — QA E2E Credit Customer' });
+  const line = page.locator('#lines tbody tr').first();
+  await line.locator('.cyl').selectOption({ label: 'C6 — 6 kg' });
+  await line.locator('.sourceCyl').selectOption({ label: /QA-E2E-C6-001/ });
+  await line.locator('.entryValue').fill('1');
+  const total = Number(await page.locator('#saleTotal').innerText());
+  expect(total).toBeGreaterThan(50);
+  const payment = page.locator('#payments .payment').first();
+  await payment.locator('.mode').selectOption('credit');
+  await payment.locator('.amount').fill(total.toFixed(2));
+  await page.locator('#saveBtn').click();
+  await expect(page.locator('#posValidationAlert')).toBeVisible();
+  await expect(page.locator('#posValidationAlert')).toContainText(/customer credit limit exceeded/i);
+  await page.goto('/inventory', { waitUntil: 'networkidle' });
+  await expect(page.locator('table tbody tr').filter({ hasText: 'C6' }).first()).toContainText('4.000 KG');
+});
