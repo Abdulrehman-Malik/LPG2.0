@@ -389,6 +389,6 @@ class Auth extends Controller
             return $this->errorResponse(401, 'INVALID_OR_EXPIRED_TOKEN', 'The session is already invalid or expired.');
         }
 
-        return $this->response->setStatusCode(204);
+        return $this->response->setStatusCode(200)->setJSON(['data' => ['message' => 'Logged out.']]);
     }
 }
