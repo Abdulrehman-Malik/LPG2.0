@@ -14,6 +14,16 @@ async function login(page) {
   }
   await expect(page).toHaveURL(/\/dashboard/);
 }
+
+async function selectOptionByTextPrefix(select, prefix) {
+  const value = await select.locator('option').evaluateAll((options, textPrefix) => {
+    const option = options.find(item => item.textContent.trim().startsWith(textPrefix));
+    return option ? option.value : '';
+  }, prefix);
+  expect(value, 'No option begins with: ' + prefix).not.toBe('');
+  await select.selectOption(value, { timeout: 5000 });
+}
+
 test.describe.configure({ mode: 'serial' });
 
 test('E2E-001 Login succeeds', async ({ page }) => {
@@ -213,12 +223,7 @@ test('E2E-014 Credit limit is enforced without changing stock', async ({ page })
   // Reload so the assertion reads persisted stock from the server, not the pre-submit DOM.
   await page.reload({ waitUntil: 'networkidle' });
   const refreshedLine = page.locator('#lines tbody tr').first();
-  const refreshedCylinderType = await refreshedLine.locator('.cyl option').evaluateAll(options => {
-    const option = options.find(item => item.textContent.trim().startsWith('C6 — 6 kg'));
-    return option ? option.value : '';
-  });
-  expect(refreshedCylinderType, 'C6 cylinder type option was not available after reload').not.toBe('');
-  await refreshedLine.locator('.cyl').selectOption(refreshedCylinderType, { timeout: 5000 });
+  await selectOptionByTextPrefix(refreshedLine.locator('.cyl'), 'C6 — 6 kg');
   await expect(refreshedLine.locator('.sourceCyl')).toContainText('QA-E2E-C6-001');
   await expect(refreshedLine.locator('.sourceCyl')).toContainText('6.00 KG');
 });
@@ -228,7 +233,7 @@ test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
   await page.locator('#transactionType').selectOption('gas_sale');
   await page.locator('#customer_id').selectOption({label:'QA-E2E-CUST — QA E2E Customer'});
   const line=page.locator('#lines tbody tr').first();
-  await line.locator('.cyl').selectOption({label:'C6 — 6 kg'});
+  await selectOptionByTextPrefix(line.locator('.cyl'), 'C6 — 6 kg');
   await expect(line.locator('.sourceCyl')).toBeEnabled();
   await line.locator('.sourceCyl').selectOption({label:/QA-E2E-C6-001/});
   await line.locator('.entryValue').fill('2');
@@ -261,7 +266,7 @@ test('E2E-006 Gas stock is reduced after the actual sale', async ({ page }) => {
 test('E2E-007 POS rejects an invalid zero-quantity gas sale without posting', async ({ page }) => {
   await login(page); await page.goto('/sales',{waitUntil:'networkidle'});
   const line=page.locator('#lines tbody tr').first();
-  await line.locator('.cyl').selectOption({label:'C6 — 6 kg'}); await line.locator('.entryValue').fill('0');
+  await selectOptionByTextPrefix(line.locator('.cyl'), 'C6 — 6 kg'); await line.locator('.entryValue').fill('0');
   await page.locator('.payment .amount').first().fill('0'); await page.locator('#saveBtn').click();
   await expect(page.locator('#posValidationAlert')).toBeVisible();
   await expect(page.locator('#posValidationAlert')).toContainText(/valid quantity|invalid/i);
