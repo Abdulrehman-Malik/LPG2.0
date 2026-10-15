@@ -915,6 +915,14 @@ test('E2E-028 Customer order fulfillment posts to POS once and safely replays', 
   const unchangedOrder = (await unchanged.json()).data.order;
   expect(unchangedOrder.status).toBe('accepted');
   expect(unchangedOrder.pos_sale_id).toBeFalsy();
+  const optionsAfterBadPayment = await request.get('/api/v1/staff/orders/' + order.id + '/fulfillment-options', {
+    headers: staffHeaders
+  });
+  expect(optionsAfterBadPayment.status()).toBe(200);
+  const sourceAfterBadPayment = (await optionsAfterBadPayment.json()).data.options.lines[0].cylinders
+    .find(unit => Number(unit.id) === Number(source.id));
+  expect(sourceAfterBadPayment).toBeTruthy();
+  expect(Number(sourceAfterBadPayment.gas_weight_kg)).toBe(Number(source.gas_weight_kg));
 
   fulfillmentPayload.payments = [{ payment_mode: 'cash', amount: Number(total.toFixed(2)) }];
   const fulfilledResponse = await request.post('/api/v1/staff/orders/' + order.id + '/fulfill', {
