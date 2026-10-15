@@ -839,8 +839,12 @@ class CustomerOrderService
         if ((string) ($sale['status'] ?? '') !== 'posted'
             || (int) ($sale['customer_order_id'] ?? 0) !== $orderId
             || (int) ($sale['location_id'] ?? 0) !== $shopId
-            || (int) ($sale['customer_id'] ?? 0) !== $customerId) {
-            throw new RuntimeException('Customer order POS sale does not match the posted sale; manual review is required.');
+            || (int) ($sale['customer_id'] ?? 0) !== $customerId
+            || abs((float) ($sale['subtotal'] ?? 0) - (float) $order['subtotal']) > 0.009
+            || abs((float) ($sale['discount_amount'] ?? 0) - (float) $order['discount_amount']) > 0.009
+            || abs((float) ($sale['delivery_fee_amount'] ?? 0) - (float) $order['delivery_fee']) > 0.009
+            || abs((float) ($sale['total_amount'] ?? 0) - (float) $order['total_amount']) > 0.009) {
+            throw new RuntimeException('Customer order POS sale does not match the posted sale or approved order totals; manual review is required.');
         }
 
         if ($posSaleId === 0) {
