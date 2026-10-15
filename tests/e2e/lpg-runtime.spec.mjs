@@ -802,3 +802,140 @@ test('E2E-027 Staff API rejects cross-shop scope overrides and platform-only bus
 
 
 
+
+
+test('E2E-028 Customer order fulfillment posts to POS once and safely replays', async ({ request }) => {
+  const staffLogin = await request.post('/api/v1/staff/auth/login', {
+    data: { username: 'admin', password: 'admin123' }
+  });
+  expect(staffLogin.status()).toBe(200);
+  const staff = (await staffLogin.json()).data;
+  const shopId = Number(staff.current_shop_id);
+  const staffHeaders = {
+    Authorization: 'Bearer ' + staff.tokens.access_token,
+    'X-Shop-Id': String(shopId)
+  };
+
+  const unique = Date.now().toString();
+  const username = 'qa_fulfill_' + unique;
+  const password = 'QA-Mobile-Strong-123!';
+  const signup = await request.post('/api/v1/customer/auth/signup', {
+    data: {
+      shop_id: shopId,
+      username,
+      password,
+      customer_name: 'QA POS Fulfillment Customer',
+      phone: '03000000003',
+      city: 'Lahore',
+      address: '3 QA Test Street'
+    }
+  });
+  expect(signup.status()).toBe(202);
+  const signupData = await signup.json();
+  const approval = await request.post('/api/v1/staff/customer-signups/' + signupData.request_id + '/approve', {
+    headers: staffHeaders,
+    data: {}
+  });
+  expect(approval.status()).toBe(201);
+
+  const customerLogin = await request.post('/api/v1/customer/auth/login', {
+    data: { username, password }
+  });
+  expect(customerLogin.status()).toBe(200);
+  const customerHeaders = {
+    Authorization: 'Bearer ' + (await customerLogin.json()).data.tokens.access_token
+  };
+
+  const catalogResponse = await request.get('/api/v1/customer/products', { headers: customerHeaders });
+  expect(catalogResponse.status()).toBe(200);
+  const catalog = (await catalogResponse.json()).data;
+  const product = (catalog.products || []).find(item =>
+    item.sale_mode === 'sell_gas_only'
+    && item.cylinder_type?.code === 'C6'
+    && item.price?.price_available === true
+  );
+  expect(product, 'CI must seed an active, priced C6 gas-only product').toBeTruthy();
+
+  const createOrder = await request.post('/api/v1/customer/orders', {
+    headers: { ...customerHeaders, 'Idempotency-Key': 'qa-pos-fulfill-' + unique },
+    data: {
+      fulfilment_method: 'collection',
+      customer_notes: 'E2E POS fulfillment and retry test',
+      items: [{ product_id: Number(product.id), quantity: 1 }]
+    }
+  });
+  expect(createOrder.status()).toBe(201);
+  const order = (await createOrder.json()).data.order;
+  expect(order.status).toBe('pending');
+  expect(order.pos_sale_id).toBeFalsy();
+
+  const accept = await request.post('/api/v1/staff/orders/' + order.id + '/status', {
+    headers: staffHeaders,
+    data: { status: 'accepted' }
+  });
+  expect(accept.status()).toBe(200);
+  expect((await accept.json()).data.order.status).toBe('accepted');
+
+  const optionsResponse = await request.get('/api/v1/staff/orders/' + order.id + '/fulfillment-options', {
+    headers: staffHeaders
+  });
+  expect(optionsResponse.status()).toBe(200);
+  const fulfillmentLines = (await optionsResponse.json()).data.options.lines;
+  expect(fulfillmentLines).toHaveLength(1);
+  const line = fulfillmentLines[0];
+  expect(line.selection_field).toBe('source_cylinder_unit_id');
+  const source = (line.cylinders || []).find(unit => unit.unit_code === 'QA-ORDER-C6-001');
+  expect(source, 'CI must seed a separate filled source cylinder for POS fulfillment').toBeTruthy();
+
+  const total = Number(order.total_amount);
+  expect(total).toBeGreaterThan(0);
+  const fulfillmentPayload = {
+    fulfillment_lines: [{
+      line_no: Number(line.line_no),
+      source_cylinder_unit_id: Number(source.id)
+    }],
+    payments: [{ payment_mode: 'cash', amount: Number((total + 1).toFixed(2)) }]
+  };
+
+  // A payment mismatch must fail before any sale/inventory posting and leave the order accepted.
+  const badPayment = await request.post('/api/v1/staff/orders/' + order.id + '/fulfill', {
+    headers: staffHeaders,
+    data: fulfillmentPayload
+  });
+  expect(badPayment.status()).toBe(422);
+  expect((await badPayment.json()).error?.code).toBe('INVALID_FULFILLMENT_REQUEST');
+  const unchanged = await request.get('/api/v1/staff/orders/' + order.id, { headers: staffHeaders });
+  expect(unchanged.status()).toBe(200);
+  const unchangedOrder = (await unchanged.json()).data.order;
+  expect(unchangedOrder.status).toBe('accepted');
+  expect(unchangedOrder.pos_sale_id).toBeFalsy();
+
+  fulfillmentPayload.payments = [{ payment_mode: 'cash', amount: Number(total.toFixed(2)) }];
+  const fulfilledResponse = await request.post('/api/v1/staff/orders/' + order.id + '/fulfill', {
+    headers: staffHeaders,
+    data: fulfillmentPayload
+  });
+  expect(fulfilledResponse.status()).toBe(200);
+  const fulfilled = (await fulfilledResponse.json()).data;
+  expect(fulfilled.status).toBe('completed');
+  expect(fulfilled.order.status).toBe('completed');
+  const saleId = Number(fulfilled.order.pos_sale_id);
+  expect(saleId).toBeGreaterThan(0);
+
+  // Simulate the client retrying after it did not receive the successful response.
+  const replayResponse = await request.post('/api/v1/staff/orders/' + order.id + '/fulfill', {
+    headers: staffHeaders,
+    data: fulfillmentPayload
+  });
+  expect(replayResponse.status()).toBe(200);
+  const replay = (await replayResponse.json()).data;
+  expect(replay.status).toBe('completed');
+  expect(Number(replay.order.pos_sale_id)).toBe(saleId);
+
+  const customerOrder = await request.get('/api/v1/customer/orders/' + order.id, { headers: customerHeaders });
+  expect(customerOrder.status()).toBe(200);
+  const customerVisibleOrder = (await customerOrder.json()).data.order;
+  expect(customerVisibleOrder.status).toBe('completed');
+  expect(Number(customerVisibleOrder.pos_sale_id)).toBe(saleId);
+  expect(customerVisibleOrder.items?.[0]?.selected_cylinder_unit_ids).toBeUndefined();
+});
