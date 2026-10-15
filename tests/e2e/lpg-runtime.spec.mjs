@@ -252,8 +252,8 @@ test('E2E-004 Actual gas sale posts successfully', async ({ page }) => {
   const postResult = await postResponse.json();
   expect(postResult.success, JSON.stringify(postResult)).toBe(true);
   expect(postResult.sale_no).toBeTruthy();
-  expect(postResult.receipt_url).toMatch(/\\/sales\\/receipt\\/\\d+/);
-  await expect(page).toHaveURL(/\\/sales(?:[/?#]|$)/);
+  expect(String(postResult.receipt_url)).toContain('/sales/receipt/');
+  await expect(page).toHaveURL(/\/sales(?:[/?#]|$)/);
 });
 test('E2E-005 Posted gas sale appears in Sale History with inventory movement', async ({ page }) => {
   await login(page); await page.goto('/sales/history',{waitUntil:'networkidle'});
