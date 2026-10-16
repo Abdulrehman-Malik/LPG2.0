@@ -207,6 +207,7 @@
     window.LPG = Object.assign(window.LPG || {}, { toast: toast, confirm: confirmDialog });
 
     if (window.jQuery && window.jQuery.fn.DataTable) {
-        window.jQuery('.datatable').DataTable({ pageLength: 25 });
+        // order: [] keeps the server's row order (often newest first) until the user sorts a column.
+        window.jQuery('.datatable').DataTable({ pageLength: 25, order: [] });
     }
 })();

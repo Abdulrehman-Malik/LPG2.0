@@ -900,3 +900,11 @@ Not verified locally: the Apache cache headers added in `public/.htaccess`, beca
 | P11-16 | Details and receipts | Details modal shows lines, payments and inventory movements (`gas_kg`, `out`); 80 mm and A4 receipt links point to `sales/receipt/{id}` | PASS |
 | P11-17 | Void dialog | Button reads "Void" (was "Delete"); an empty reason keeps the dialog open and nothing is voided; with a reason the sale becomes `voided` with the reason stored, the user returns to Sale History with the success message, and the row shows VOID (struck through) | PASS |
 | P11-18 | Regression | Playwright 26/26; PHPUnit 19/19; verify_phase8 23/25 (known two no-session checks); verify_hq 29/29; verify_phase9 28/28; shell check 75/76 (known Expenses overflow); no console errors; light, dark and 390 px | PASS |
+
+### Phase 11 — Counter Cash — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-19 | Session figures vs SQL | Expected in drawer equals the session's in − out; opening float + cash in − cash out = expected; a manual cash-in of Rs. 50 appears in the session list and updates the expected amount | PASS |
+| P11-20 | Count and close | Live preview shows "Short by Rs. 10.00", "Over by Rs. 5.00" and "balances"; cancelling the confirm dialog keeps the session open; confirming closes it with the counted cash stored and "Difference: Rs. -10.00"; reopening with Rs. 500 shows float 500, cash in 0, expected 500 | PASS |
+| P11-21 | Cash History and regression | In/out totals match SQL for the period; no horizontal scroll at 390 px; no console errors. Playwright 26/26 (with the DataTables `order: []` change); PHPUnit 19/19; verify_hq 29/29; verify_branch_admin 19/19; verify_phase8 23/25 (known); shell check 76/76 | PASS |

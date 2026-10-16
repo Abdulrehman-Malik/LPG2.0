@@ -20,7 +20,7 @@ Legend:
 | 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) and committed test suite (8.3.6) |
 | 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
-| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard, 11.4 POS and Sale History done; Cash next |
+| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard, 11.4 POS and Sale History and Counter Cash done; Customers/Suppliers/Ledgers next |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
 | 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
 
@@ -278,8 +278,9 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [ ] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
 - [ ] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
 - [ ] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
-  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [ ] Cash · [ ] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
+  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [x] Cash · [ ] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
   - Sale History (2026-10-16): page header, date presets, Enter-to-search, posted/received totals, status badges, sticky table header, loading/empty states; void uses a dialog with a required reason (was browser confirm/prompt) and the button now says "Void" (was "Delete", contradicting the void-not-delete rule); details modal has 80 mm / A4 receipt links; void now returns to Sale History (was POS); "All History" uses the local date (was UTC, which dropped today before 05:00 PKT). Evidence: SQA.md P11-15…P11-18.
+  - Counter Cash (2026-10-16): open/close/manual-movement screens rebuilt; opening float shown separately from other cash in (it was counted under both Opening and Cash In); live over/short preview while counting; close asks for confirmation; this session's movements listed (`CashService::sessionTransactions()`); Cash History with presets, in/out/net totals and readable references. All DataTables now keep the server row order until the user sorts (`order: []`; previously every list was re-sorted oldest-first by its first column). Evidence: SQA.md P11-19…P11-21.
   - Per screen: use the components in `docs/ui-design-system.md`; replace `onsubmit="return confirm(...)"` with `data-confirm`; run Playwright `tests/e2e` and check light/dark at 1440 px and 390 px.
 
 ## Phase 12 — Back-Office SQA, UAT & Release (P1)

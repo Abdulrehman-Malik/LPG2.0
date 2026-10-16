@@ -43,6 +43,10 @@ class CashService {
   $row=$this->db->table('cash_transactions')->select("SUM(CASE WHEN direction='in' THEN amount ELSE 0 END) cash_in,SUM(CASE WHEN direction='out' THEN amount ELSE 0 END) cash_out")->where('cash_session_id',$sessionId)->get()->getRowArray();
   return ['session'=>$session,'cash_in'=>(float)($row['cash_in']??0),'cash_out'=>(float)($row['cash_out']??0),'expected'=>(float)($row['cash_in']??0)-(float)($row['cash_out']??0)];
  }
+ /** Latest movements of one session, newest first (Counter Cash screen). */
+ public function sessionTransactions(int $sessionId,int $limit=15): array {
+  return $this->db->table('cash_transactions ct')->select('ct.*,u.full_name created_by_name')->join('users u','u.id=ct.created_by','left')->where('ct.cash_session_id',$sessionId)->orderBy('ct.transaction_at','DESC')->orderBy('ct.id','DESC')->limit($limit)->get()->getResultArray();
+ }
  public function history(int $locationId, ?string $from=null, ?string $to=null, ?int $registerId=null): array {
   $from=$from?:date('Y-m-d',strtotime('-30 days')); $to=$to?:date('Y-m-d');
   $q=$this->db->table('cash_transactions ct')->select('ct.*,cs.opened_by,cs.opened_at,cs.closed_at,cs.counted_cash,cr.code register_code,cr.name register_name')->join('cash_sessions cs','cs.id=ct.cash_session_id')->join('cash_registers cr','cr.id=cs.register_id')->where('cr.location_id',$locationId)->where('ct.transaction_at >=',$from.' 00:00:00')->where('ct.transaction_at <=',$to.' 23:59:59');
