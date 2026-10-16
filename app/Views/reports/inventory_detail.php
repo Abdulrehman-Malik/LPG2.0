@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div><h4 class="mb-1">Inventory Detail Report</h4><div class="text-muted small">Current company stock by cylinder type and physical cylinders that are partially used.</div></div>
+<div class="page-header">
+  <div><h1 class="page-title">Inventory Detail Report</h1><p class="page-subtitle">Current company stock by cylinder type and physical cylinders that are partially used.</p></div>
   <a class="btn btn-outline-secondary" href="<?=site_url('reports')?>">Reports</a>
 </div>
 
@@ -37,7 +37,7 @@
 <div class="card shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <strong>Partially Used Filled Cylinders — Currently in Company Stock</strong>
-    <span class="badge text-bg-warning"><?=count($partials)?> cylinder<?=count($partials)===1?'':'s'?></span>
+    <span class="status status-warning"><?=count($partials)?> cylinder<?=count($partials)===1?'':'s'?></span>
   </div>
   <div class="card-body">
     <?php if(!$partials):?>

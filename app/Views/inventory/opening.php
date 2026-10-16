@@ -77,13 +77,14 @@
                             ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>)'>
                             Edit
                         </button>
-                        <form method="post" action="<?= site_url('inventory/opening/delete/' . $r['id']) ?>" class="d-inline" onsubmit="return confirm('Delete this opening inventory record? This action will be recorded in the Audit Log.');">
+                        <form method="post" action="<?= site_url('inventory/opening/delete/' . $r['id']) ?>" class="d-inline" data-confirm="Delete this opening inventory record? This action will be recorded in the Audit Log.">
                             <?= csrf_field() ?>
                             <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                         </form>
                     </td>
                 </tr>
             <?php endforeach; ?>
+            <?php if (!$rows): ?><tr><td colspan="20"><div class="empty-state"><i class="bi bi-archive"></i><div class="empty-state-title">No opening inventory yet</div>Record the cylinders and gas you had on hand when you started using the system, with Add Opening or Upload Excel.</div></td></tr><?php endif; ?>
             </tbody>
         </table>
     </div>

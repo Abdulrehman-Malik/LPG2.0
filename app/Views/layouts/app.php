@@ -30,6 +30,14 @@ try {
 $branchName = trim((string) ($location['name'] ?? ''));
 $branchName = $branchName !== '' ? $branchName : 'Perfect LPG';
 $businessName = trim((string) ($location['business_name'] ?? ''));
+if ($businessName === '' && !empty($location['business_id'])) {
+    // Some pages pass their own location row without the business name.
+    try {
+        $businessName = (string) (\Config\Database::connect()->table('businesses')->select('name')->where('id', (int) $location['business_id'])->get()->getRow('name') ?? '');
+    } catch (Throwable $e) {
+        $businessName = '';
+    }
+}
 $appSettings = (new \App\Models\ShopSettingsModel())->forLocation((int) session()->get('location_id'));
 $nav = Navigation::build(\App\Services\PermissionService::current(), uri_string());
 $isActive = static fn (string $url): string => $url === $nav['active'] ? 'active' : '';

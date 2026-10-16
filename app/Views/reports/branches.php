@@ -13,11 +13,8 @@ $query = static fn(array $extra = []) => http_build_query(array_merge([
 ], $extra));
 $modeLabel = static fn(string $m) => ucfirst($m);
 ?>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <h4 class="mb-1">Branch Overview</h4>
-        <p class="text-muted mb-0"><?= esc($businesses[$businessId] ?? '') ?> · <?= esc(date('d-M-Y', strtotime($from))) ?> to <?= esc(date('d-M-Y', strtotime($to))) ?> · <?= count($rows) ?> branch(es)</p>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Branch Overview</h1><p class="page-subtitle"><?= esc($businesses[$businessId] ?? '') ?> · <?= esc(date('d-M-Y', strtotime($from))) ?> to <?= esc(date('d-M-Y', strtotime($to))) ?> · <?= count($rows) ?> branch(es)</p></div>
     <a class="btn btn-outline-secondary" href="<?= site_url('reports/branches?' . $query(['export' => 'csv'])) ?>"><i class="bi bi-download me-1"></i>Export CSV</a>
 </div>
 
@@ -149,7 +146,7 @@ $modeLabel = static fn(string $m) => ucfirst($m);
                             <td class="text-end"><?= (int) $b['custody_cylinders'] ?></td>
                             <td class="text-end"><?= (int) $b['outgoing_in_transit'] ?> out<?= $b['incoming_in_transit'] ? ' · <span class="text-danger fw-semibold">' . (int) $b['incoming_in_transit'] . ' to receive</span>' : '' ?></td>
                             <td class="text-end"><?= $money($b['customer_os']) ?></td>
-                            <td><?= $b['cash_open'] ? '<span class="badge text-bg-success">Open</span> <span class="small">Rs. ' . $money($b['cash_expected']) . '</span>' : '<span class="badge text-bg-light border">Closed</span>' ?></td>
+                            <td><?= $b['cash_open'] ? '<span class="status status-success">Open</span> <span class="small">Rs. ' . $money($b['cash_expected']) . '</span>' : '<span class="badge text-bg-light border">Closed</span>' ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

@@ -1,10 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <h4 class="mb-1">Expense Categories</h4>
-        <p class="text-muted mb-0">Shared by all branches of this business. Categories are deactivated rather than deleted so past expenses keep their category.</p>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Expense Categories</h1><p class="page-subtitle">Shared by all branches of this business. Categories are deactivated rather than deleted so past expenses keep their category.</p></div>
     <a class="btn btn-outline-secondary" href="<?= site_url('expenses') ?>"><i class="bi bi-arrow-left me-1"></i>Expenses</a>
 </div>
 <div class="row g-3">
@@ -41,7 +38,7 @@
                             <td><?= esc($c['name']) ?></td>
                             <td class="text-end"><?= (int) $c['expense_count'] ?></td>
                             <td class="text-end"><?= number_format((float) $c['expense_total'], 2) ?></td>
-                            <td><?= (int) $c['is_active'] ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>' ?></td>
+                            <td><?= (int) $c['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>' ?></td>
                             <td class="text-end text-nowrap">
                                 <a class="btn btn-sm btn-outline-secondary" href="<?= site_url('expenses/categories?edit=' . (int) $c['id']) ?>">Edit</a>
                                 <form method="post" action="<?= site_url('expenses/categories/' . (int) $c['id'] . '/toggle') ?>" class="d-inline"><?= csrf_field() ?><button class="btn btn-sm <?= (int) $c['is_active'] ? 'btn-outline-warning' : 'btn-outline-success' ?>" type="submit"><?= (int) $c['is_active'] ? 'Deactivate' : 'Activate' ?></button></form>

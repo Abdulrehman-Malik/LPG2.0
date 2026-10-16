@@ -5,16 +5,13 @@ $t = $transfer;
 $filled = array_filter($t['items'], static fn($i) => $i['unit_status'] === 'filled');
 $gas = array_sum(array_map(static fn($i) => (float) $i['gas_weight_kg'], $t['items']));
 $badge = match ($t['status']) {
-    'in_transit' => '<span class="badge text-bg-warning fs-6">In transit</span>',
-    'received' => '<span class="badge text-bg-success fs-6">Received</span>',
+    'in_transit' => '<span class="status status-warning fs-6">In transit</span>',
+    'received' => '<span class="status status-success fs-6">Received</span>',
     default => '<span class="badge text-bg-secondary fs-6">Cancelled</span>',
 };
 ?>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <h4 class="mb-1">Transfer <?= esc($t['transfer_no']) ?> <?= $badge ?></h4>
-        <p class="text-muted mb-0"><?= esc($t['from_name']) ?> <i class="bi bi-arrow-right"></i> <?= esc($t['to_name']) ?> · <?= $t['flow'] === 'one_step' ? 'One-step transfer' : 'Two-step transfer' ?></p>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Transfer <?= esc($t['transfer_no']) ?> <?= $badge ?></h1><p class="page-subtitle"><?= esc($t['from_name']) ?> <i class="bi bi-arrow-right"></i> <?= esc($t['to_name']) ?> · <?= $t['flow'] === 'one_step' ? 'One-step transfer' : 'Two-step transfer' ?></p></div>
     <a class="btn btn-outline-secondary" href="<?= site_url('inventory/transfers') ?>"><i class="bi bi-arrow-left me-1"></i>All transfers</a>
 </div>
 
@@ -40,13 +37,13 @@ $badge = match ($t['status']) {
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
             <?php if ($isReceiver): ?>
                 <div><div class="fw-semibold">Check the cylinders against this list before confirming.</div><div class="small text-muted">Confirming adds them to this branch's stock with the gas weights shown.</div></div>
-                <form method="post" action="<?= site_url('inventory/transfers/' . (int) $t['id'] . '/receive') ?>" onsubmit="return confirm('Confirm that all <?= count($t['items']) ?> cylinder(s) were received?');">
+                <form method="post" action="<?= site_url('inventory/transfers/' . (int) $t['id'] . '/receive') ?>" data-confirm="Confirm that all <?= count($t['items']) ?> cylinder(s) were received?">
                     <?= csrf_field() ?>
                     <button class="btn btn-success" type="submit"><i class="bi bi-box-arrow-in-down me-1"></i>Confirm receipt</button>
                 </form>
             <?php else: ?>
                 <div><div class="fw-semibold">Cancel this transfer?</div><div class="small text-muted">Possible only before the receiving branch confirms. The cylinders return to this branch's stock.</div></div>
-                <form method="post" action="<?= site_url('inventory/transfers/' . (int) $t['id'] . '/cancel') ?>" class="d-flex gap-2 flex-wrap" onsubmit="return confirm('Cancel this transfer and return the cylinders to stock?');">
+                <form method="post" action="<?= site_url('inventory/transfers/' . (int) $t['id'] . '/cancel') ?>" class="d-flex gap-2 flex-wrap" data-confirm="Cancel this transfer and return the cylinders to stock?">
                     <?= csrf_field() ?>
                     <input class="form-control" name="cancel_reason" placeholder="Reason for cancelling" required maxlength="255" style="min-width:16rem">
                     <button class="btn btn-outline-danger" type="submit"><i class="bi bi-x-circle me-1"></i>Cancel transfer</button>

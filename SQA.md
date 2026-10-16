@@ -930,3 +930,20 @@ Data: fresh QA database plus the verify_branch_admin fixture (businesses DEFAULT
 | P11-24 | Customers and Suppliers lists | OS column equals SQL for every customer; Outstanding KPI equals the sum of positive balances; supplier payables QS1 2,800 (1,000 + 3,000 − 1,200; voided purchase and payment ignored) and QB1 400; a failed save (negative amount) reopens the form with the typed values; the corrected save succeeds | PASS |
 | P11-25 | Ledgers | Statement closing balance equals the current balance for every customer and supplier at MAIN (no mismatch warning); shared-supplier opening note shown (owner decision D9-4); 390 px without horizontal scroll; no console errors | PASS |
 | P11-26 | Regression | Playwright 26/26; PHPUnit 19/19; verify_hq 29/29; verify_phase9 28/28; verify_transfers 23/23; verify_branch_admin 19/19; verify_phase8 23/25 (known); hierarchy check 30/30; shell check 78/78 | PASS |
+
+### Phase 11.5 — Remaining screens consistency pass — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-27 | Duplicate flash messages | 8 screens (Purchases, Supplier Payments, Expenses, Receipts, Stock Adjustment, Inventory Controls, Gas Wastage, Database Backup) printed success/error messages that the layout also shows, so every message appeared twice; Expenses printed its message without escaping. The per-view blocks were removed | PASS (fixed defect) |
+| P11-28 | Confirmations | 13 native `confirm()` prompts on forms (remove access, reject/reset/disable/enable app account, delete cylinder type, restore/purge backup, delete opening record, receive/cancel transfer, void purchase) and the dynamic transfer confirmation now use the shared confirm dialog (`data-confirm`) | PASS |
+| P11-29 | Reports page | Broken markup fixed (unclosed `class` attribute on the report links); deposit tile no longer labels a date range as "today"; date presets, tiles, totals row | PASS (fixed defect) |
+| P11-30 | Other screens | Shared page header and status badges on 25 views; Expenses rebuilt (labelled form, no phone overflow); Inventory tiles; Purchases themed for dark mode; Rates shows the current gas rate; Audit Log readable before/after details; Users permissions collapsed; Opening Inventory empty state; receipt payment modes labelled; the sidebar business name is shown on pages that pass their own location row | PASS |
+| P11-31 | Regression | Shell check 78/78 (all pages, 1440 and 390 px, no console errors, no horizontal scroll); Playwright 26/26 (the six `h4` title assertions now use `.page-title, h4`) | PASS |
+
+### Phase 10.5 — Document numbering — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P10-01 | `DocumentNumberService` (temporary CLI command, since removed) | 5 parallel transactions: S…-00001 to 00005, each waiting for the previous one's row lock; a rolled-back receipt number is reused (no gap); branches independent; a missing counter seeds from the highest existing number (next sale S…-00004 after three existing); an unknown branch raises an error (initially returned a number because `LAST_INSERT_ID(expr)` is evaluated before the failing insert; fixed by checking the statement result) | PASS |
+| P10-02 | Live posting | POS sale, customer receipt and expense posted with `S/R/E yyyymmdd-00001` numbers. Regression: Playwright 26/26; PHPUnit 19/19; verify_hq 29/29, verify_phase9 28/28, verify_transfers 23/23, verify_branch_admin 19/19, verify_phase8 23/25 (known); cash 17/17, sale history 16/16, POS 19/19, hierarchy 30/30 | PASS |

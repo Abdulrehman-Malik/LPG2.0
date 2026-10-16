@@ -1,18 +1,8 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4 class="mb-1">Database Backup & Restore</h4>
-        <div class="text-muted small">Create downloadable database backups, restore SQL files, and configure backup email delivery.</div>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Database Backup & Restore</h1><p class="page-subtitle">Create downloadable database backups, restore SQL files, and configure backup email delivery.</p></div>
 </div>
-
-<?php if (session()->getFlashdata('success')): ?>
-<div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div>
-<?php endif; ?>
-<?php if (session()->getFlashdata('error')): ?>
-<div class="alert alert-danger"><?= esc(session()->getFlashdata('error')) ?></div>
-<?php endif; ?>
 
 <ul class="nav nav-tabs mb-3" id="backupTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -94,7 +84,7 @@
 
                 <form method="post" action="<?= site_url('database-backup/restore') ?>"
                       enctype="multipart/form-data"
-                      onsubmit="return confirm('Restore this database backup? Current database data may be replaced. A safety backup will be created first.');">
+                      data-confirm="Restore this database backup? Current database data may be replaced. A safety backup will be created first.">
                     <?= csrf_field() ?>
 
                     <label class="form-label">Backup file (.sql)</label>
@@ -214,7 +204,7 @@
                 </div>
                 <p>Users, roles, permissions, locations and application configuration—including shop settings, cash registers and inventory policies—remain. Customers, suppliers, cylinder types and rates are cleared and must be configured again after refresh.</p>
                 <form method="post" action="<?= site_url('database-backup/transactional-refresh') ?>"
-                      onsubmit="return confirm('FINAL WARNING: This will remove transactional data from the current database. A safety backup will be created first. Continue?');">
+                      data-confirm="FINAL WARNING: This will remove transactional data from the current database. A safety backup will be created first. Continue?">
                     <?= csrf_field() ?>
                     <div class="mb-3">
                         <label for="refreshConfirmation" class="form-label">Type <code>RESET TRANSACTIONAL DATA</code> to confirm</label>

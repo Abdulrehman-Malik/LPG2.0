@@ -25,7 +25,7 @@
 <div class="card mb-4">
     <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
         <strong><i class="bi bi-person-check me-2"></i>Pending registration requests</strong>
-        <span class="badge text-bg-warning"><?= count($pending) ?> pending</span>
+        <span class="status status-warning"><?= count($pending) ?> pending</span>
     </div>
     <div class="card-body p-0">
         <?php if (!$pending): ?>
@@ -67,7 +67,7 @@
                                     <?= csrf_field() ?>
                                     <label class="form-label" for="reject-reason-<?= (int)$request['id'] ?>">Rejection reason (required)</label>
                                     <textarea class="form-control mb-2" name="reason" id="reject-reason-<?= (int)$request['id'] ?>" maxlength="500" rows="2" required></textarea>
-                                    <button class="btn btn-outline-danger" type="submit" onclick="return confirm('Reject this registration request?')">Reject registration</button>
+                                    <button class="btn btn-outline-danger" type="submit" data-confirm="Reject this registration request?">Reject registration</button>
                                 </form>
                             </div>
                         </div>
@@ -122,13 +122,13 @@
                 <tr>
                     <td><div class="fw-semibold"><?= esc($account['customer_name']) ?></div><div class="small text-muted"><?= esc($account['customer_code'] ?: ('Customer #' . $account['customer_id'])) ?><?= $account['phone'] ? ' · ' . esc($account['phone']) : '' ?></div></td>
                     <td><?= esc($account['username']) ?></td>
-                    <td><?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-success">Enabled</span><?php elseif ($account['status'] === 'disabled' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-secondary">Disabled</span><?php else: ?><span class="badge text-bg-secondary"><?= esc(ucfirst($account['status'])) ?> · customer inactive</span><?php endif; ?></td>
+                    <td><?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?><span class="status status-success">Enabled</span><?php elseif ($account['status'] === 'disabled' && (int)$account['customer_active'] === 1): ?><span class="badge text-bg-secondary">Disabled</span><?php else: ?><span class="badge text-bg-secondary"><?= esc(ucfirst($account['status'])) ?> · customer inactive</span><?php endif; ?></td>
                     <td><?= esc($account['last_login_at'] ?: 'Never') ?></td>
                     <td class="text-end">
                         <?php if ($account['status'] === 'approved' && (int)$account['customer_active'] === 1): ?>
                             <details class="text-start mb-2">
                                 <summary class="small text-primary">Reset password</summary>
-                                <form class="mt-2" method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/reset-password') ?>" onsubmit="return confirm('Reset this customer password and revoke all active app sessions?');">
+                                <form class="mt-2" method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/reset-password') ?>" data-confirm="Reset this customer password and revoke all active app sessions?">
                                     <?= csrf_field() ?>
                                     <label class="form-label small" for="reset-password-<?= (int)$account['account_id'] ?>">New password</label>
                                     <input class="form-control form-control-sm mb-2" type="password" id="reset-password-<?= (int)$account['account_id'] ?>" name="password" minlength="<?= (int)$passwordMinimum ?>" autocomplete="new-password" required>
@@ -136,11 +136,11 @@
                                     <button type="submit" class="btn btn-sm btn-outline-primary w-100">Set password</button>
                                 </form>
                             </details>
-                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/disable') ?>" onsubmit="return confirm('Disable this Customer App account and revoke its existing sessions?');">
+                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/disable') ?>" data-confirm="Disable this Customer App account and revoke its existing sessions?">
                                 <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-danger">Disable</button>
                             </form>
                         <?php elseif ($account['status'] === 'disabled' && (int)$account['customer_active'] === 1): ?>
-                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/enable') ?>" onsubmit="return confirm('Re-enable this Customer App account? Existing sessions will remain revoked.');">
+                            <form method="post" action="<?= site_url('customer-app-accounts/' . (int)$account['account_id'] . '/enable') ?>" data-confirm="Re-enable this Customer App account? Existing sessions will remain revoked.">
                                 <?= csrf_field() ?><button type="submit" class="btn btn-sm btn-outline-success">Enable</button>
                             </form>
                         <?php else: ?><span class="text-muted small">Customer inactive</span><?php endif; ?>

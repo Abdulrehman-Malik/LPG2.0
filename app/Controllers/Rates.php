@@ -25,7 +25,7 @@ class Rates extends Controller
     {
         if($r=$this->guard()) return $r;
         $locationId=(int)(session()->get('location_id') ?? 0);
-        $allTypes=$this->types->forBusiness(); $activeTypes=array_values(array_filter($allTypes,static fn($t)=>(int)$t['is_active']===1)); $rateCylinderTypes=[]; foreach($allTypes as $t) $rateCylinderTypes[(string)$t['id']]=$t; return view('rates/index',['title'=>'LPG Rates','types'=>$activeTypes,'rates'=>$this->rates->history($locationId),'rateCylinderTypes'=>$rateCylinderTypes]);
+        $allTypes=$this->types->forBusiness(); $activeTypes=array_values(array_filter($allTypes,static fn($t)=>(int)$t['is_active']===1)); $rateCylinderTypes=[]; foreach($allTypes as $t) $rateCylinderTypes[(string)$t['id']]=$t; return view('rates/index',['title'=>'LPG Rates','types'=>$activeTypes,'rates'=>$this->rates->history($locationId),'rateCylinderTypes'=>$rateCylinderTypes,'currentGasRate'=>(new \App\Models\GasRateModel())->currentKgRate(null,$locationId)]);
     }
 
     public function save()

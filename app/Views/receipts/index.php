@@ -1,10 +1,7 @@
 <?= $this->extend('layouts/app') ?><?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div><h4 class="mb-1">Customer Receipts</h4><div class="text-muted small">Receive customer payments against outstanding balances. A receipt may exceed the current OS, which will result in a negative balance/credit.</div></div>
+<div class="page-header">
+  <div><h1 class="page-title">Customer Receipts</h1><p class="page-subtitle">Receive customer payments against outstanding balances. A receipt may exceed the current OS, which will result in a negative balance/credit.</p></div>
 </div>
-<?php if(session()->getFlashdata('success')):?><div class="alert alert-success"><?=esc(session()->getFlashdata('success'))?></div><?php endif;?>
-<?php if(session()->getFlashdata('error')):?><div class="alert alert-danger"><?=esc(session()->getFlashdata('error'))?></div><?php endif;?>
-
 <form method="post" action="<?=site_url('receipts/save')?>" class="card shadow-sm card-body">
   <?=csrf_field()?>
   <?= view('partials/transaction_date', ['dateFieldClass' => 'mb-3 col-md-4']) ?>
@@ -27,7 +24,7 @@
     </div>
     <div class="col-md-2">
       <label class="form-label fw-semibold">Payment Mode</label>
-      <select name="payment_mode" class="form-select"><option>cash</option><option>cheque</option><option>online</option></select>
+      <select name="payment_mode" class="form-select"><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="online">Online</option></select>
     </div>
     <div class="col-md-3">
       <label class="form-label fw-semibold">Reference</label>

@@ -2,18 +2,15 @@
 <?= $this->section('content') ?>
 <?php
 $statusBadge = static fn(string $s): string => match ($s) {
-    'in_transit' => '<span class="badge text-bg-warning">In transit</span>',
-    'received' => '<span class="badge text-bg-success">Received</span>',
+    'in_transit' => '<span class="status status-warning">In transit</span>',
+    'received' => '<span class="status status-success">Received</span>',
     'cancelled' => '<span class="badge text-bg-secondary">Cancelled</span>',
     default => '<span class="badge text-bg-light border">' . esc($s) . '</span>',
 };
 $businessId = \App\Services\BusinessContext::businessIdForLocation($locationId);
 ?>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <h4 class="mb-1">Branch Stock Transfers</h4>
-        <p class="text-muted mb-0">Move physical cylinders to another branch of this business. Each cylinder keeps its code and actual gas weight.</p>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Branch Stock Transfers</h1><p class="page-subtitle">Move physical cylinders to another branch of this business. Each cylinder keeps its code and actual gas weight.</p></div>
     <?php if ($enabled): ?>
         <span class="badge text-bg-light border align-self-center">
             <?= $flow === 'one_step' ? 'One-step flow: stock moves immediately' : 'Two-step flow: dispatch, then the receiving branch confirms' ?>
@@ -142,7 +139,7 @@ $businessId = \App\Services\BusinessContext::businessIdForLocation($locationId);
                         <td><?= esc($t['to_name']) ?></td>
                         <td class="text-end"><?= (int) $t['unit_count'] ?></td>
                         <td class="text-end"><?= number_format((float) $t['gas_kg'], 2) ?></td>
-                        <td><?= $statusBadge($t['status']) ?><?= $incoming && $t['status'] === 'in_transit' ? ' <span class="badge text-bg-danger">Awaiting your receipt</span>' : '' ?></td>
+                        <td><?= $statusBadge($t['status']) ?><?= $incoming && $t['status'] === 'in_transit' ? ' <span class="status status-danger">Awaiting your receipt</span>' : '' ?></td>
                         <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="<?= site_url('inventory/transfers/' . $t['id']) ?>">Open</a></td>
                     </tr>
                 <?php endforeach; ?>
@@ -187,11 +184,16 @@ $businessId = \App\Services\BusinessContext::businessIdForLocation($locationId);
         rows.filter(r => !r.classList.contains('d-none')).forEach(r => { r.querySelector('.unit-check').checked = all.checked; });
         refresh();
     });
-    document.getElementById('transferForm').addEventListener('submit', e => {
-        const to = document.getElementById('to_location_id');
-        const label = to.options[to.selectedIndex]?.text || '';
-        if (!confirm(`Transfer the selected cylinders to ${label}?`)) e.preventDefault();
-    });
+    // The shared confirm dialog (app.js) reads data-confirm; keep it naming the chosen branch.
+    const transferForm = document.getElementById('transferForm');
+    const to = document.getElementById('to_location_id');
+    const setConfirm = () => {
+        transferForm.dataset.confirm = `Transfer the selected cylinders to ${to.options[to.selectedIndex]?.text || 'the selected branch'}?`;
+        transferForm.dataset.confirmOk = 'Transfer';
+        transferForm.dataset.confirmDanger = 'false';
+    };
+    to.addEventListener('change', setConfirm);
+    setConfirm();
 })();
 </script>
 <?= $this->endSection() ?>

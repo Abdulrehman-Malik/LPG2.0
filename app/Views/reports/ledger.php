@@ -1,5 +1,5 @@
 <?= $this->extend('layouts/app') ?><?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3"><div><h4 class="mb-1">Customer Ledger — <?=esc($customer['name'])?></h4><div class="text-muted small">Credit / OS ledger</div></div><a class="btn btn-outline-secondary" href="<?=site_url('reports')?>">Back</a></div>
+<div class="page-header"><div><h1 class="page-title">Customer Ledger — <?=esc($customer['name'])?></h1><p class="page-subtitle">Credit / OS ledger</p></div><a class="btn btn-outline-secondary" href="<?=site_url('reports')?>">Back</a></div>
 <div class="row g-3 mb-3">
 <div class="col-md-3"><div class="card card-body"><div class="text-muted">Opening Balance</div><h5>Rs. <?=number_format((float)$openingBalance,2)?></h5></div></div>
 <div class="col-md-3"><div class="card card-body"><div class="text-muted">Current OS</div><h5>Rs. <?=number_format((float)$currentBalance,2)?></h5></div></div>

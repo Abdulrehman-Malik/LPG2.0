@@ -1,10 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <h4 class="mb-1"><?= esc($title) ?></h4>
-        <p class="text-muted mb-0">Effective values show their source. A shop override takes precedence over a business value, which takes precedence over the application default.</p>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title"><?= esc($title) ?></h1><p class="page-subtitle">Effective values show their source. A shop override takes precedence over a business value, which takes precedence over the application default.</p></div>
     <a class="btn btn-outline-secondary" href="<?= esc($backUrl) ?>"><i class="bi bi-arrow-left me-1"></i>Configuration</a>
 </div>
 

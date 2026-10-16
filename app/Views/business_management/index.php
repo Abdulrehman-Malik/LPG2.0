@@ -64,9 +64,9 @@
                         <td><?= esc($shop['city'] ?? '') ?></td><td><?= esc($shop['phone'] ?? '') ?></td>
                         <td>
                             <?php if (!$missing): ?>
-                                <span class="badge text-bg-success"><i class="bi bi-check2-circle me-1"></i>Ready</span>
+                                <span class="status status-success"><i class="bi bi-check2-circle me-1"></i>Ready</span>
                             <?php else: ?>
-                                <?php foreach ($missing as $item): ?><span class="badge text-bg-warning me-1" title="<?= esc($item['hint']) ?>"><i class="bi bi-exclamation-triangle me-1"></i><?= esc($item['label']) ?></span><?php endforeach; ?>
+                                <?php foreach ($missing as $item): ?><span class="status status-warning me-1" title="<?= esc($item['hint']) ?>"><i class="bi bi-exclamation-triangle me-1"></i><?= esc($item['label']) ?></span><?php endforeach; ?>
                                 <?php if ((int) $shop['id'] !== (int) session()->get('location_id')): ?>
                                     <form method="post" action="<?= site_url('shop-context/select') ?>" class="d-inline"><?= csrf_field() ?><input type="hidden" name="location_id" value="<?= (int) $shop['id'] ?>"><button class="btn btn-link btn-sm p-0 ms-1" type="submit">Open branch to finish setup</button></form>
                                 <?php endif; ?>
@@ -113,7 +113,7 @@
                             <td><?= (int)$assignment['is_default'] === 1 ? '<span class="badge text-bg-primary">Default</span>' : '—' ?></td>
                             <td><?= (int)$assignment['is_active'] === 1 ? 'Active' : 'Disabled' ?></td>
                             <td class="text-end">
-                                <form method="post" action="<?= site_url('business-management/staff-access/save') ?>" onsubmit="return confirm('Remove this access assignment?');">
+                                <form method="post" action="<?= site_url('business-management/staff-access/save') ?>" data-confirm="Remove this access assignment?">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="business_id" value="<?= (int)$business['id'] ?>">
                                     <input type="hidden" name="user_id" value="<?= (int)$assignment['user_id'] ?>">

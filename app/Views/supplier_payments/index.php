@@ -6,13 +6,6 @@
     <div class="text-muted small">Pay an outstanding supplier balance without purchasing or receiving any stock.</div>
 </div>
 
-<?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div>
-<?php endif; ?>
-<?php if (session()->getFlashdata('error')): ?>
-    <div class="alert alert-danger"><?= esc(session()->getFlashdata('error')) ?></div>
-<?php endif; ?>
-
 <form method="post" action="<?= site_url('supplier-payments/save') ?>" class="card shadow-sm" id="supplierPaymentForm">
     <?= csrf_field() ?>
     <div class="card-body">

@@ -49,7 +49,7 @@ test('E2E-009 Inventory adjustment screen is usable and enforces shop-available 
 
   await login(page);
   await page.goto('/inventory/adjustments',{waitUntil:'networkidle'});
-  await expect(page.locator('h4')).toContainText('Stock Adjustment');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Stock Adjustment');
 
   // New Adjustment and How It Works tabs.
   await expect(page.locator('[data-adjust-panel="new"]')).toBeVisible();
@@ -344,7 +344,7 @@ test('E2E-012 Receipt History shows POS-generated payment with its source', asyn
 
   await login(page);
   await page.goto('/receipts', { waitUntil: 'networkidle' });
-  await expect(page.locator('h4')).toContainText('Customer Receipts');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Customer Receipts');
   const history = page.locator('table.datatable').last();
   await expect(history.locator('thead')).toContainText('Source');
   await expect(history.locator('thead')).toContainText('Status');
@@ -387,7 +387,7 @@ test('E2E-020 Business and shop administration renders for System Administrator'
 
   await login(page);
   await page.goto('/business-management', { waitUntil: 'networkidle' });
-  await expect(page.locator('h4')).toContainText('Businesses & Shops');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Businesses & Shops');
   await expect(page.locator('body')).toContainText('Shop locations');
   await expect(page.locator('form[action*="business-management/business/save"]')).toHaveCount(1);
   expect(pageErrors).toEqual([]);
@@ -400,7 +400,7 @@ test('E2E-021 Customer ordering catalog renders with separate business/shop cont
 
   await login(page);
   await page.goto('/mobile-catalog', { waitUntil: 'networkidle' });
-  await expect(page.locator('h4')).toContainText('Customer Ordering Catalog');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Customer Ordering Catalog');
   await expect(page.locator('body')).toContainText('Shop availability');
   await expect(page.locator('#product-sale-mode')).toBeVisible();
   expect(pageErrors).toEqual([]);
@@ -413,7 +413,7 @@ test('E2E-022 Customer App account review page renders safely', async ({ page })
 
   await login(page);
   await page.goto('/customer-app-accounts', { waitUntil: 'networkidle' });
-  await expect(page.locator('h4')).toContainText('Customer App Accounts');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Customer App Accounts');
   await expect(page.locator('body')).toContainText('Pending registration requests');
   await expect(page.locator('body')).toContainText('Customer App accounts');
   expect(pageErrors).toEqual([]);
@@ -426,7 +426,7 @@ test('E2E-023 Browser customer order queue renders without bypassing login or pa
 
   await login(page);
   await page.goto('/customer-orders', { waitUntil: 'networkidle' });
-  await expect(page.locator('h4')).toContainText('Customer Orders');
+  await expect(page.locator('.page-title, h4').first()).toContainText('Customer Orders');
   await expect(page.locator('#order-status')).toBeVisible();
   await expect(page.locator('body')).toContainText('No customer orders match this filter.');
   expect(pageErrors).toEqual([]);

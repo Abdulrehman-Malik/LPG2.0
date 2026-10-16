@@ -2,10 +2,10 @@
 <?= $this->section('content') ?>
 
 <style>
-.purchase-page .card-header { background:#fff; }
+.purchase-page .card-header { background:var(--lpg-surface); }
 .purchase-page .stock-table th,
 .purchase-page .stock-table td { vertical-align:middle; }
-.purchase-page .stock-table th { white-space:nowrap; font-size:.86rem; font-weight:600; color:#5f6b76; }
+.purchase-page .stock-table th { white-space:nowrap; font-size:.86rem; font-weight:600; color:var(--lpg-muted); }
 .purchase-page .stock-table .form-control,
 .purchase-page .stock-table .form-select { min-width:0; }
 .purchase-page .stock-table .lineTotal {
@@ -16,35 +16,35 @@
     font-weight:600;
     white-space:nowrap;
 }
-.purchase-page .summary-card { border:1px solid #dee2e6; border-radius:.5rem; }
+.purchase-page .summary-card { border:1px solid var(--lpg-border); border-radius:.5rem; }
 .purchase-page .summary-row { display:flex; justify-content:space-between; gap:1rem; padding:.6rem 0; }
-.purchase-page .summary-row + .summary-row { border-top:1px solid #e9ecef; }
+.purchase-page .summary-row + .summary-row { border-top:1px solid var(--lpg-border); }
 .purchase-page .summary-total { font-size:1.05rem; }
 .purchase-page .summary-balance {
     margin-top:.35rem;
     padding-top:.75rem;
-    border-top:2px solid #adb5bd;
+    border-top:2px solid var(--lpg-border-strong);
     font-size:1.15rem;
 }
 .purchase-page .purchase-tabs { margin-bottom: 1rem; }
 .purchase-page .history-table th,
 .purchase-page .history-table td { vertical-align: middle; }
-.purchase-page .history-table th { white-space: nowrap; font-size: .86rem; font-weight: 600; color: #5f6b76; }
+.purchase-page .history-table th { white-space: nowrap; font-size: .86rem; font-weight: 600; color: var(--lpg-muted); }
 .purchase-page .payment-row {
-    border:1px solid #e9ecef;
+    border:1px solid var(--lpg-border);
     border-radius:.5rem;
     padding:.75rem;
-    background:#fafbfc;
+    background:var(--lpg-surface-2);
 }
 .purchase-page .history-details-table th {
     white-space:nowrap;
     font-size:.82rem;
-    color:#5f6b76;
+    color:var(--lpg-muted);
 }
 .purchase-page .history-details-table td { vertical-align:middle; }
 .purchase-page .purchase-detail-summary {
-    background:#f8f9fa;
-    border:1px solid #e9ecef;
+    background:var(--lpg-surface-2);
+    border:1px solid var(--lpg-border);
     border-radius:.5rem;
 }
 @media (max-width: 991.98px) {
@@ -53,13 +53,6 @@
 </style>
 
 <div class="purchase-page">
-    <?php if (session()->getFlashdata('success')): ?>
-        <div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div>
-    <?php endif; ?>
-    <?php if (session()->getFlashdata('error')): ?>
-        <div class="alert alert-danger"><?= esc(session()->getFlashdata('error')) ?></div>
-    <?php endif; ?>
-
     <ul class="nav nav-tabs purchase-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <a class="nav-link <?= ($activeTab ?? 'new') === 'new' ? 'active' : '' ?>" href="#new-purchase" data-bs-toggle="tab" role="tab" aria-controls="new-purchase" aria-selected="<?= ($activeTab ?? 'new') === 'new' ? 'true' : 'false' ?>">
@@ -163,7 +156,7 @@
                     </div>
 
                     <div class="col-lg-5">
-                        <div class="summary-card p-3 bg-light">
+                        <div class="summary-card p-3" style="background:var(--lpg-surface-2)">
                             <div class="small text-muted mb-2">Supplier Account Summary</div>
 
                             <div class="summary-row">
@@ -286,7 +279,7 @@
                                                     <form method="post"
                                                         action="<?= site_url('purchases/void/' . (int) $purchase['id']) ?>"
                                                         class="d-inline"
-                                                        onsubmit="return confirm('Void purchase <?= esc($purchase['purchase_no'], 'js') ?>? Stock, cash and supplier ledger effects will be reversed.');">
+                                                        data-confirm="Void purchase <?= esc($purchase['purchase_no']) ?>? Stock, cash and supplier ledger effects will be reversed.">
                                                         <?= csrf_field() ?>
                                                         <input type="hidden" name="void_reason" value="Voided from Purchase History">
                                                         <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -462,7 +455,7 @@
                                                 <form method="post"
                                                     action="<?= site_url('purchases/void/' . (int) $purchase['id']) ?>"
                                                     class="d-flex align-items-center gap-2"
-                                                    onsubmit="return confirm('Void purchase <?= esc($purchase['purchase_no'], 'js') ?>? Stock, cash and supplier ledger effects will be reversed.');">
+                                                    data-confirm="Void purchase <?= esc($purchase['purchase_no']) ?>? Stock, cash and supplier ledger effects will be reversed.">
                                                     <?= csrf_field() ?>
                                                     <input type="text" name="void_reason" class="form-control form-control-sm" style="width:240px" value="Voided from Purchase Details" aria-label="Void reason">
                                                     <button type="submit" class="btn btn-danger">

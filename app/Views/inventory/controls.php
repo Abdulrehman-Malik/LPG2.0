@@ -1,8 +1,6 @@
 <?= $this->extend('layouts/app') ?><?= $this->section('content') ?>
 <h4>Inventory Controls & Wastage</h4>
 <p class="text-muted">Configure stock validation and permitted wastage, then record cylinder leakage or residual gas when a filled cylinder is made empty.</p>
-<?php if(session()->getFlashdata('success')):?><div class="alert alert-success"><?=esc(session()->getFlashdata('success'))?></div><?php endif;?>
-<?php if(session()->getFlashdata('error')):?><div class="alert alert-danger"><?=esc(session()->getFlashdata('error'))?></div><?php endif;?>
 <div class="card mb-4"><div class="card-body">
 <h6>Shop Default Policy</h6><form method="post" action="<?=site_url('inventory/controls/save')?>" class="row g-2"><?=csrf_field()?>
 <input type="hidden" name="cylinder_type_id" value="">

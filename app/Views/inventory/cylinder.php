@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div><h4 class="mb-1">Cylinder Details</h4><div class="text-muted small"><?=esc($unit['unit_code'])?></div></div>
+<div class="page-header">
+  <div><h1 class="page-title">Cylinder Details</h1><p class="page-subtitle"><?=esc($unit['unit_code'])?></p></div>
   <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="<?=site_url('inventory/cylinders/'.$unit['cylinder_type_id'])?>"><i class="bi bi-arrow-left me-1"></i>Cylinders</a><a class="btn btn-outline-secondary" href="<?=site_url('inventory')?>">Inventory</a></div>
 </div>
 <div class="row g-3 mb-4">

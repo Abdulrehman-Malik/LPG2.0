@@ -53,6 +53,7 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 039 | `039_20261014_order_physical_cylinder_selection.sql` | Persists selected physical cylinders on order lines so actual gas weight can be quoted and reconfirmed before posting |
 | 040 | `040_20261015_business_owned_master_data.sql` | Makes cylinder types, expense categories and suppliers business-owned (suppliers optionally branch-only). Existing rows go to the earliest business; other businesses get their own copies and their rows are re-pointed by code. Idempotent. |
 | 041 | `041_20261015_inter_branch_stock_transfer.sql` | Adds stock transfer documents/items and the `in_transit` cylinder status for one-step / two-step inter-branch transfers within a business. Idempotent. |
+| 042 | `042_20261016_document_sequences.sql` | Adds `document_sequences` (branch, document type, day) used by `DocumentNumberService` for concurrency-safe, gap-free numbers: sales `S`, receipts `R`, purchases `P`, supplier payments `SP`, expenses `E` + `yyyymmdd-00001`. Idempotent. |
 
 ## Deployment rules
 

@@ -37,16 +37,7 @@ class SalesService
 
     protected function nextSaleNo(string $transactionAt,int $locationId): string
     {
-        $date=date('Ymd',strtotime($transactionAt));
-        $prefix='S'.$date.'-';
-        $row=$this->db->query(
-            "SELECT MAX(CAST(SUBSTRING(sale_no,11) AS UNSIGNED)) AS max_seq
-             FROM sales
-             WHERE location_id=? AND sale_no LIKE ?",
-            [$locationId,$prefix.'%']
-        )->getRowArray();
-        $next=((int)($row['max_seq']??0))+1;
-        return $prefix.str_pad((string)$next,5,'0',STR_PAD_LEFT);
+        return (new DocumentNumberService($this->db))->next('sale',$locationId,$transactionAt);
     }
 
     /**
@@ -1484,7 +1475,7 @@ class SalesService
         if(!$settlements || $customerId===null)return;
         foreach($settlements as $p){
             $amount=(float)$p['amount'];$mode=(string)$p['payment_mode'];
-            $no='R'.date('YmdHis').'-'.random_int(100,999);
+            $no=(new DocumentNumberService($this->db))->next('receipt',$locationId,$at);
             $this->db->table('customer_receipts')->insert([
                 'receipt_no'=>$no,'location_id'=>$locationId,'customer_id'=>$customerId,'status'=>'posted',
                 'amount'=>$amount,'payment_mode'=>$mode,'receipt_at'=>$at,

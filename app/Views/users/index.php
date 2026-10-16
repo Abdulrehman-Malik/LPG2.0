@@ -1,11 +1,8 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4 class="mb-1">Users & Roles</h4>
-        <div class="text-muted small">Manage user accounts and exactly which application permissions each role receives.</div>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Users & Roles</h1><p class="page-subtitle">Manage user accounts and exactly which application permissions each role receives.</p></div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userForm">
         <i class="bi bi-person-plus me-1"></i>Add User
     </button>
@@ -31,7 +28,7 @@
                     <td><?= esc($u['username']) ?></td>
                     <td><?= esc($u['email'] ?? '') ?></td>
                     <td><span class="badge text-bg-light border"><?= esc($u['role_code']) ?></span><div class="small text-muted"><?= esc($u['role_name']) ?></div></td>
-                    <td><?= $u['is_active'] ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>' ?></td>
+                    <td><?= $u['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>' ?></td>
                     <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?= site_url('users?edit='.$u['id']) ?>"><i class="bi bi-pencil me-1"></i>Edit</a></td>
                 </tr>
             <?php endforeach; ?>
@@ -40,23 +37,23 @@
     </div>
 </div>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-header">
-        <strong>Current signed-in permissions</strong>
-        <div class="small text-muted">These are the permissions currently used to build the sidebar menu.</div>
-    </div>
+<details class="card shadow-sm mb-4">
+    <summary class="card-header" style="cursor:pointer">
+        <strong>Your current permissions</strong> <span class="badge text-bg-light"><?= count($currentPermissions) ?></span>
+        <div class="small text-muted">The permissions of your own account, which decide what your menu shows. Select to expand.</div>
+    </summary>
     <div class="card-body">
         <?php if($currentPermissions): ?>
             <div class="d-flex flex-wrap gap-2">
                 <?php foreach(array_keys($currentPermissions) as $code): ?>
-                    <span class="badge text-bg-success"><?= esc($code) ?></span>
+                    <span class="badge text-bg-light"><?= esc($code) ?></span>
                 <?php endforeach; ?>
             </div>
         <?php else: ?>
             <div class="alert alert-warning mb-0">No permissions are assigned to the current account. Navigation items will remain hidden until permissions are granted.</div>
         <?php endif; ?>
     </div>
-</div>
+</details>
 
 <div class="mb-2">
     <h5 class="mb-1">Role Permissions</h5>

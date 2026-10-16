@@ -1,10 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4 class="mb-1">Shop Settings</h4>
-        <div class="text-muted small">Branch-level configuration for <?= esc($location['name'] ?? 'Current Branch') ?></div>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">Shop Settings</h1><p class="page-subtitle">Branch-level configuration for <?= esc($location['name'] ?? 'Current Branch') ?></p></div>
     <span class="badge text-bg-secondary">Branch configuration</span>
 </div>
 

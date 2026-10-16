@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-<div><h4 class="mb-1">Cylinder Type History</h4><div class="text-muted small"><?=esc($type['code'].' — '.$type['name'])?></div></div>
+<div class="page-header">
+<div><h1 class="page-title">Cylinder Type History</h1><p class="page-subtitle"><?=esc($type['code'].' — '.$type['name'])?></p></div>
 <a class="btn btn-outline-secondary" href="<?=site_url('inventory')?>"><i class="bi bi-arrow-left me-1"></i>Inventory</a>
 </div>
 <form method="get" class="row g-2 mb-3">
