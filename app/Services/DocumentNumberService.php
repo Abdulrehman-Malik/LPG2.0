@@ -54,8 +54,8 @@ class DocumentNumberService
         // LAST_INSERT_ID(expr) is evaluated even when the upsert then fails (e.g. unknown branch),
         // so the statement's own result must be checked before trusting the value.
         $ok = $this->db->query(
-            'INSERT INTO document_sequences(location_id,doc_type,period,last_value) VALUES(?,?,?,LAST_INSERT_ID(?))
-             ON DUPLICATE KEY UPDATE last_value=LAST_INSERT_ID(last_value+1)',
+            'INSERT INTO document_sequences(location_id,doc_type,period,last_number) VALUES(?,?,?,LAST_INSERT_ID(?))
+             ON DUPLICATE KEY UPDATE last_number=LAST_INSERT_ID(last_number+1)',
             [$locationId, $docType, $period, $seed + 1]
         );
         if ($ok === false || $this->db->affectedRows() < 1) {

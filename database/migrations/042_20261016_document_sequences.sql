@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS document_sequences(
     location_id BIGINT UNSIGNED NOT NULL,
     doc_type VARCHAR(20) NOT NULL,
     period CHAR(8) NOT NULL,
-    last_value INT UNSIGNED NOT NULL,
+    last_number INT UNSIGNED NOT NULL,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY(location_id, doc_type, period),
     CONSTRAINT fk_document_sequences_location FOREIGN KEY(location_id) REFERENCES locations(id) ON DELETE CASCADE
