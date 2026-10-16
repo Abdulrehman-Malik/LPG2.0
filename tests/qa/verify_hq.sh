@@ -61,6 +61,7 @@ for spec in "MAIN:$MAIN" "QA-B2:$B2"; do
   eq "$bn customer OS" "$(csvval "$T/hq.csv" "$bn" 'Customer OS')" "$(q "SELECT COALESCE(SUM(GREATEST(0,c.opening_balance+(SELECT COALESCE(SUM(credit_amount+return_gas_ledger_amount),0) FROM sales s WHERE s.customer_id=c.id AND s.status='posted')-(SELECT COALESCE(SUM(amount),0) FROM customer_receipts r WHERE r.customer_id=c.id AND r.status='posted'))),0) FROM customers c WHERE c.location_id=$loc")"
 done
 eq "TOTAL sales" "$(csvval "$T/hq.csv" TOTAL 'Sales total')" "$(q "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE location_id IN ($MAIN,$B2) AND status='posted'")"
+[ "${GITHUB_ACTIONS:-}" ] && [ "$FAIL" != 0 ] && head -5 "$T/hq.csv" | cut -c1-300 | sed "s/^/FAIL  csv: /"
 
 echo "--- branch scope"
 SM="$T/scoped.txt"; login "$SM" qa_scoped_manager admin123 >/dev/null
