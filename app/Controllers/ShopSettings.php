@@ -79,7 +79,7 @@ class ShopSettings extends Controller
         if (!in_array($themeMode, ['light','dark'], true)) {
             return redirect()->back()->withInput()->with('error', 'Invalid theme mode.');
         }
-        if (!in_array($fontFamily, ['system','arial','verdana','tahoma','trebuchet','georgia','times'], true)) {
+        if (!array_key_exists($fontFamily, \App\Libraries\AppTheme::FONTS)) {
             return redirect()->back()->withInput()->with('error', 'Invalid font style.');
         }
         foreach (['primaryColor'=>$primaryColor,'accentColor'=>$accentColor] as $label=>$color) {

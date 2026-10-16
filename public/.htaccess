@@ -47,3 +47,16 @@ Options -Indexes
 # Disable server signature start
 ServerSignature Off
 # Disable server signature end
+
+# Static assets under /assets are versioned (?v=<mtime>) by the layout, so browsers may cache them.
+<IfModule mod_expires.c>
+	<FilesMatch "\.(css|js|woff2?|png|svg|ico)$">
+		ExpiresActive On
+		ExpiresDefault "access plus 30 days"
+	</FilesMatch>
+</IfModule>
+<IfModule mod_headers.c>
+	<FilesMatch "\.(css|js|woff2?|png|svg|ico)$">
+		Header set Cache-Control "public, max-age=2592000"
+	</FilesMatch>
+</IfModule>

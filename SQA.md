@@ -858,3 +858,18 @@ Regression after 9.5.4: Playwright 26/26, Phase 9 checks 28/28, Phase 8 checks p
 | P9-30 | Dashboard opened in a non-default branch | Previously HTTP 500 and listed every branch's customers; now 200 and limited to the branch | PASS (fixed defect) |
 | P9-31 | Browser walkthrough (Chromium): Businesses & Shops checklist, Branch Overview, user branch-access form, expense category create, Dashboard in second branch | No console/page errors; screenshots reviewed | PASS |
 | P9-32 | Regression on final code | Playwright 26/26; P9-01…P9-20 suites 28/28 and 23/23; Phase 8 suite passed (two no-session credit checks need a temporary CLI command; verified earlier); migration gate accepts CRLF/LF checkouts (8.1.8) | PASS |
+
+### Phase 11.1–11.2 — Design system and application shell — 2026-10-16
+
+Environment: disposable `lpg_qa_phase8` database (MariaDB 10.4), `php spark serve`, Chromium (Playwright). Presentation-only change. No service, controller logic, schema or permission changes, except that the Shop Settings font list now comes from `AppTheme`, which adds a "Device system font" option.
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-01 | Every menu page (31 links for ADMIN) at 1440 px and 390 px | HTTP 200, no console/page errors, exactly one active menu entry matching the page, no horizontal page scroll (62 page loads) | PASS |
+| P11-02 | No third-party requests | No request leaves the app origin; Bootstrap, Icons, jQuery, DataTables, Inter and Chart.js are served from `public/assets/vendor` | PASS |
+| P11-03 | Shell behaviour | Breadcrumb shows group / page; menu search filters to the matching item and Enter opens it; sidebar collapses to icons (72 px) and the state is remembered; on phones the menu slides in and closes with Escape or the backdrop | PASS |
+| P11-04 | Theme | Dark theme applied from the account menu and kept across pages; light restored; branch accent/primary colours produce readable text (unit test: contrast ≥ 4.5:1 for links); invalid stored colours/fonts fall back to defaults | PASS |
+| P11-05 | Wide DataTables on phones (Inventory Controls, Gas Wastage, Audit Log overflowed by 38–229 px) | Table scrolls inside its container; the page no longer scrolls sideways | PASS (fixed) |
+| P11-06 | Regression | Playwright 26/26 (E2E-011 timeout raised to 150 s: it loads 24 screens and the single-threaded dev server now serves the local assets too); PHPUnit 19/19 (4 new shell tests); Phase 9 suites 28/28, 23/23, 19/19, 29/29 | PASS |
+
+Not verified locally: the Apache cache headers added in `public/.htaccess`, because Apache was not running on this machine. Check them on staging with `curl -I <app>/assets/css/app.css`.

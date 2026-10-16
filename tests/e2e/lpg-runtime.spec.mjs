@@ -309,6 +309,8 @@ test('E2E-008 Configuration navigation remains available after POS regression', 
 
 
 test('E2E-011 All application screens load without HTTP, PHP, or browser errors', async ({ page }) => {
+  // 24 screens in one test; the single-threaded dev server serves every page and its local assets serially.
+  test.setTimeout(150000);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') pageErrors.push(message.text()); });
