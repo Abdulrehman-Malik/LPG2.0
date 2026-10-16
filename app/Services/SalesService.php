@@ -45,6 +45,15 @@ class SalesService
         $this->cylinders=new CylinderUnitService();
     }
 
+    /** @var array<int,MoneyRounding> */
+    private array $roundingByShop = [];
+
+    /** The business money-rounding rule for a branch (owner decision D10-2). */
+    protected function rounding(int $locationId): MoneyRounding
+    {
+        return $this->roundingByShop[$locationId] ??= MoneyRounding::forShop($locationId);
+    }
+
     protected function nextSaleNo(string $transactionAt,int $locationId): string
     {
         return (new DocumentNumberService($this->db))->next('sale',$locationId,$transactionAt);
@@ -323,7 +332,7 @@ class SalesService
             if(in_array($mode,['sell_gas_only','replace_same'],true)) $lineTotal=$gasKg*$gasRate;
             elseif(in_array($mode,['sell_filled','replace_different'],true)) $lineTotal=$gasKg*$gasRate+$qty*$cylinderRate;
             elseif($mode==='sell_empty') $lineTotal=$qty*$cylinderRate;
-            if($this->currentOrderId) $lineTotal=round($lineTotal,2);
+            $lineTotal=$this->rounding($locationId)->line($lineTotal);
 
             $subtotal+=$lineTotal;$totalKg+=$gasKg;
             $storedLineType=$mode==='sell_empty'?'empty_cylinder':($mode==='sell_gas_only'?'refill_kg':'filled_cylinder');

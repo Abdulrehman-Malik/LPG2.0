@@ -67,8 +67,21 @@ for (const id of sql('SELECT id FROM suppliers').split('\n')) {
   check(await p.locator('#supplierStatement .alert-warning').count() === 0, `supplier ${id} statement matches payable`);
 }
 await p.goto(B + '/suppliers/ledger/1', { waitUntil: 'networkidle' });
-check(/counted at every branch/.test(await p.locator('.kpi', { hasText: 'Opening balance' }).innerText()), 'shared-supplier opening note shown');
+check(/recorded at this branch/.test(await p.locator('.kpi', { hasText: 'Opening balance' }).innerText()), 'separate balances: opening counted at its own branch only (D9-4)');
 await p.screenshot({ path: `${OUT}/supplier-ledger.png` });
+
+// D9-4 single balance for the business: QS1 = 1000 opening + 3000 (MAIN) + 2000 (QA-B2) − 1200 = 4800;
+// the branch-only supplier QB1 keeps its own balance (400).
+sql(`INSERT INTO business_settings(business_id,setting_key,setting_value) VALUES (1,'supplier_balance_mode',JSON_QUOTE('business')) ON DUPLICATE KEY UPDATE setting_value=JSON_QUOTE('business')`);
+await p.goto(B + '/suppliers', { waitUntil: 'networkidle' });
+const pooled = Object.fromEntries((await p.$$eval('table.datatable tbody tr', (rows) => rows.map((r) => [r.cells[0].textContent.trim(), r.cells[7].textContent.trim()]))).map(([k, v]) => [k, Number(v.replace(/,/g, ''))]));
+check(pooled.QS1 === 4800 && pooled.QB1 === 400, 'single business balance: QS1 4800 (all branches), QB1 400', JSON.stringify(pooled));
+await p.goto(B + '/suppliers/ledger/1', { waitUntil: 'networkidle' });
+check(await p.locator('#supplierStatement .alert-warning').count() === 0, 'single balance: statement matches payable');
+check(/QA Branch Two/.test(await p.locator('#supplierStatement').innerText()), 'single balance: statement lists the other branch purchase');
+check(num(await p.locator('#supplierStatement tfoot td').last().innerText()) === 4800, 'single balance: statement closes at 4800');
+await p.screenshot({ path: `${OUT}/supplier-ledger-business.png` });
+sql(`DELETE FROM business_settings WHERE business_id=1 AND setting_key='supplier_balance_mode'`);
 
 // Supplier failed save keeps input
 await p.goto(B + '/suppliers', { waitUntil: 'networkidle' });

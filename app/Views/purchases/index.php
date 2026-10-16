@@ -491,6 +491,10 @@ const types = <?= json_encode($types) ?>;
 const supplierBalances = <?= json_encode($supplierBalances ?? []) ?>;
 
 const money = value => Number(value || 0).toFixed(2);
+// Business money-rounding rule (D10-2), the same rule the server applies when posting.
+const lineRounding = <?= json_encode(($moneyRounding ?? 'document') === 'line') ?>;
+const round2 = v => Math.round((v + Number.EPSILON) * 100) / 100;
+const lineAmount = v => lineRounding ? round2(v) : v;
 
 function getPreviousPayable() {
     const supplierId = document.getElementById('supplier_id').value;
@@ -541,15 +545,15 @@ function calculate() {
     let current = 0;
 
     document.querySelectorAll('.line').forEach(row => {
-        const amount =
+        const amount = lineAmount(
             Number(row.querySelector('.qty').value || 0) *
-            Number(row.querySelector('.rate').value || 0);
+            Number(row.querySelector('.rate').value || 0));
 
         row.querySelector('.lineTotal').textContent = 'Rs. ' + money(amount);
         current += amount;
     });
 
-    current = Math.max(0, current - Number(document.getElementById('discount').value || 0));
+    current = round2(Math.max(0, current - Number(document.getElementById('discount').value || 0)));
 
     const previous = getPreviousPayable();
     const totalPayable = previous + current;

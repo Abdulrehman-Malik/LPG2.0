@@ -6,6 +6,7 @@ use App\Models\SupplierModel;
 use App\Services\BusinessContext;
 use App\Services\ConfigurationService;
 use App\Services\PermissionService;
+use App\Services\SupplierBalanceService;
 use CodeIgniter\Controller;
 
 /**
@@ -30,11 +31,20 @@ class Suppliers extends Controller
     {
         if($r=$this->guard()) return $r;
         $editId=(int)$this->request->getGet('edit');
+        $balances=new SupplierBalanceService();
+        $suppliers=$this->model->visibleTo($this->locationId());
+        $edit=$editId?BusinessContext::supplierVisibleTo($editId,$this->locationId(),false):null;
+        $openings=[];
+        foreach($suppliers as $s) $openings[(int)$s['id']]=$balances->opening($s,$this->locationId());
+        if($edit) $edit['branch_opening']=$balances->branchOpening((int)$edit['id'],$this->locationId());
         return view('suppliers/index',[
             'title'=>'Suppliers',
-            'suppliers'=>$suppliers=$this->model->visibleTo($this->locationId()),
-            'balances'=>(new \App\Services\PurchaseService())->supplierBalances($suppliers,$this->locationId()),
-            'edit'=>$editId?BusinessContext::supplierVisibleTo($editId,$this->locationId(),false):null,
+            'suppliers'=>$suppliers,
+            'balances'=>$balances->balances($suppliers,$this->locationId()),
+            'openings'=>$openings,
+            'balanceMode'=>$balances->mode($this->locationId()),
+            'branchName'=>(string)($this->model->db->table('locations')->select('name')->where('id',$this->locationId())->get()->getRowArray()['name']??''),
+            'edit'=>$edit,
             'scopeMode'=>$this->scopeMode(),
         ]);
     }
@@ -46,7 +56,7 @@ class Suppliers extends Controller
         $ledger=(new \App\Services\LedgerService())->supplierLedger($id,$locationId);
         if(!$ledger) return $this->response->setStatusCode(404)->setBody('Supplier not found');
         ['supplier'=>$supplier,'purchases'=>$purchases,'payments'=>$payments]=$ledger;
-        return view('suppliers/ledger',['title'=>'Supplier Ledger — '.$supplier['name'],'supplier'=>$supplier,'purchases'=>$purchases,'payments'=>$payments]);
+        return view('suppliers/ledger',['title'=>'Supplier Ledger — '.$supplier['name'],'supplier'=>$supplier,'purchases'=>$purchases,'payments'=>$payments,'pooled'=>$ledger['pooled']]);
     }
 
     public function save()
@@ -62,11 +72,11 @@ class Suppliers extends Controller
             'city'=>trim((string)$this->request->getPost('city')) ?: null,
             'address'=>trim((string)$this->request->getPost('address')) ?: null,
             'credit_limit'=>(float)$this->request->getPost('credit_limit'),
-            'opening_balance'=>(float)$this->request->getPost('opening_balance'),
             'is_active'=>$this->request->getPost('is_active') ? 1 : 0,
         ];
         if($data['name']==='') return redirect()->back()->withInput()->with('error','Supplier name is required.');
-        if($data['credit_limit']<0||$data['opening_balance']<0) return redirect()->back()->withInput()->with('error','Credit limit and opening balance cannot be negative.');
+        $opening=(float)$this->request->getPost('opening_balance');
+        if($data['credit_limit']<0||$opening<0) return redirect()->back()->withInput()->with('error','Credit limit and opening balance cannot be negative.');
 
         $mode=$this->scopeMode();
         $requested=(string)$this->request->getPost('supplier_scope');
@@ -90,12 +100,15 @@ class Suppliers extends Controller
                 }
                 $this->model->update($id,$data);
             } else {
-                $this->model->insert($data+['business_id'=>$businessId]);
+                $id=(int)$this->model->insert($data+['business_id'=>$businessId,'opening_balance'=>0]);
+                $created=true;
             }
+            // D9-4: the opening payable is recorded at this branch.
+            (new SupplierBalanceService())->setBranchOpening($id,$locationId,$opening,(int)session()->get('user_id'));
         } catch (\Throwable $e) {
             return redirect()->back()->withInput()->with('error','Supplier could not be saved: '.$e->getMessage());
         }
-        return redirect()->to('/suppliers')->with('success',$id?'Supplier updated.':'Supplier created.');
+        return redirect()->to('/suppliers')->with('success',empty($created)?'Supplier updated.':'Supplier created.');
     }
 
     private function usedByOtherBranches(int $supplierId,int $locationId): bool

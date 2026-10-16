@@ -3,17 +3,19 @@
 <?php
 $money = static fn ($v): string => 'Rs. ' . number_format((float) $v, 2);
 $due = (float) $supplier['credit_due'];
+$pooled = !empty($pooled);
+$at = static fn (array $r): string => $pooled && !empty($r['branch_name']) ? ' · ' . $r['branch_name'] : '';
 // Statement: opening + unpaid part of each posted purchase − account payments (purchase-time
 // payments already reduced the purchase's unpaid amount).
 $events = [];
 foreach ($purchases as $p) {
     if ($p['status'] === 'posted' && (float) $p['credit_amount'] != 0.0) {
-        $events[] = ['at' => $p['transaction_at'], 'ref' => $p['purchase_no'], 'what' => 'Purchase — unpaid amount', 'debit' => (float) $p['credit_amount'], 'credit' => 0.0];
+        $events[] = ['at' => $p['transaction_at'], 'ref' => $p['purchase_no'], 'what' => 'Purchase — unpaid amount' . $at($p), 'debit' => (float) $p['credit_amount'], 'credit' => 0.0];
     }
 }
 foreach ($payments as $p) {
     if ($p['status'] === 'posted' && $p['source'] === 'Supplier Account Payment') {
-        $events[] = ['at' => $p['payment_at'], 'ref' => $p['payment_no'], 'what' => 'Payment to supplier (' . strtoupper((string) $p['payment_mode']) . ')', 'debit' => 0.0, 'credit' => (float) $p['amount']];
+        $events[] = ['at' => $p['payment_at'], 'ref' => $p['payment_no'], 'what' => 'Payment to supplier (' . strtoupper((string) $p['payment_mode']) . ')' . $at($p), 'debit' => 0.0, 'credit' => (float) $p['amount']];
     }
 }
 usort($events, static fn ($a, $b) => strcmp((string) $a['at'], (string) $b['at']));
@@ -28,7 +30,7 @@ $shared = $supplier['location_id'] === null;
 <div class="page-header">
     <div>
         <h1 class="page-title"><?= esc($supplier['name']) ?></h1>
-        <p class="page-subtitle">Supplier ledger for this branch<?= !empty($supplier['code']) ? ' · ' . esc($supplier['code']) : '' ?><?= !empty($supplier['phone']) ? ' · ' . esc($supplier['phone']) : '' ?><?= $shared ? ' · shared with all branches' : '' ?></p>
+        <p class="page-subtitle"><?= $pooled ? 'Supplier ledger for the whole business (one shared balance)' : 'Supplier ledger for this branch' ?><?= !empty($supplier['code']) ? ' · ' . esc($supplier['code']) : '' ?><?= !empty($supplier['phone']) ? ' · ' . esc($supplier['phone']) : '' ?><?= $shared ? ' · shared with all branches' : '' ?></p>
     </div>
     <div class="page-actions">
         <a class="btn btn-primary" href="<?= site_url('supplier-payments') ?>"><i class="bi bi-credit-card me-1"></i>Pay supplier</a>
@@ -38,8 +40,8 @@ $shared = $supplier['location_id'] === null;
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-sm-4"><div class="kpi <?= $due > 0.005 ? 'is-danger' : 'is-success' ?>"><div class="kpi-label">Payable now <i class="bi bi-cash-coin"></i></div><div class="kpi-value"><?= $money(abs($due)) ?></div><div class="kpi-hint"><?= $due > 0.005 ? 'This branch owes the supplier' : ($due < -0.005 ? 'Advance paid to the supplier' : 'Settled') ?></div></div></div>
-    <div class="col-sm-4"><div class="kpi"><div class="kpi-label">Opening balance <i class="bi bi-flag"></i></div><div class="kpi-value"><?= $money($supplier['opening_balance']) ?></div><?php if ($shared && (float) $supplier['opening_balance'] > 0): ?><div class="kpi-hint">Shared supplier: this opening amount is currently counted at every branch</div><?php endif; ?></div></div>
+    <div class="col-sm-4"><div class="kpi <?= $due > 0.005 ? 'is-danger' : 'is-success' ?>"><div class="kpi-label">Payable now <i class="bi bi-cash-coin"></i></div><div class="kpi-value"><?= $money(abs($due)) ?></div><div class="kpi-hint"><?= $due > 0.005 ? ($pooled ? 'The business owes the supplier' : 'This branch owes the supplier') : ($due < -0.005 ? 'Advance paid to the supplier' : 'Settled') ?></div></div></div>
+    <div class="col-sm-4"><div class="kpi"><div class="kpi-label">Opening balance <i class="bi bi-flag"></i></div><div class="kpi-value"><?= $money($supplier['opening_balance']) ?></div><div class="kpi-hint"><?= $pooled ? 'Openings of all branches' : ($shared ? 'Opening recorded at this branch' : 'Opening at this supplier\'s branch') ?></div></div></div>
     <div class="col-sm-4"><div class="kpi is-info"><div class="kpi-label">Credit limit <i class="bi bi-speedometer"></i></div><div class="kpi-value"><?= (float) $supplier['credit_limit'] > 0 ? $money($supplier['credit_limit']) : 'No limit' ?></div></div></div>
 </div>
 
@@ -71,12 +73,12 @@ $shared = $supplier['location_id'] === null;
             </div>
             <div class="tab-pane fade" id="supplierPurchases" role="tabpanel">
                 <div class="table-responsive"><table class="table table-sm table-hover align-middle datatable"><thead><tr><th>Date</th><th>Purchase</th><th class="text-end">Total</th><th class="text-end">Paid</th><th class="text-end">Added to payable</th><th>Status</th></tr></thead><tbody>
-                <?php foreach ($purchases as $r): ?><tr><td class="text-nowrap"><?= esc($r['transaction_at']) ?></td><td class="fw-semibold"><?= esc($r['purchase_no']) ?></td><td class="text-end"><?= number_format((float) $r['total_amount'], 2) ?></td><td class="text-end"><?= number_format(max(0, (float) $r['paid_amount']), 2) ?></td><td class="text-end"><?= number_format(max(0, (float) $r['credit_amount']), 2) ?></td><td><?= $r['status'] === 'posted' ? '<span class="status status-success">Posted</span>' : '<span class="status status-danger">' . esc(ucfirst($r['status'])) . '</span>' ?></td></tr><?php endforeach; ?>
+                <?php foreach ($purchases as $r): ?><tr><td class="text-nowrap"><?= esc($r['transaction_at']) ?></td><td class="fw-semibold"><?= esc($r['purchase_no']) ?><?php if ($pooled): ?><div class="small text-muted fw-normal"><?= esc($r['branch_name'] ?? '') ?></div><?php endif; ?></td><td class="text-end"><?= number_format((float) $r['total_amount'], 2) ?></td><td class="text-end"><?= number_format(max(0, (float) $r['paid_amount']), 2) ?></td><td class="text-end"><?= number_format(max(0, (float) $r['credit_amount']), 2) ?></td><td><?= $r['status'] === 'posted' ? '<span class="status status-success">Posted</span>' : '<span class="status status-danger">' . esc(ucfirst($r['status'])) . '</span>' ?></td></tr><?php endforeach; ?>
                 </tbody></table></div>
             </div>
             <div class="tab-pane fade" id="supplierPayments" role="tabpanel">
                 <div class="table-responsive"><table class="table table-sm table-hover align-middle datatable"><thead><tr><th>Date</th><th>Payment</th><th class="text-end">Amount</th><th>Method</th><th>Applied to</th><th>Status</th></tr></thead><tbody>
-                <?php foreach ($payments as $r): ?><tr><td class="text-nowrap"><?= esc($r['payment_at']) ?></td><td class="fw-semibold"><?= esc($r['payment_no']) ?></td><td class="text-end"><?= number_format((float) $r['amount'], 2) ?></td><td><?= esc(ucfirst($r['payment_mode'])) ?></td><td><?= esc($r['source']) ?><?= !empty($r['purchase_no']) ? ' · ' . esc($r['purchase_no']) : '' ?></td><td><?= $r['status'] === 'posted' ? '<span class="status status-success">Posted</span>' : '<span class="status status-danger">' . esc(ucfirst($r['status'])) . '</span>' ?></td></tr><?php endforeach; ?>
+                <?php foreach ($payments as $r): ?><tr><td class="text-nowrap"><?= esc($r['payment_at']) ?></td><td class="fw-semibold"><?= esc($r['payment_no']) ?><?php if ($pooled): ?><div class="small text-muted fw-normal"><?= esc($r['branch_name'] ?? '') ?></div><?php endif; ?></td><td class="text-end"><?= number_format((float) $r['amount'], 2) ?></td><td><?= esc(ucfirst($r['payment_mode'])) ?></td><td><?= esc($r['source']) ?><?= !empty($r['purchase_no']) ? ' · ' . esc($r['purchase_no']) : '' ?></td><td><?= $r['status'] === 'posted' ? '<span class="status status-success">Posted</span>' : '<span class="status status-danger">' . esc(ucfirst($r['status'])) . '</span>' ?></td></tr><?php endforeach; ?>
                 </tbody></table></div>
             </div>
             <div class="tab-pane fade" id="supplierOverview" role="tabpanel">

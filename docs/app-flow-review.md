@@ -42,14 +42,14 @@ Review of the web back office after Phases 8–11, done at the owner's request (
 | 16 | Businesses & Shops | "Create business" form always open above the shops | Collapsed (opens when there is no business or after a failed save) | P11-34 |
 | 17 | Users & Roles | Every role's 31-permission grid fully expanded (very long page) | Grids collapsed behind "Show permissions"; Select/Clear/Save stay in the header | P11-34 |
 | 18a | Branch Overview, Business Hierarchy, document numbers | Database errors on MySQL 8 (reserved words `empty`, `last_value`); MariaDB accepted them, so local testing missed it | Renamed; CI now runs every suite and a crawl of every screen on MySQL 8 | P10-04, P12-04 |
+| 18b | Suppliers, Purchases, Supplier Payments | A shared supplier's opening balance was counted at every branch; three copies of the payable formula | Owner decision D9-4: business setting for separate or single balance, openings per branch, one `SupplierBalanceService` | P12-05 |
+| 18c | POS, Purchases, customer orders | POS rounded only the invoice total while customer orders rounded each line | Owner decision D10-2: one business rounding setting applied everywhere (`MoneyRounding`) | P12-05 |
 | 18 | Purchases | Only screen without a page title; blank band in the settlement card | Standard page header with "Pay a supplier"; spacing fixed | P11-34 |
 
 ## 3. Still open
 
 | Item | Why it is open | Owner |
 |---|---|---|
-| D9-4: a shared supplier's opening balance is counted at every branch | Business decision: per-branch opening balances or Head Office only (`DEVELOPMENT_PLAN.md` D9-4) | Owner |
-| D10-2: money rounding rule (10.8) | Business decision on line-level vs document-level rounding | Owner |
 | 8.1.2: rotate the database password that was committed earlier | The repository is public; only the owner can rotate the hosting credentials | Owner |
 | 12.3 two-branch pilot, 12.5 sign-off | Needs the owner and real branch staff | Owner |
 | Purchases stock-line table scrolls sideways on phones | It is a 7-column entry grid; a card layout per line would be a larger redesign. It works and stays inside the card | Optional |

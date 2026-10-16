@@ -43,6 +43,7 @@ class TransactionalDataRefreshService
             'rate_cards',
             'cylinder_types',
             'customers',
+            'supplier_opening_balances',
             'suppliers',
         ];
 

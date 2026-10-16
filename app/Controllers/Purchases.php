@@ -102,6 +102,7 @@ class Purchases extends Controller
 
         return view('purchases/index', [
             'title'            => 'Purchases',
+            'moneyRounding'    => \App\Services\MoneyRounding::forShop((int) session()->get('location_id'))->mode(),
             'activeTab'        => $activeTab,
             'fromDate'         => $fromDate,
             'toDate'           => $toDate,

@@ -92,12 +92,56 @@ TMP=$(q "SELECT id FROM cylinder_types WHERE code='QTMP'")
 post cylinder-types/delete -d "id=$TMP" >/dev/null
 [ -z "$(q "SELECT id FROM cylinder_types WHERE code='QTMP'")" ] && ok "unused type can be deleted" || bad "delete unused" "still present"
 
+echo "--- Money rounding (D10-2)"
+# Two lines whose amounts differ by rule: 0.5 KG x 10.006 = 5.003 per line.
+#   document: total round(10.006) = 10.01 ; line: 5.00 + 5.00 = 10.00
+setting(){ q "INSERT INTO business_settings(business_id,setting_key,setting_value) VALUES ((SELECT business_id FROM locations WHERE id=$LOC),'$1',JSON_QUOTE('$2')) ON DUPLICATE KEY UPDATE setting_value=JSON_QUOTE('$2'); SELECT 1" >/dev/null; }
+unset_setting(){ q "DELETE FROM business_settings WHERE setting_key='$1'; SELECT 1" >/dev/null; }
+# One gas line per cylinder type is allowed, so the second line uses an 11.8 KG cylinder.
+C11=$(q "SELECT id FROM cylinder_types WHERE code='C11_8' AND business_id=(SELECT business_id FROM locations WHERE id=$LOC)")
+post inventory/opening/save -d "inventory_date=$TODAY" -d "cylinder_type_id=$C11" -d quantity=2 -d actual_gas_weight_kg=11.8 -d "comments=QA rounding" >/dev/null
+gas2(){ # $1 = cash paid
+  local u1 u2; u1=$(q "SELECT id FROM cylinder_units WHERE location_id=$LOC AND cylinder_type_id=$C6 AND status='filled' AND gas_weight_kg>=0.5 ORDER BY id LIMIT 1")
+  u2=$(q "SELECT id FROM cylinder_units WHERE location_id=$LOC AND cylinder_type_id=$C11 AND status='filled' AND gas_weight_kg>=0.5 ORDER BY id LIMIT 1")
+  salejson --data-urlencode transaction_type=gas_sale --data-urlencode "lines_json=[{\"cylinder_type_id\":\"$C6\",\"source_cylinder_unit_id\":\"$u1\",\"quantity\":\"0.5\",\"gas_entry_mode\":\"quantity\",\"gas_rate\":\"10.006\"},{\"cylinder_type_id\":\"$C11\",\"source_cylinder_unit_id\":\"$u2\",\"quantity\":\"0.5\",\"gas_entry_mode\":\"quantity\",\"gas_rate\":\"10.006\"}]" --data-urlencode "payments_json=[{\"payment_type\":\"sale\",\"payment_mode\":\"cash\",\"amount\":\"$1\"}]" | tee "$T/sale.json" | grep -oE '"id": *[0-9]+' | grep -oE '[0-9]+'; }
+pur2(){ post purchases/save -d "supplier_id=$SUP" --data-urlencode "lines_json=[{\"line_type\":\"filled_cylinder\",\"cylinder_type_id\":\"$C6\",\"quantity\":\"1\",\"unit_rate\":\"10.006\",\"actual_gas_weight_kg\":\"6\"},{\"line_type\":\"filled_cylinder\",\"cylinder_type_id\":\"$C6\",\"quantity\":\"1\",\"unit_rate\":\"10.006\",\"actual_gas_weight_kg\":\"6\"}]" --data-urlencode "payments_json=[]" -d discount_amount=0 >/dev/null; q "SELECT id FROM purchases WHERE supplier_id=$SUP ORDER BY id DESC LIMIT 1"; }
+unset_setting money_rounding_mode
+S1=$(gas2 10.01); [ -n "$S1" ] && ok "document rule: 2-line gas sale posted for Rs. 10.01" || bad "document rule sale" "$(cat "$T/sale.json" | head -c 200)"
+eqn "document rule: sale total" "$(q "SELECT total_amount FROM sales WHERE id=${S1:-0}")" 10.01
+P1R=$(pur2); eqn "document rule: purchase total (2 x 10.006)" "$(q "SELECT total_amount FROM purchases WHERE id=${P1R:-0}")" 20.01
+setting money_rounding_mode line
+S2=$(gas2 10.00); [ -n "$S2" ] && ok "line rule: same sale posted for Rs. 10.00" || bad "line rule sale" "$(cat "$T/sale.json" | head -c 200)"
+eqn "line rule: sale total" "$(q "SELECT total_amount FROM sales WHERE id=${S2:-0}")" 10.00
+eqn "line rule: total = sum of printed lines" "$(q "SELECT SUM(line_total) FROM sale_items WHERE sale_id=${S2:-0}")" 10.00
+P2R=$(pur2); eqn "line rule: purchase total (10.01 + 10.01)" "$(q "SELECT total_amount FROM purchases WHERE id=${P2R:-0}")" 20.02
+eqn "line rule: purchase total = sum of lines" "$(q "SELECT SUM(line_total) FROM purchase_items WHERE purchase_id=${P2R:-0}")" 20.02
+unset_setting money_rounding_mode
+
+echo "--- Supplier balance mode (D9-4)"
+BIZ=$(q "SELECT business_id FROM locations WHERE id=$LOC")
+post business-management/shop/save -d "business_id=$BIZ" -d code=QA-B2 -d "name=QA Branch Two" >/dev/null
+B2=$(q "SELECT id FROM locations WHERE code='QA-B2'")
+[ -n "$B2" ] && ok "second branch QA-B2 available" || bad "QA-B2" "not created"
+MAINPAY=$(payable $SUP)
+post shop-context/select -d "location_id=$B2" >/dev/null
+N1=$(q "SELECT COUNT(*) FROM supplier_payments")
+post supplier-payments/save -d "supplier_id=$SUP" -d amount=100 -d payment_mode=cheque -d reference_no=CHQ-B2 >/dev/null
+[ "$(q "SELECT COUNT(*) FROM supplier_payments")" = "$N1" ] && ok "separate balances: QA-B2 cannot pay MAIN's debt (owes nothing here)" || bad "separate balances" "payment posted at QA-B2"
+setting supplier_balance_mode business
+post supplier-payments/save -d "supplier_id=$SUP" -d "amount=$(awk "BEGIN{printf \"%.2f\", $MAINPAY+1}")" -d payment_mode=cheque >/dev/null
+[ "$(q "SELECT COUNT(*) FROM supplier_payments")" = "$N1" ] && ok "single balance: payment above the business payable ($MAINPAY) refused" || bad "single balance bound" "over-payment posted"
+post supplier-payments/save -d "supplier_id=$SUP" -d amount=100 -d payment_mode=cheque -d reference_no=CHQ-B2 >/dev/null
+[ "$(q "SELECT COUNT(*) FROM supplier_payments WHERE location_id=$B2 AND supplier_id=$SUP AND status='posted'")" = 1 ] && ok "single balance: QA-B2 pays the business debt (Rs. 100)" || bad "single balance payment" "$(flash supplier-payments)"
+unset_setting supplier_balance_mode
+post shop-context/select -d "location_id=$LOC" >/dev/null
+eqn "separate balances again: MAIN payable unchanged by QA-B2's payment" "$(payable $SUP)" "$MAINPAY"
+
 echo "--- Invariants (PAGE_TEST_WORKFLOW §6) over the whole database"
-X=$(q "SELECT COUNT(*) FROM sales s WHERE ABS(s.subtotal - (SELECT COALESCE(SUM(line_total),0) FROM sale_items i WHERE i.sale_id=s.id)) > 0.011")
-[ "$X" = "0" ] && ok "every sale subtotal equals the sum of its lines" || bad "sale subtotal" "$X sale(s) differ"
+X=$(q "SELECT COUNT(*) FROM sales s WHERE ABS(s.subtotal - (SELECT COALESCE(SUM(line_total),0) FROM sale_items i WHERE i.sale_id=s.id)) > 0.0001 + 0.005*GREATEST(1,(SELECT COUNT(*) FROM sale_items i WHERE i.sale_id=s.id))")
+[ "$X" = "0" ] && ok "every sale subtotal equals the sum of its lines (within the D10-2 document-rule rounding of 0.005 per line)" || bad "sale subtotal" "$X sale(s) differ"
 X=$(q "SELECT COUNT(*) FROM sales WHERE ABS(total_amount - (subtotal - discount_amount + delivery_fee_amount)) > 0.011")
 [ "$X" = "0" ] && ok "every sale total = subtotal − discount + delivery" || bad "sale total" "$X sale(s) differ"
-X=$(q "SELECT COUNT(*) FROM purchases p WHERE ABS(p.subtotal - (SELECT COALESCE(SUM(line_total),0) FROM purchase_items i WHERE i.purchase_id=p.id)) > 0.011 OR ABS(p.total_amount - (p.subtotal - p.discount_amount)) > 0.011")
+X=$(q "SELECT COUNT(*) FROM purchases p WHERE ABS(p.subtotal - (SELECT COALESCE(SUM(line_total),0) FROM purchase_items i WHERE i.purchase_id=p.id)) > 0.0001 + 0.005*GREATEST(1,(SELECT COUNT(*) FROM purchase_items i WHERE i.purchase_id=p.id)) OR ABS(p.total_amount - (p.subtotal - p.discount_amount)) > 0.011")
 [ "$X" = "0" ] && ok "every purchase total equals its lines" || bad "purchase totals" "$X purchase(s) differ"
 X=$(q "SELECT COUNT(*) FROM cylinder_units cu JOIN cylinder_types ct ON ct.id=cu.cylinder_type_id WHERE cu.gas_weight_kg < 0 OR cu.gas_weight_kg > ct.capacity_kg + 0.0005 OR (cu.status='filled' AND cu.gas_weight_kg <= 0)")
 [ "$X" = "0" ] && ok "every cylinder's gas is within 0..capacity; filled cylinders hold gas" || bad "cylinder gas range" "$X unit(s)"

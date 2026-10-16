@@ -12,7 +12,7 @@ class PurchaseService{
   // The supplier must belong to this branch's business and be business-wide or this branch's own (D9-3).
   $supplier=BusinessContext::supplierVisibleTo($supplierId,$locationId,false);
   if(!$supplier||(int)$supplier['is_active']!==1) throw new RuntimeException('Supplier is invalid or inactive.');
-  $subtotal=0;$prepared=[];$inventory=[];$cash=0;$credit=0;
+  $rounding=MoneyRounding::forShop($locationId);$subtotal=0;$prepared=[];$inventory=[];$cash=0;$credit=0;
   foreach($lines as $i=>$l){
    $type=(string)($l['line_type']??'');$qty=(float)($l['quantity']??0);$rate=(float)($l['unit_rate']??0);$ct=isset($l['cylinder_type_id'])&&$l['cylinder_type_id']!==''?(int)$l['cylinder_type_id']:null;
    if($qty<=0||$rate<0) throw new RuntimeException('Invalid purchase line '.($i+1).'.');
@@ -32,12 +32,12 @@ class PurchaseService{
     $actual=0;
    }
 
-   $lineTotal=$qty*$rate;$subtotal+=$lineTotal;
+   $lineTotal=$rounding->line($qty*$rate);$subtotal+=$lineTotal;
    $prepared[]=['line_no'=>$i+1,'line_type'=>$type,'cylinder_type_id'=>$ct,'quantity'=>$qty,'actual_gas_weight_kg'=>$actual,'unit_rate'=>$rate,'line_total'=>$lineTotal];
    $inventory[]=['inventory_type'=>$type,'cylinder_type_id'=>$ct,'quantity'=>$qty,'actual_gas_weight_kg'=>$actual];
   }
   $discount=max(0,(float)($p['discount_amount']??0));if($discount>$subtotal)throw new RuntimeException('Discount exceeds subtotal.');
-  $total=$subtotal-$discount;$paid=0;$normalizedPayments=[];
+  $total=$rounding->total($subtotal-$discount);$paid=0;$normalizedPayments=[];
   foreach($payments as $pay){$mode=(string)($pay['payment_mode']??'');$amount=(float)($pay['amount']??0);if($amount<=0)continue;if(!in_array($mode,['cash','cheque','online'],true)||$amount<=0)throw new RuntimeException('Invalid purchase payment.');$paid+=$amount;$normalizedPayments[]=['payment_mode'=>$mode,'amount'=>$amount,'reference_no'=>trim((string)($pay['reference_no']??''))?:null];}
   $currentPayable=$total;$previousPayable=$this->supplierBalance($supplierId,$locationId);
   if($paid>$previousPayable+$currentPayable+0.01)throw new RuntimeException('Amount paid cannot exceed the supplier payable balance of Rs. '.number_format(max(0,$previousPayable+$currentPayable),2).'.');
@@ -81,42 +81,21 @@ class PurchaseService{
    $this->db->transCommit();AuditService::log('CREATE','purchase',$id,null,['purchase_no'=>$no,'total'=>$total,'amount_paid'=>$paid,'current_credit'=>$credit,'previous_payable'=>$previousPayable,'new_payable'=>$newPayable],$userId,$locationId);return ['id'=>$id,'purchase_no'=>$no,'total'=>$total,'previous_payable'=>$previousPayable,'amount_paid'=>$paid,'balance_payable'=>$newPayable];
   }catch(\Throwable $e){$this->db->transRollback();throw $e;}
  }
+ /** Supplier payable at this branch under the business balance rule (SupplierBalanceService, D9-4). */
  public function supplierBalance(int $supplierId, ?int $locationId=null): float
  {
   $locationId=$locationId ?? (int)(session()->get('location_id') ?? 0);
-
-  // credit_amount is already the unpaid portion of each posted purchase,
-  // so purchase payments must NOT be subtracted again here.
-  $s=$this->db->table('purchases')->selectSum('credit_amount','credit')
-   ->where('supplier_id',$supplierId)->where('status','posted');
-  if($locationId>0) $s->where('location_id',$locationId);
-  $s=$s->get()->getRowArray();
-
-  // These are only payments made against an older supplier payable.
-  $ap=$this->db->table('supplier_payments')->selectSum('amount','account_paid')
-   ->where('supplier_id',$supplierId)->where('status','posted');
-  if($locationId>0) $ap->where('location_id',$locationId);
-  $ap=$ap->get()->getRowArray();
-
-  $supplier=$this->db->table('suppliers')->where('id',$supplierId)->get()->getRowArray();
-  return (float)($supplier['opening_balance']??0)
-      +(float)($s['credit']??0)
-      -(float)($ap['account_paid']??0);
+  return (new SupplierBalanceService($this->db))->balanceById($supplierId,$locationId);
  }
 
  /**
-  * supplierBalance() for every supplier visible at the branch, in two grouped queries.
-  * @param list<array> $suppliers rows with id and opening_balance
+  * supplierBalance() for every supplier visible at the branch, in grouped queries.
+  * @param list<array> $suppliers rows with id, business_id and location_id
   * @return array<int,float>
   */
  public function supplierBalances(array $suppliers,int $locationId): array
  {
-  $credit=[];$paid=[];
-  foreach($this->db->table('purchases')->select('supplier_id,SUM(credit_amount) c')->where(['status'=>'posted','location_id'=>$locationId])->groupBy('supplier_id')->get()->getResultArray() as $r)$credit[(int)$r['supplier_id']]=(float)$r['c'];
-  foreach($this->db->table('supplier_payments')->select('supplier_id,SUM(amount) p')->where(['status'=>'posted','location_id'=>$locationId])->groupBy('supplier_id')->get()->getResultArray() as $r)$paid[(int)$r['supplier_id']]=(float)$r['p'];
-  $out=[];
-  foreach($suppliers as $sp){$id=(int)$sp['id'];$out[$id]=(float)($sp['opening_balance']??0)+($credit[$id]??0)-($paid[$id]??0);}
-  return $out;
+  return (new SupplierBalanceService($this->db))->balances($suppliers,$locationId);
  }
 
  public function canVoidPurchase(int $userId,int $locationId): bool

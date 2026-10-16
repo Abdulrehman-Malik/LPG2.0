@@ -101,6 +101,29 @@ class ConfigurationService
             ],
             'scopes' => ['application', 'business'],
         ],
+        // Owner decision D9-4 (2026-10-16). Applies to business-wide suppliers; a branch-only
+        // supplier always has one balance at its own branch.
+        'supplier_balance_mode' => [
+            'label' => 'Balance of a shared supplier',
+            'type' => 'choice',
+            'default' => 'branch',
+            'options' => [
+                'branch' => 'Separate per branch — each branch has its own payable and opening balance',
+                'business' => 'One for the business — purchases and payments of every branch share one payable',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
+        // Owner decision D10-2 (2026-10-16), applied by App\Services\MoneyRounding.
+        'money_rounding_mode' => [
+            'label' => 'Money rounding',
+            'type' => 'choice',
+            'default' => 'document',
+            'options' => [
+                'document' => 'Round the invoice total — line amounts keep full precision',
+                'line' => 'Round every line — each line is rounded to 2 decimals and the total is their sum',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
         'stock_transfer_enabled' => [
             'label' => 'Inter-branch stock transfer',
             'type' => 'boolean',

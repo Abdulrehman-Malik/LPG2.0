@@ -19,7 +19,7 @@ Legend:
 | 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
 | 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) |
 | 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
-| 10 | Code-logic review & refactoring | P1 | [x] Done except 10.8 (owner decision D10-2) |
+| 10 | Code-logic review & refactoring | P1 | [x] Done (10.8 rounding configurable per business, D10-2) |
 | 11 | UI/UX modernization | P1 | [x] Done — every menu screen on the design system; WCAG 2.1 A/AA audit clean (SQA P11-01…P11-34) |
 | 12 | Back-office SQA, UAT & release | P1 | [~] Automated SQA, runbook and backup drill done (12.1, 12.2, 12.4); owner pilot (12.3) and sign-off (12.5) remain |
 | 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
@@ -233,7 +233,11 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - Requirement text: requirements.md § Business Hierarchy Screen. Delivered 2026-10-16: `app/Services/BusinessHierarchyService.php`, `app/Controllers/BusinessHierarchy.php`, `app/Views/business_hierarchy/index.php`, route `business-hierarchy`, menu Configuration → Business Hierarchy; Businesses & Shops `saveShop` accepts `return_to=hierarchy`. Evidence: SQA.md P9-33…P9-37.
 
 ### 9.8 Open owner decision
-- [ ] D9-4 **Opening balance of a supplier shared by all branches.** A shared supplier has one `opening_balance`, and each branch's payable starts from it, so the same opening debt is counted at every branch (QA: a Rs. 1,000 opening appears in MAIN and QA-B2 payables). Recommendation: record supplier opening balances per branch (new `supplier_opening_balances(location_id, supplier_id, amount)`, migrated from the current value to the branch that created the supplier) or treat the shared opening as Head Office only. Until decided, the supplier ledger shows a note on shared suppliers with an opening balance.
+- [x] D9-4 **Balance of a supplier shared by all branches** — decided by the owner 2026-10-16: configurable per business.
+  - Supplier sharing stays the existing setting `supplier_scope_mode` (shared / branch / both, D9-3).
+  - New business setting `supplier_balance_mode` for business-wide suppliers: `branch` (default) — each branch has its own payable and its own opening balance; `business` — purchases and payments of every branch share one payable (the credit limit and payment bounds apply to that single balance; the ledger lists every branch's entries with the branch name). A branch-only supplier always has one balance at its branch.
+  - Opening balances are recorded per branch (`supplier_opening_balances`, migration 043; the existing opening moved to the supplier's branch, or for a business-wide supplier to the business's first branch), so a shared opening is no longer counted at every branch.
+  - One rule in `App\Services\SupplierBalanceService`, used by Purchases, Supplier Payments, the Suppliers list and the supplier ledger. Evidence: SQA.md P12-05.
 
 ### 9.4 Owner decisions (confirmed 2026-10-15)
 - [x] **D9-1** Cylinder types and expense categories are **owned by a business**. Each business has its own list; branches of that business share it. A new business is provisioned with the standard cylinder types and expense categories.
@@ -245,7 +249,7 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
   - `shared` — every supplier belongs to the business and is visible to all its branches.
   - `branch` — every supplier belongs to exactly one branch.
   - `both` — each supplier is either business-wide or branch-only, chosen when it is created.
-  Supplier balances (purchases/payments) are always tracked per branch.
+  Supplier balances: see D9-4 (separate per branch or one for the business, configurable).
 - [x] **D10-1** Back-dated posting is **configurable per business** (`backdate_mode`):
   - `none` — today only (default).
   - `current_month` — any date from the first day of the current month.
@@ -278,8 +282,9 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
   - Done 2026-10-16 (isolated, not removed): a customer order can mix gas, filled and empty cylinders and must remain exactly one sale (`uq_sales_customer_order`, E2E-029), which none of the four single-type headers can express. The line path now runs only inside `postForCustomerOrder()` (`orderFulfillmentContext`); any other caller gets "Unsupported transaction type". The web POS controller already rejected these types; the service guard protects future callers (staff API).
 - [x] 10.7 Split `SalesService` (1,700+ lines) into per-transaction-type posting classes sharing payment-plan, credit and inventory-lock components (aligned with the agent.md transaction-type isolation rule).
   - Done 2026-10-16: `PostsGasSales`, `PostsCylinderSales`, `PostsSecurityDeposits`, `PostsCylinderReturns` traits (one file per transaction type) used by `SalesService`, which keeps dispatch, the order line path, payment planning, credit, voids and locks (1,777 → 1,035 lines). Pure move, proven by comparing the original with traits + class (whitespace-normalised identical); POS/order E2E tests pass.
-- [~] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
-  - Analysed 2026-10-16 — owner decision D10-2 needed. Today the POS screen and the server both total unrounded line amounts and round the document total, so the amount the cashier sees always equals what the server expects; payment checks use a 0.01 tolerance. Individual stored line totals are rounded by the DECIMAL(14,2) column, so the sum of printed lines can differ from the invoice total by at most 0.01 on multi-line gas sales with fractional KG. Rounding per line must change the POS script and the server together; the business rule (round each line vs round the invoice) is the owner's choice. No change made until decided.
+- [x] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
+  - D10-2 decided by the owner 2026-10-16: configurable per business (`money_rounding_mode`), applied across the application by `App\Services\MoneyRounding`: `document` (default, previous POS behaviour) — line amounts keep full precision and the document total is rounded; `line` — every line is rounded to 2 decimals and the total is their sum, so printed invoices add up exactly.
+  - Applied to Gas Sale, Cylinder Sale, Security Deposit (per physical cylinder), Cylinder Return, customer-order quotes and their POS fulfilment, and Purchases; the POS and Purchases screens use the same rule so the screen total equals the posted total. Purchase, Gas Sale and Cylinder Sale totals are now rounded explicitly (they relied on the DECIMAL column). Customer-order quotes previously always rounded per line; they now follow the setting. Evidence: SQA.md P12-05.
 - [x] D10-1 Back-dating is configurable per business — see Phase 9.4.
 
 ## Phase 11 — UI/UX Modernization (P1)

@@ -66,7 +66,7 @@ trait PostsCylinderReturns
         if($refund>0)$this->validateHeaderPayments($payments,$customerId,$refund,false);
 
         $returnLedger=0;
-        foreach($rows as $row){$id=(int)$row['cylinder_unit_id'];$cfg=$returnById[$id];$returnLedger+=($cfg['gas']*$cfg['rate']);}
+        foreach($rows as $row){$id=(int)$row['cylinder_unit_id'];$cfg=$returnById[$id];$returnLedger+=$this->rounding($locationId)->line($cfg['gas']*$cfg['rate']);}
         $returnLedger=$affectsOs?round($returnLedger,2):0;
 
         $this->db->transBegin();

@@ -13,7 +13,7 @@ $sharedCount = count(array_filter($suppliers, static fn ($s) => $s['location_id'
 <div class="page-header">
     <div>
         <h1 class="page-title">Suppliers</h1>
-        <p class="page-subtitle">Gas and cylinder suppliers available to this branch and what the branch owes each of them.</p>
+        <p class="page-subtitle">Gas and cylinder suppliers available to this branch and what is owed to each. <?= ($balanceMode ?? 'branch') === 'business' ? 'Shared suppliers have one balance for the whole business.' : 'Each branch has its own balance with a supplier.' ?><?php if (\App\Services\PermissionService::allows('BUSINESS_SETTINGS_MANAGE')): ?> <a href="<?= site_url('configuration') ?>">Change in business settings</a><?php endif; ?></p>
     </div>
     <div class="page-actions">
         <?php if ($edit): ?>
@@ -46,7 +46,7 @@ $sharedCount = count(array_filter($suppliers, static fn ($s) => $s['location_id'
                     <td><?= esc($s['city'] ?? '') ?></td>
                     <td><?= $s['location_id'] === null ? '<span class="status">All branches</span>' : '<span class="status status-info">This branch only</span>' ?></td>
                     <td class="text-end"><?= number_format((float) $s['credit_limit'], 2) ?></td>
-                    <td class="text-end"><?= number_format((float) $s['opening_balance'], 2) ?></td>
+                    <td class="text-end"><?= number_format((float) ($openings[(int) $s['id']] ?? 0), 2) ?></td>
                     <td class="text-end fw-semibold <?= $bal > 0.005 ? 'text-danger' : '' ?>" data-order="<?= $bal ?>"><?= number_format($bal, 2) ?></td>
                     <td><?= $s['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="status">Inactive</span>' ?></td>
                     <td class="text-end text-nowrap">
@@ -81,7 +81,7 @@ $sharedCount = count(array_filter($suppliers, static fn ($s) => $s['location_id'
                 <h3 class="form-section-title">Terms and availability</h3>
                 <div class="row g-3">
                     <div class="col-md-4"><label class="form-label" for="sLimit">Credit limit (Rs.)</label><input id="sLimit" name="credit_limit" type="number" min="0" step="0.01" class="form-control" inputmode="decimal" value="<?= esc($val('credit_limit') !== '' ? $val('credit_limit') : '0') ?>"></div>
-                    <div class="col-md-4"><label class="form-label" for="sOpening">Opening balance (Rs.)</label><input id="sOpening" name="opening_balance" type="number" min="0" step="0.01" class="form-control" inputmode="decimal" value="<?= esc($val('opening_balance') !== '' ? $val('opening_balance') : '0') ?>"><div class="form-text">Amount owed before using this system</div></div>
+                    <div class="col-md-4"><label class="form-label" for="sOpening">Opening balance at <?= esc($branchName ?? 'this branch') ?> (Rs.)</label><input id="sOpening" name="opening_balance" type="number" min="0" step="0.01" class="form-control" inputmode="decimal" value="<?= esc(old('opening_balance') ?? (string) ($edit['branch_opening'] ?? '0')) ?>"><div class="form-text">Amount this branch owed before using this system.<?= ($balanceMode ?? 'branch') === 'business' ? ' Shared suppliers have one balance for the business: openings of all branches are added together.' : ' Each branch records its own opening.' ?></div></div>
                     <div class="col-md-4 d-flex align-items-center"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="sActive" name="is_active" value="1" <?= $activeChecked ?>><label class="form-check-label" for="sActive">Active</label></div></div>
                     <div class="col-12">
                         <?php if ($mode === 'both'): ?>

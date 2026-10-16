@@ -30,7 +30,7 @@ This file is a concise continuation point for development.
 
 ## Next Development Gate (updated 2026-10-16)
 Roadmap v2 in DEVELOPMENT_PLAN.md is authoritative: **back office first**.
-- Status (2026-10-16): Phases 8–11 done; Phase 12 automated SQA, runbook and backup drill done. Open: owner decisions D9-4 (shared supplier opening balance) and D10-2 (rounding), password rotation 8.1.2, owner pilot 12.3 and sign-off 12.5. UI conventions: `docs/ui-design-system.md`; flow review: `docs/app-flow-review.md`; release: `docs/release-runbook.md`.
+- Status (2026-10-16): Phases 8–11 done; Phase 12 automated SQA, runbook and backup drill done. D9-4 (shared supplier balance) and D10-2 (money rounding) are business settings (`supplier_balance_mode`, `money_rounding_mode`; services `SupplierBalanceService`, `MoneyRounding`). Open: password rotation 8.1.2 (owner deferred), owner pilot 12.3 and sign-off 12.5. UI conventions: `docs/ui-design-system.md`; flow review: `docs/app-flow-review.md`; release: `docs/release-runbook.md`.
 - Tests: `tests/qa/run_all.sh` (see `tests/qa/README.md`) against a disposable database only; CI job `business-logic-suites` runs the suites on MySQL 8. Never add a migration file while a QA run is in progress (the migration gate blocks login).
 - Current work: Phase 8 (stabilization & security) → Phase 9 (multi-branch back office) → Phase 10 (code-logic refactor) → Phase 11 (UI/UX) → Phase 12 (SQA/UAT/release).
 - Working branch: `feature/backoffice-completion`. No merge to `main` without owner approval.

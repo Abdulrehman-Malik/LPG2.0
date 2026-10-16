@@ -516,6 +516,10 @@ const types=<?=json_encode(array_values($types),JSON_HEX_TAG|JSON_HEX_APOS|JSON_
 const rates=<?=json_encode($cylinderRates)?>,kgRate=<?=json_encode($kgRate)?>;
 const filledStock=<?=json_encode($filledStock)?>,filledUnits=<?=json_encode($filledUnits)?>,emptyStock=<?=json_encode($emptyStock)?>,gasStock=<?=json_encode($gasStock)?>;
 const balances=<?=json_encode($balances)?>,creditLimits=<?=json_encode($creditLimits)?>,creditSaleAllowed=<?=json_encode(array_reduce($customers,static function($out,$customer){$out[(string)$customer['id']]=(int)($customer['allow_credit_sale']??0);return $out;},[]))?>;
+// Business money-rounding rule (D10-2), the same rule the server applies when posting.
+const lineRounding=<?=json_encode(($moneyRounding??'document')==='line')?>;
+const round2=v=>Math.round((v+Number.EPSILON)*100)/100;
+const lineAmount=v=>lineRounding?round2(v):v;
 const creditLimitMode=<?=json_encode($creditLimitMode??'none')?>,shopCreditLimit=<?=json_encode((float)($shopCreditLimit??0))?>,shopOutstanding=<?=json_encode((float)($shopOutstanding??0))?>;
 const availableCustodyUnits=<?=json_encode($availableCustodyUnits)?>,allCustomerCustody=<?=json_encode($custodyUnits)?>;
 const allowPosSourceCylinderSelection=<?=json_encode((int)($allowPosSourceCylinderSelection??0))?>===1;
@@ -747,11 +751,11 @@ function recalc(){
      if(gas>remaining && tr.dataset.entryMode==='amount')tr.querySelector('.entryValue').setCustomValidity('Amount exceeds available gas stock.');
      else tr.querySelector('.entryValue').setCustomValidity('');
      usedByType[typeId]=prior+gas;
-     amount=mode==='amount'?Number(tr.querySelector('.enteredAmount').value||0):gas*Number(tr.querySelector('.gasRate').value||0);
+     amount=lineAmount(mode==='amount'?Number(tr.querySelector('.enteredAmount').value||0):gas*Number(tr.querySelector('.gasRate').value||0));
    }else if(t==='cylinder_sale'){
      gas=gasForCylinderSale(tr);
      const gr=Number(tr.querySelector('.gasRate').value||0),cr=Number(tr.querySelector('.cylRate').value||0),q=Math.floor(qty);
-     amount=statusForCylinderSale(tr)==='filled'?gas*gr+q*cr:q*cr;
+     amount=lineAmount(statusForCylinderSale(tr)==='filled'?gas*gr+q*cr:q*cr);
    }
    gasRequired+=gas;saleTotal+=amount;
    tr.querySelector('.lineTotal').textContent=''+amount.toFixed(2);
@@ -767,14 +771,18 @@ function recalc(){
  if(t==='security_deposit'){
    issueLines.forEach(l=>{
      const gas=Number(l.gas_weight_kg||0),q=(l.selected_cylinder_unit_ids||[]).length;
-     saleTotal+=l.status==='filled'?(gas*Number(l.gas_rate||0)+q*Number(l.cylinder_rate||0)):q*Number(l.cylinder_rate||0);
+     const gr=Number(l.gas_rate||0),cr=Number(l.cylinder_rate||0);
+     // The server posts one line per physical cylinder, so the rule applies per cylinder.
+     saleTotal+=Array.isArray(l.unit_gas)&&l.unit_gas.length
+       ?l.unit_gas.reduce((sum,g)=>sum+lineAmount(l.status==='filled'?g*gr+cr:cr),0)
+       :(l.status==='filled'?(gas*gr+q*cr):q*cr);
      gasRequired+=gas;
    });
  }else if(t==='cylinder_return'){
    returnLines.forEach(l=>{gasRequired+=Number(l.return_gas_kg||0);});
  }
  const discount=Math.max(0,Number(document.getElementById('discount').value||0));
- saleTotal=Math.max(0,saleTotal-discount);
+ saleTotal=round2(Math.max(0,saleTotal-discount));
  const customer=selectedCustomer(),previousOs=customer?Number(customer.balance||0):0;
  const deposit=t==='security_deposit'?Math.max(0,Number(document.getElementById('securityDeposit').value||0)):0;
  const netReceivable=t==='security_deposit'?deposit:(t==='cylinder_return'?0:Math.max(0,saleTotal+previousOs));
@@ -986,7 +994,7 @@ function addIssueSelection(){
  const combo=typeId+'|'+status;if(issueLines.some(x=>x.combo===combo)){alert('This Cylinder Type + Filled/Empty combination is already in the issue transaction. Remove it before adding another line.');return;}
  const units=ids.map(id=>availableCustodyUnits.find(u=>Number(u.id)===id)).filter(Boolean),def=issueRateDefaults(typeId),type=cylinderTypeById(typeId);
  const gas=units.reduce((s,u)=>s+Number(u.gas_weight_kg||0),0);
- issueLines.push({combo,type_id:typeId,type_label:(type?.code||'')+' — '+(type?.name||''),status,selected_cylinder_unit_ids:ids,gas_weight_kg:gas,gas_rate:status==='filled'?def.gas:0,cylinder_rate:def.cyl});
+ issueLines.push({combo,type_id:typeId,type_label:(type?.code||'')+' — '+(type?.name||''),status,selected_cylinder_unit_ids:ids,unit_gas:units.map(u=>Number(u.gas_weight_kg||0)),gas_weight_kg:gas,gas_rate:status==='filled'?def.gas:0,cylinder_rate:def.cyl});
  renderIssueLines();recalc();bootstrap.Modal.getInstance(document.getElementById('issuePickerModal')).hide();
 }
 function returnPickerRender(){

@@ -178,6 +178,7 @@ class CustomerOrderService
     {
         $quoted = [];
         $subtotal = 0.0;
+        $rounding = MoneyRounding::forShop($shopId);
         $gasRate = $this->rates->currentKgRate(null, $shopId);
 
         foreach ($items as $index => $item) {
@@ -274,8 +275,10 @@ class CustomerOrderService
                 throw new RuntimeException('The product has an unsupported sale mode.');
             }
 
+            // Business rounding rule (D10-2): the subtotal adds the line amounts under the rule;
+            // the stored/displayed line total is always shown to 2 decimals.
+            $subtotal += $rounding->line($lineTotal);
             $lineTotal = round($lineTotal, 2);
-            $subtotal += $lineTotal;
             $quoted[] = [
                 'product_id' => (int) $row['product_id'],
                 'business_id' => $businessId,

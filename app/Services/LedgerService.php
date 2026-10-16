@@ -108,35 +108,43 @@ class LedgerService
         $supplier=BusinessContext::supplierVisibleTo($id,$locationId,false);
         if(!$supplier) return null;
         $db=$this->db;
-        $purchases=$db->table('purchases')
-            ->select('transaction_at,purchase_no,total_amount,credit_amount,status,(total_amount-credit_amount) AS paid_amount')
-            ->where('supplier_id',$id)->where('location_id',$locationId)
-            ->orderBy('transaction_at','DESC')->get()->getResultArray();
+        // D9-4: with one balance for the business, a shared supplier's ledger covers every branch.
+        $balances=new SupplierBalanceService($db);
+        $ids=$balances->scopeLocationIds($supplier,$locationId);
+        $in=implode(',',array_map('intval',$ids));
+        $purchases=$db->table('purchases p')
+            ->select('p.transaction_at,p.purchase_no,p.total_amount,p.credit_amount,p.status,(p.total_amount-p.credit_amount) AS paid_amount,l.name AS branch_name')
+            ->join('locations l','l.id=p.location_id')
+            ->where('p.supplier_id',$id)->whereIn('p.location_id',$ids)
+            ->orderBy('p.transaction_at','DESC')->get()->getResultArray();
 
         $payments=$db->query(
-            "SELECT payment_at,payment_no,amount,payment_mode,status,purchase_no,source
+            "SELECT x.payment_at,x.payment_no,x.amount,x.payment_mode,x.status,x.purchase_no,x.source,l.name AS branch_name
              FROM (
                 SELECT pp.payment_at, CONCAT('PUR-', p.purchase_no) AS payment_no,
                        pp.amount, pp.payment_mode, p.status, p.purchase_no,
-                       'Purchase Payment' AS source
+                       'Purchase Payment' AS source, p.location_id
                 FROM purchase_payments pp
                 JOIN purchases p ON p.id=pp.purchase_id
-                WHERE p.supplier_id=? AND p.location_id=?
+                WHERE p.supplier_id=? AND p.location_id IN ($in)
                 UNION ALL
                 SELECT sp.payment_at, sp.payment_no, sp.amount, sp.payment_mode,
                        sp.status, NULL AS purchase_no,
-                       'Supplier Account Payment' AS source
+                       'Supplier Account Payment' AS source, sp.location_id
                 FROM supplier_payments sp
-                WHERE sp.supplier_id=? AND sp.location_id=?
+                WHERE sp.supplier_id=? AND sp.location_id IN ($in)
              ) x
-             ORDER BY payment_at DESC",
-            [$id,$locationId,$id,$locationId]
+             JOIN locations l ON l.id=x.location_id
+             ORDER BY x.payment_at DESC",
+            [$id,$id]
         )->getResultArray();
 
-        $credit=(float)$supplier['opening_balance'];
+        $opening=$balances->opening($supplier,$locationId);
+        $credit=$opening;
         foreach($purchases as $row) if($row['status']==='posted') $credit+=(float)$row['credit_amount'];
         foreach($payments as $row) if($row['status']==='posted' && $row['source']==='Supplier Account Payment') $credit-=(float)$row['amount'];
+        $supplier['opening_balance']=$opening;
         $supplier['credit_due']=$credit;
-        return ['supplier'=>$supplier,'purchases'=>$purchases,'payments'=>$payments];
+        return ['supplier'=>$supplier,'purchases'=>$purchases,'payments'=>$payments,'pooled'=>$balances->isPooled($supplier,$locationId),'balance'=>$balances->balance($supplier,$locationId)];
     }
 }

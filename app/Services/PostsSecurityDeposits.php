@@ -75,7 +75,7 @@ trait PostsSecurityDeposits
             $gasRate=$enteredGasRate>0?$enteredGasRate:($stdGas??0);
             $cylRate=$cfg['cylinder_rate']>0?$cfg['cylinder_rate']:$stdCyl;
             $gas=(float)$row['gas_weight_kg'];
-            $lineTotal=$cfg['status']==='filled'?($gas*$gasRate+$cylRate):$cylRate;
+            $lineTotal=$this->rounding($locationId)->line($cfg['status']==='filled'?($gas*$gasRate+$cylRate):$cylRate);
             $customRate=$customRate||($cfg['status']==='filled'&&abs($gasRate-(float)$stdGas)>0.00001)||abs($cylRate-$stdCyl)>0.00001;
             $prepared[]=['row'=>$row,'status'=>$cfg['status'],'gas'=>$gas,'gas_rate'=>$gasRate,'cyl_rate'=>$cylRate,'line_total'=>$lineTotal,'std_gas'=>$stdGas,'std_cyl'=>$stdCyl];
             $subtotal+=$lineTotal;$totalKg+=$gas;

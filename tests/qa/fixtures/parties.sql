@@ -1,6 +1,8 @@
 -- Ledger data for checks/parties_check.mjs (run after verify_phase9.sh and verify_hq.sh).
 -- Synthetic supplier purchases/payments and a customer with opening balance, receipts and a deposit.
 UPDATE suppliers SET opening_balance=1000 WHERE code='QS1';
+-- D9-4: openings are recorded per branch (QS1 owes 1000 at MAIN only).
+INSERT INTO supplier_opening_balances(supplier_id,location_id,amount) SELECT id,1,1000 FROM suppliers WHERE code='QS1' ON DUPLICATE KEY UPDATE amount=1000;
 INSERT INTO purchases(purchase_no,location_id,supplier_id,total_amount,credit_amount,status,transaction_at) VALUES
  ('QA-P-1',1,1,5000,3000,'posted',NOW()-INTERVAL 2 DAY),('QA-P-2',1,1,800,800,'voided',NOW()-INTERVAL 1 DAY),
  ('QA-P-3',3,1,2000,2000,'posted',NOW()),('QA-P-4',1,2,1500,500,'posted',NOW());

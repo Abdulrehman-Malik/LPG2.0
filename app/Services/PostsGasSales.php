@@ -69,7 +69,7 @@ trait PostsGasSales
                 }
                 $qty=$enteredAmount/$gasRate;
                 if($qty<=0) throw new RuntimeException('Calculated gas quantity on line '.$n.' must be greater than zero.');
-                $lineTotal=$enteredAmount;
+                $lineTotal=$this->rounding($locationId)->line($enteredAmount);
             }else{
                 if($qty<=0) throw new RuntimeException('Gas quantity on line '.$n.' must be greater than zero.');
                 $gasRate=$gasRateInput??$standardRate;
@@ -78,7 +78,7 @@ trait PostsGasSales
                         ? 'No effective gas/kg rate exists. Enter a positive Gas Rate for this line or configure an effective rate in Gas Rate Settings.'
                         : 'Gas rate must be greater than zero on line '.$n.'.');
                 }
-                $lineTotal=$qty*$gasRate;
+                $lineTotal=$this->rounding($locationId)->line($qty*$gasRate);
             }
             $custom=$standardRate===null
                 ? ($gasRateInput!==null && $gasRate>0)
@@ -95,7 +95,7 @@ trait PostsGasSales
 
         $discount=max(0,(float)($payload['discount_amount']??0));
         if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-        $total=$subtotal-$discount;
+        $total=$this->rounding($locationId)->total($subtotal-$discount);
 
         $this->db->transBegin();
         try{

@@ -135,7 +135,7 @@ trait PostsCylinderSales
                     }
                 }
 
-                $lineTotal=$row['gas_kg']*$row['gas_rate']+$row['quantity']*$row['cyl_rate'];
+                $lineTotal=$this->rounding($locationId)->line($row['gas_kg']*$row['gas_rate']+$row['quantity']*$row['cyl_rate']);
                 $row['line_total']=$lineTotal;
                 $lineAmounts[]=$lineTotal;$subtotal+=$lineTotal;$totalKg+=(float)$row['gas_kg'];
             }
@@ -143,7 +143,7 @@ trait PostsCylinderSales
 
             $discount=max(0,(float)($payload['discount_amount']??0));
             if($discount>$subtotal) throw new RuntimeException('Discount cannot exceed subtotal.');
-            $total=$subtotal-$discount;
+            $total=$this->rounding($locationId)->total($subtotal-$discount);
 
             $paymentPlan=$this->prepareSalePaymentPlan($payments,$customerId,$total);
             $saleNo=$this->nextSaleNo($transactionAt,$locationId);
