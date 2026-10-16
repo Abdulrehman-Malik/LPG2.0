@@ -127,8 +127,8 @@
 #posReceiptActions .btn { min-width:130px; }
 #receiptPreviewOverlay { position:fixed; inset:0; z-index:2000; display:none; align-items:center; justify-content:center; background:rgba(15,23,42,.55); padding:1rem; }
 #receiptPreviewOverlay.is-visible { display:flex; }
-#receiptPreviewDialog { width:min(520px,96vw); height:min(760px,92vh); background:#fff; border-radius:.65rem; box-shadow:0 18px 50px rgba(0,0,0,.25); display:flex; flex-direction:column; overflow:hidden; }
-#receiptPreviewDialog .receipt-preview-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.6rem .75rem; border-bottom:1px solid #e5e7eb; font-weight:700; }
+#receiptPreviewDialog { width:min(520px,96vw); height:min(760px,92vh); background:#fff; border-radius:var(--lpg-radius-lg); box-shadow:0 18px 50px rgba(0,0,0,.25); display:flex; flex-direction:column; overflow:hidden; }
+#receiptPreviewDialog .receipt-preview-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.6rem .75rem; border-bottom:1px solid var(--lpg-border); background:var(--lpg-surface); color:var(--lpg-text); font-weight:700; }
 #receiptPreviewFrame { flex:1; width:100%; border:0; background:#fff; }
 
 .pos-workspace,
@@ -138,15 +138,15 @@
 .pos-workspace th,
 .pos-workspace td,
 .pos-workspace .input-group-text {
-  font-size:var(--app-font-size) !important;
+  font-size:1rem !important;
 }
 .pos-workspace .form-label,
 .pos-workspace .form-text,
 .pos-workspace .small {
-  font-size:calc(var(--app-font-size) * .86) !important;
+  font-size:.86rem !important;
 }
-.pos-workspace h6 { font-size:calc(var(--app-font-size) * 1.05) !important; }
-.pos-workspace .badge { font-size:calc(var(--app-font-size) * .75) !important; }
+.pos-workspace h6 { font-size:1.05rem !important; }
+.pos-workspace .badge { font-size:.75rem !important; }
 #standardTransaction { margin-top:0 !important; padding-top:0 !important; }
 #standardTransaction .table-responsive { overflow-x:auto; }
 #securityTransaction, #returnTransaction { width:100%; }
@@ -191,27 +191,28 @@
 #lines.cylinder-sale-mode .input-group-sm > .form-control { min-width:0; }
 .cylinderPickerRow { display:none; }
 .cylinderPickerRow.is-visible { display:table-row; }
-.cylinderPickerRow td { padding:.15rem .35rem !important; border-top:0 !important; }
-.cylinderPicker { padding:.35rem !important; max-height:230px; overflow:auto; }
+.cylinderPickerRow td { padding:.15rem .35rem !important; border-top:0 !important; background:var(--lpg-surface-2); }
+.cylinderPicker { padding:.35rem !important; max-height:300px; overflow:auto; }
 .cylinderPicker .cylinder-options{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:.5rem!important;align-items:stretch}
-.cylinderPicker .cylinder-option{box-sizing:border-box;width:100%;min-width:0!important;max-width:none;min-height:78px;padding:.55rem .6rem!important;border:1px solid #dbe3ec!important;border-left:4px solid #94a3b8!important;border-radius:.65rem!important;display:flex;align-items:center;gap:.55rem;white-space:normal;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:border-color .15s,box-shadow .15s,transform .15s}
-.cylinderPicker .cylinder-option:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(15,23,42,.08)}
-.cylinderPicker .cylinder-option.status-filled{border-color:#86efac!important;border-left-color:#16a34a!important;background:linear-gradient(135deg,#f0fdf4,#fff);color:#166534}
-.cylinderPicker .cylinder-option.status-filled .cylinder-art{color:#16a34a}
-.cylinderPicker .cylinder-option.status-partial{border-color:#fcd34d!important;border-left-color:#d97706!important;background:linear-gradient(135deg,#fffbeb,#fff);color:#92400e}
-.cylinderPicker .cylinder-option.status-partial .cylinder-art{color:#d97706}
+.cylinderPicker .cylinder-option{position:relative;box-sizing:border-box;width:100%;min-width:0!important;max-width:none;min-height:78px;padding:.55rem .6rem!important;border:1px solid var(--lpg-border)!important;border-left:4px solid var(--lpg-neutral)!important;border-radius:var(--lpg-radius)!important;display:flex;align-items:center;gap:.55rem;white-space:normal;overflow:hidden;background:var(--lpg-surface);color:var(--lpg-text);box-shadow:var(--lpg-shadow-sm);transition:border-color .15s,box-shadow .15s,transform .15s}
+.cylinderPicker .cylinder-option:hover{transform:translateY(-1px);box-shadow:var(--lpg-shadow)}
+.cylinderPicker .cylinder-option.status-filled{border-left-color:var(--lpg-success)!important}
+.cylinderPicker .cylinder-option.status-filled .cylinder-art{color:var(--lpg-success)}
+.cylinderPicker .cylinder-option.status-partial{border-left-color:var(--lpg-warning)!important}
+.cylinderPicker .cylinder-option.status-partial .cylinder-art{color:var(--lpg-warning)}
 .cylinderPicker .cylinder-option .cylinder-art{flex:0 0 28px;width:28px;height:36px}
 .cylinderPicker .cylinder-option .cylinder-copy{display:block;flex:1;min-width:0;line-height:1.2;overflow:hidden}
 .cylinderPicker .cylinder-option .cylinder-code{display:block;font-size:.75rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cylinderPicker .cylinder-option .cylinder-name{display:block;font-size:.64rem;font-weight:600;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.12rem}
+.cylinderPicker .cylinder-option .cylinder-name{display:block;font-size:.64rem;font-weight:600;color:var(--lpg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.12rem}
 .cylinderPicker .cylinder-option .cylinder-gas{display:block;font-size:.68rem;font-weight:700;margin-top:.25rem;white-space:normal;overflow-wrap:anywhere}
 .cylinderPicker .cylinder-option .cylinder-status{display:inline-flex;align-items:center;width:max-content;max-width:100%;margin:.3rem 0 0;padding:.12rem .42rem;border-radius:999px;font-size:.58rem;line-height:1.25;font-weight:800;letter-spacing:.025em;white-space:normal}
-.cylinderPicker .cylinder-option.status-filled .cylinder-status{background:#dcfce7;color:#166534}
-.cylinderPicker .cylinder-option.status-partial .cylinder-status{background:#fef3c7;color:#92400e}
-.cylinderPicker .cylinder-option:has(input:checked){outline:2px solid #0d9488;outline-offset:-2px;box-shadow:0 0 0 2px rgba(13,148,136,.12)}
+.cylinderPicker .cylinder-option.status-filled .cylinder-status{background:var(--lpg-success-soft);color:var(--lpg-success)}
+.cylinderPicker .cylinder-option.status-partial .cylinder-status{background:var(--lpg-warning-soft);color:var(--lpg-warning)}
 @media(max-width:575.98px){.cylinderPicker .cylinder-options{grid-template-columns:repeat(2,minmax(0,1fr))}.cylinderPicker .cylinder-option{min-height:74px;padding:.45rem!important;gap:.4rem}.cylinderPicker .cylinder-option .cylinder-art{flex-basis:23px;width:23px;height:31px}.cylinderPicker .cylinder-option .cylinder-code{font-size:.68rem}.cylinderPicker .cylinder-option .cylinder-gas{font-size:.63rem}}
 .cylinder-option .filledUnitCheck { position:absolute; opacity:0; pointer-events:none; }
-.cylinder-option:has(input:checked) { border-width:2px !important; }
+.cylinder-option { cursor:pointer; }
+.cylinder-option:has(input:checked) { border-width:2px !important; border-color:var(--lpg-accent) !important; background:rgba(var(--lpg-accent-rgb),.08); box-shadow:0 0 0 2px rgba(var(--lpg-accent-rgb),.2); }
+.cylinder-option:has(input:focus-visible) { outline:2px solid var(--lpg-accent); outline-offset:2px; }
 
 .pos-summary-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem; margin-bottom:.75rem; }
 #securityDepositSummary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
@@ -219,11 +220,6 @@
 .pos-summary-metric .form-label { font-size:.8rem; margin-bottom:.25rem; white-space:nowrap; }
 .pos-summary-metric .form-control { padding:.35rem .5rem; min-height:36px; }
 #lines .remove { min-width:38px; min-height:38px; }
-.cylinderPickerRow td { background:#f8f9fa; }
-.cylinder-option { cursor:pointer; background:#fff; transition:.15s ease; }
-.cylinder-option:hover { box-shadow:0 .125rem .25rem rgba(0,0,0,.08); }
-.cylinder-option:has(input:checked) { border-color:#0d6efd !important; background:#eef5ff; }
-.cylinderPicker { max-height:300px; overflow:auto; }
 .custody-list { max-height:250px; overflow:auto; }
 .custody-list option { padding:4px; }
 @media (max-width:1199.98px){
@@ -242,22 +238,37 @@
 input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
 input[type="number"]{ -moz-appearance:textfield; appearance:textfield; }
 
-/* POS visual refresh — no business logic changes. */
-.pos-workspace{--pos-accent:var(--lpg-accent,#0f766e)}
-.pos-workspace>.pos-lines-panel>.card,.pos-summary-card{box-shadow:0 4px 18px rgba(15,23,42,.055)}
-.pos-header-row{background:#f8fafc;border:1px solid #e7edf3;border-radius:.65rem;padding:.7rem .7rem .35rem}
-.pos-header-row .form-label{color:#334155}.pos-header-row .form-select,.pos-header-row .form-control{background:#fff}
-#standardTransaction{padding-top:.35rem!important}#lines thead th{background:#f1f5f9;color:#475569;font-size:.76rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;border-bottom:1px solid #dbe3ec}
-#lines tbody tr{border-bottom:1px solid #edf1f5}#lines tbody tr:hover{background:#f8fafc}
-#lines .form-control,#lines .form-select{background:#fff;border-color:#cbd5e1}
-#lines .lineTotal{font-weight:700;color:#172033}.pos-summary-card{position:sticky;top:5.2rem}.pos-summary-card .card-body{padding:1rem}
-.pos-summary-metrics{gap:.6rem}.pos-summary-metric .form-control{border-color:#d7e0e8;background:#f8fafc!important;font-weight:650}
-#combinedPaymentSection{background:#f8fafc;border-color:#dbe5ec!important}
-#combinedPaymentSection .fw-semibold{font-variant-numeric:tabular-nums}
-#combinedPaymentSection #combinedOsAfterPayment{font-variant-numeric:tabular-nums}
-#paymentSection{padding-top:.35rem!important}
-#paymentSection{border:1px solid #dbe5ec;border-radius:.375rem;padding:.5rem!important;background:#fff}
-#paymentSection .paymentCollectionTitle{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#475569;font-weight:600;margin-bottom:.35rem}
+/* POS visual layer (Phase 11.4) — design tokens only, so light and dark themes both work. */
+.pos-workspace{--pos-accent:var(--lpg-accent)}
+.pos-statusbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-bottom:.85rem}
+.pos-statusbar .status a{color:inherit;font-weight:700}
+.pos-keys{display:flex;flex-wrap:wrap;gap:.35rem .75rem;margin-left:auto;color:var(--lpg-muted);font-size:.8rem}
+.pos-keys kbd,.pos-summary-card kbd{background:var(--lpg-surface);color:var(--lpg-text-2);border:1px solid var(--lpg-border-strong);border-bottom-width:2px;border-radius:.3rem;padding:.05rem .35rem;font-size:.72rem;font-family:inherit;font-weight:650}
+.pos-workspace>.pos-lines-panel>.card,.pos-summary-card{box-shadow:var(--lpg-shadow)}
+.pos-header-row{background:var(--lpg-surface-2);border:1px solid var(--lpg-border);border-radius:var(--lpg-radius);padding:.7rem .7rem .35rem}
+.pos-header-row .form-label{color:var(--lpg-text-2)}.pos-header-row .form-select,.pos-header-row .form-control{background-color:var(--lpg-surface)}
+.pos-customer-search{position:relative;margin-bottom:.3rem}
+.pos-customer-search .bi{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--lpg-muted);pointer-events:none;font-size:.85rem}
+.pos-customer-search input{padding-left:1.9rem}
+#customerSearchHint{font-size:.75rem;color:var(--lpg-muted);margin-top:.2rem}
+#customerCreditStatus.text-success{color:var(--lpg-success)!important}#customerCreditStatus.text-danger{color:var(--lpg-danger)!important}
+#standardTransaction{padding-top:.35rem!important}
+#lines thead th{background:var(--lpg-surface-2);color:var(--lpg-muted);font-size:.76rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;border-bottom:1px solid var(--lpg-border)}
+#lines tbody tr{border-bottom:1px solid var(--lpg-border)}#lines tbody tr:hover{background:var(--lpg-surface-2)}
+#lines .form-control,#lines .form-select{background-color:var(--lpg-surface);border-color:var(--lpg-border-strong)}
+#lines .lineTotal{font-weight:700;color:var(--lpg-text)}
+.pos-summary-card{position:sticky;top:calc(var(--lpg-topbar-h) + 1rem)}.pos-summary-card .card-body{padding:1rem}
+.pos-summary-metrics{gap:.6rem}.pos-summary-metric .form-control{border-color:var(--lpg-border);background:var(--lpg-surface-2)!important;font-weight:650}
+.pos-summary-card .form-control.bg-light{background:var(--lpg-surface-2)!important;border-color:var(--lpg-border)}
+/* The amount the counter collects is the headline of the panel. */
+#netReceivableBox{background:rgba(var(--lpg-accent-rgb),.08);border:1px solid rgba(var(--lpg-accent-rgb),.35);border-radius:var(--lpg-radius);padding:.6rem .75rem .7rem}
+#netReceivableBox .form-label{font-weight:650;color:var(--lpg-text-2);margin-bottom:.1rem}
+#netReceivableBox .form-control{background:transparent!important;border:0;padding:0;font-size:1.75rem!important;font-weight:750;line-height:1.2;min-height:0;box-shadow:none}
+#netReceivableBox .form-control::before{content:"Rs. ";font-size:1rem;font-weight:600;color:var(--lpg-muted)}
+#combinedPaymentSection{background:var(--lpg-surface-2);border-color:var(--lpg-border)!important}
+#combinedPaymentSection .fw-semibold,#combinedPaymentSection #combinedOsAfterPayment{font-variant-numeric:tabular-nums}
+#paymentSection{border:1px solid var(--lpg-border);border-radius:var(--lpg-radius-sm);padding:.5rem!important;background:var(--lpg-surface)}
+#paymentSection .paymentCollectionTitle,#paymentPurposeLabel{font-size:.72rem!important;text-transform:uppercase;letter-spacing:.04em;color:var(--lpg-muted)!important;font-weight:650;margin-bottom:.35rem}
 #payments{width:100%}
 #payments .payment{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 40px;gap:.4rem;margin-bottom:.4rem!important;width:100%;align-items:center}
 #payments .payment .paymentType,#payments .payment .mode,#payments .payment .payment-amount{min-width:0;width:100%;box-sizing:border-box}
@@ -267,40 +278,45 @@ input[type="number"]{ -moz-appearance:textfield; appearance:textfield; }
 #paymentSection #addPayment{display:block;width:100%;margin:.45rem 0 .5rem!important}
 #paymentSection .payment-reference{width:100%;min-height:72px;resize:vertical}
 #amountToCollectHelpMessage{margin-bottom:.35rem!important}
-
 #saleTotal,#netPayable,#receiptAmountValue,#customerOsBalanceValue{font-variant-numeric:tabular-nums}
-#saleTotal{color:#0f766e}#netPayable{color:#172033}#customerOsBalanceValue{color:#2563eb!important}
-#paymentSection{border-top:1px solid #e5eaf0;padding-top:.8rem}#paymentPurposeLabel{color:#475569!important;text-transform:uppercase;letter-spacing:.04em;font-size:.72rem!important}
-#securityTransaction .card,#returnTransaction .card{border:1px solid #dbe5ec!important;box-shadow:none}#securityTransaction .card{border-top:3px solid #d97706!important}#returnTransaction .card{border-top:3px solid #0e7490!important}
-#securityTransaction .table thead th,#returnTransaction .table thead th{background:#f8fafc;color:#475569;font-size:.75rem;text-transform:uppercase;letter-spacing:.02em}
-#issueEmpty,#returnEmpty{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:.5rem;padding:.75rem!important;text-align:center}
-/* Issue-cylinder picker: status-driven visual cards. Styling only; selection/data logic is unchanged. */
+#saleTotal{color:var(--lpg-success)}#netPayable{color:var(--lpg-text)}#customerOsBalanceValue{color:var(--lpg-info)!important}
+#posValidationAlert{display:flex;gap:.6rem;align-items:flex-start;font-weight:600}
+#posValidationAlert::before{content:"\f33a";font-family:"bootstrap-icons";font-weight:400;font-size:1.1rem;line-height:1.3}
+#posValidationAlert.d-none{display:none!important}
+#securityTransaction .card,#returnTransaction .card{border:1px solid var(--lpg-border)!important;box-shadow:none}#securityTransaction .card{border-top:3px solid var(--lpg-warning)!important}#returnTransaction .card{border-top:3px solid var(--lpg-info)!important}
+#securityTransaction .table thead th,#returnTransaction .table thead th{background:var(--lpg-surface-2);color:var(--lpg-muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.02em}
+#issueEmpty,#returnEmpty{background:var(--lpg-surface-2);border:1px dashed var(--lpg-border-strong);border-radius:var(--lpg-radius-sm);padding:.75rem!important;text-align:center}
+/* Issue-cylinder picker: status-driven cards. Styling only; selection/data logic is unchanged. */
 #issuePickerCards{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.65rem!important;align-items:stretch}
-#issuePickerCards .cylinder-option{width:100%;min-width:0!important;max-width:none;min-height:92px;padding:.65rem .7rem!important;border:1px solid #d7dee7!important;border-left:5px solid #94a3b8!important;border-radius:.7rem!important;box-shadow:0 2px 7px rgba(15,23,42,.055);background:#fff;display:flex;align-items:center;gap:.65rem;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background .15s ease}
-#issuePickerCards .cylinder-option:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.1);border-color:#94a3b8!important}
-#issuePickerCards .cylinder-option:focus-within{outline:2px solid #94a3b8;outline-offset:1px}
-#issuePickerCards .cylinder-option .cylinder-art{flex:0 0 34px;width:34px;height:48px;border-radius:12px 12px 9px 9px;background:linear-gradient(90deg,#cbd5e1,#f8fafc,#cbd5e1);border:1px solid #94a3b8;box-shadow:inset 0 0 0 4px rgba(255,255,255,.55);position:relative}
-#issuePickerCards .cylinder-option .cylinder-art:before{content:"";position:absolute;top:-5px;left:9px;width:14px;height:7px;border-radius:3px 3px 1px 1px;background:#64748b}
+#issuePickerCards .cylinder-option{position:relative;width:100%;min-width:0!important;max-width:none;min-height:92px;padding:.65rem .7rem!important;border:1px solid var(--lpg-border)!important;border-left:5px solid var(--lpg-neutral)!important;border-radius:var(--lpg-radius)!important;box-shadow:var(--lpg-shadow-sm);background:var(--lpg-surface);color:var(--lpg-text);display:flex;align-items:center;gap:.65rem;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+#issuePickerCards .cylinder-option:hover{transform:translateY(-2px);box-shadow:var(--lpg-shadow)}
+#issuePickerCards .cylinder-option:focus-within{outline:2px solid var(--lpg-accent);outline-offset:1px}
+#issuePickerCards .cylinder-option .cylinder-art{flex:0 0 34px;width:34px;height:48px;border-radius:12px 12px 9px 9px;background:linear-gradient(90deg,var(--lpg-border-strong),var(--lpg-surface-2),var(--lpg-border-strong));border:1px solid var(--lpg-neutral);position:relative}
+#issuePickerCards .cylinder-option .cylinder-art:before{content:"";position:absolute;top:-5px;left:9px;width:14px;height:7px;border-radius:3px 3px 1px 1px;background:var(--lpg-neutral)}
 #issuePickerCards .cylinder-option .cylinder-copy{flex:1;min-width:0;line-height:1.15}
-#issuePickerCards .cylinder-option .cylinder-code{display:block;font-size:.82rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#172033}
-#issuePickerCards .cylinder-option .cylinder-name{display:block;font-size:.68rem;font-weight:600;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.12rem}
-#issuePickerCards .cylinder-option .cylinder-gas{display:block;font-size:.68rem;margin-top:.3rem;white-space:nowrap;color:#334155}
+#issuePickerCards .cylinder-option .cylinder-code{display:block;font-size:.82rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--lpg-text)}
+#issuePickerCards .cylinder-option .cylinder-name{display:block;font-size:.68rem;font-weight:600;color:var(--lpg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.12rem}
+#issuePickerCards .cylinder-option .cylinder-gas{display:block;font-size:.68rem;margin-top:.3rem;white-space:nowrap;color:var(--lpg-text-2)}
 #issuePickerCards .cylinder-option .cylinder-status{display:inline-flex;align-items:center;margin-left:.25rem;padding:.12rem .38rem;border-radius:999px;font-size:.6rem;font-weight:800;letter-spacing:.01em}
-#issuePickerCards .cylinder-option.issue-status-filled{border-left-color:#16a34a!important}
-#issuePickerCards .cylinder-option.issue-status-filled .cylinder-art{border-color:#16a34a}
-#issuePickerCards .cylinder-option.issue-status-filled .cylinder-status{background:#dcfce7;color:#166534}
-#issuePickerCards .cylinder-option.issue-status-partial{border-left-color:#d97706!important}
-#issuePickerCards .cylinder-option.issue-status-partial .cylinder-art{border-color:#d97706}
-#issuePickerCards .cylinder-option.issue-status-partial .cylinder-status{background:#fef3c7;color:#92400e}
-#issuePickerCards .cylinder-option.issue-status-empty{border-left-color:#64748b!important;background:#f8fafc}
-#issuePickerCards .cylinder-option.issue-status-empty .cylinder-art{border-color:#64748b;opacity:.72}
-#issuePickerCards .cylinder-option.issue-status-empty .cylinder-status{background:#e2e8f0;color:#475569}
-#issuePickerCards .cylinder-option:has(input:checked){border-color:var(--pos-accent)!important;background:#ecfdf5;box-shadow:0 0 0 2px color-mix(in srgb,var(--pos-accent) 15%,transparent),0 6px 16px rgba(15,23,42,.08)}
+#issuePickerCards .cylinder-option.issue-status-filled{border-left-color:var(--lpg-success)!important}
+#issuePickerCards .cylinder-option.issue-status-filled .cylinder-art{border-color:var(--lpg-success)}
+#issuePickerCards .cylinder-option.issue-status-filled .cylinder-status{background:var(--lpg-success-soft);color:var(--lpg-success)}
+#issuePickerCards .cylinder-option.issue-status-partial{border-left-color:var(--lpg-warning)!important}
+#issuePickerCards .cylinder-option.issue-status-partial .cylinder-art{border-color:var(--lpg-warning)}
+#issuePickerCards .cylinder-option.issue-status-partial .cylinder-status{background:var(--lpg-warning-soft);color:var(--lpg-warning)}
+#issuePickerCards .cylinder-option.issue-status-empty{border-left-color:var(--lpg-neutral)!important;background:var(--lpg-surface-2)}
+#issuePickerCards .cylinder-option.issue-status-empty .cylinder-art{opacity:.72}
+#issuePickerCards .cylinder-option.issue-status-empty .cylinder-status{background:var(--lpg-neutral-soft);color:var(--lpg-neutral)}
+#issuePickerCards .cylinder-option:has(input:checked){border-color:var(--pos-accent)!important;background:rgba(var(--lpg-accent-rgb),.08);box-shadow:0 0 0 2px rgba(var(--lpg-accent-rgb),.25),var(--lpg-shadow)}
 #issuePickerCards .cylinder-option:has(input:checked) .cylinder-art{border-color:var(--pos-accent)}
-#issuePickerCards .cylinder-option:has(input:checked):after{content:"✓";position:absolute;top:.45rem;right:.45rem;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--pos-accent);color:#fff;font-size:.75rem;font-weight:800}
+#issuePickerCards .cylinder-option:has(input:checked):after{content:"\2713";position:absolute;top:.45rem;right:.45rem;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--pos-accent);color:var(--lpg-accent-contrast);font-size:.75rem;font-weight:800}
 @media(max-width:575.98px){#issuePickerCards{grid-template-columns:1fr 1fr}#issuePickerCards .cylinder-option{min-height:88px;padding:.55rem!important}#issuePickerCards .cylinder-option .cylinder-art{flex-basis:29px;width:29px;height:43px}}
-#addLine,#openIssuePicker,#openReturnPicker{font-weight:600}#saveBtn{min-height:46px;font-size:1rem;box-shadow:0 5px 12px rgba(15,23,42,.1)}
-@media(max-width:1199.98px){.pos-summary-card{position:static}}@media(max-width:767.98px){.pos-header-row{padding:.65rem .55rem .25rem}.pos-summary-metrics{grid-template-columns:1fr}.pos-workspace .btn{min-height:40px}#saveBtn{min-height:48px}}
+#addLine,#openIssuePicker,#openReturnPicker{font-weight:600}
+#saveBtn{min-height:50px;font-size:1.05rem;font-weight:700;box-shadow:var(--lpg-shadow)}
+/* Touch screens: larger targets. */
+@media (pointer:coarse){.pos-workspace .form-control,.pos-workspace .form-select,.pos-workspace .btn{min-height:44px}#lines .remove,#payments .payment .remove{min-width:44px;min-height:44px}.pos-keys{display:none}}
+@media(max-width:1199.98px){.pos-summary-card{position:static}}
+@media(max-width:767.98px){.pos-header-row{padding:.65rem .55rem .25rem}.pos-summary-metrics{grid-template-columns:1fr}.pos-workspace .btn{min-height:40px}#saveBtn{min-height:50px}.pos-keys{display:none}}
 </style>
 <?= $this->endSection() ?>
 <?= $this->section('content') ?>
@@ -312,14 +328,17 @@ $initialTransactionType = in_array((string)$defaultTransactionType, $posVisibleT
     : (string)($posVisibleTypes[0] ?? 'gas_sale');
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <?php if($cashSession): ?><div class="small text-success fw-semibold">Cash session: OPEN — <?=esc($cashSession["register_code"])?></div>
-    <?php else: ?><div class="small text-warning fw-semibold">Cash session: NOT OPEN — open Counter Cash before cash sales</div><?php endif; ?>
+<div class="pos-statusbar">
+  <?php if($cashSession): ?>
+    <span class="status status-success">Cash session open — <?=esc($cashSession["register_code"])?></span>
+  <?php else: ?>
+    <span class="status status-warning">Cash session not open — cash sales need an open session<?php if (\App\Services\PermissionService::allows('CASH_MANAGE')): ?> · <a href="<?= site_url('cash') ?>">Open Counter Cash</a><?php endif; ?></span>
+  <?php endif; ?>
+  <div class="pos-keys" aria-label="Keyboard shortcuts">
+    <span><kbd>F2</kbd> Customer</span><span><kbd>F4</kbd> Add line</span><span><kbd>F7</kbd> Payment</span><span><kbd>F9</kbd> Post</span>
   </div>
-  <span class="badge text-bg-secondary">POS</span>
 </div>
-<div id="posValidationAlert" class="alert alert-danger d-none mb-3" role="alert"></div>
+<div id="posValidationAlert" class="alert alert-danger d-none mb-3" role="alert" tabindex="-1"></div>
 <div id="posSuccessAlert" class="alert alert-success mb-3" role="status">
   <div id="posSuccessMessage" class="fw-semibold"></div>
   <div id="posReceiptActions">
@@ -362,11 +381,16 @@ $initialTransactionType = in_array((string)$defaultTransactionType, $posVisibleT
     <select id="gasEntryMode" class="form-select"><option value="quantity" <?= ($defaultGasEntryMode ?? 'quantity') === 'quantity' ? 'selected' : '' ?>>KG</option><option value="amount" <?= ($defaultGasEntryMode ?? 'quantity') === 'amount' ? 'selected' : '' ?>>Amount</option><option value="cylinders" <?= ($defaultGasEntryMode ?? 'quantity') === 'cylinders' ? 'selected' : '' ?>>Cylinders</option></select>
   </div>
   <div class="col-md-3">
-    <label class="form-label">Customer</label>
+    <label class="form-label" for="customer_id">Customer</label>
+    <div class="pos-customer-search">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <input type="search" id="customerSearch" class="form-control form-control-sm" placeholder="Find by code, name or phone" autocomplete="off" aria-label="Find customer by code, name or phone" aria-describedby="customerSearchHint">
+    </div>
     <select name="customer_id" id="customer_id" class="form-select">
       <option value="" data-walkin-option="1">Walk-in / Cash</option>
-      <?php foreach($customers as $c): ?><option value="<?=$c['id']?>"><?=esc(($c['code']?$c['code'].' — ':'').$c['name'])?></option><?php endforeach; ?>
+      <?php foreach($customers as $c): ?><option value="<?=$c['id']?>" data-search="<?= esc(strtolower(trim(($c['code'] ?? '') . ' ' . $c['name'] . ' ' . ($c['phone'] ?? '')))) ?>"><?=esc(($c['code']?$c['code'].' — ':'').$c['name'])?></option><?php endforeach; ?>
     </select>
+    <div id="customerSearchHint" class="visually-hidden" aria-live="polite"></div>
   </div>
   <div class="col-md-3">
     <?php $posDateRules=(new \App\Services\TransactionDatePolicy())->rules((int)session()->get('location_id')); ?>
@@ -482,6 +506,7 @@ $initialTransactionType = in_array((string)$defaultTransactionType, $posVisibleT
 
 
 <button class="btn btn-primary w-100" id="saveBtn">Post Transaction</button>
+<div class="text-center small text-muted mt-1 d-none d-md-block">Press <kbd>F9</kbd> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to post</div>
 </div></div></div>
 </div>
 </form>
@@ -1138,6 +1163,110 @@ document.getElementById('saleForm').onsubmit=async(e)=>{
   addPayment();
   refreshCustomer();
   handleTransactionTypeChange();
+})();
+</script>
+<script>
+// Phase 11.4 counter ergonomics: customer quick search, keyboard shortcuts and an early
+// overpayment warning. These only drive the existing controls; posting rules are unchanged.
+(() => {
+  const form = document.getElementById('saleForm');
+  const select = document.getElementById('customer_id');
+  const search = document.getElementById('customerSearch');
+  const hint = document.getElementById('customerSearchHint');
+  const saveBtn = document.getElementById('saveBtn');
+
+  const focusFirstLineField = () => {
+    const field = document.querySelector('#lines tbody tr:not(.cylinderPickerRow) .cyl');
+    if (field && field.offsetParent !== null) field.focus();
+  };
+
+  // Customer quick search: filters the customer list by code, name or phone. Selecting a
+  // customer resets the lines (existing behaviour), so only Enter applies the first match.
+  if (search && select) {
+    const apply = () => {
+      const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      let count = 0, first = null;
+      [...select.options].forEach(option => {
+        if (option.value === '') { option.hidden = false; return; }
+        const haystack = option.dataset.search || option.textContent.toLowerCase();
+        const show = terms.every(term => haystack.includes(term));
+        option.hidden = !show;
+        if (show) { count++; first = first || option; }
+      });
+      search.classList.toggle('is-invalid', terms.length > 0 && count === 0);
+      hint.textContent = !terms.length ? '' : (count ? count + ' customer(s) match. Press Enter for ' + first.textContent.trim() + '.' : 'No customer matches.');
+      return first;
+    };
+    search.addEventListener('input', apply);
+    search.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault(); // never submit the sale from the search box
+        const first = apply();
+        if (!first) return;
+        if (select.value !== first.value) {
+          select.value = first.value;
+          select.dispatchEvent(new Event('change'));
+        }
+        search.value = '';
+        apply();
+        focusFirstLineField();
+      } else if (e.key === 'Escape') {
+        search.value = '';
+        apply();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        select.focus();
+      }
+    });
+    select.addEventListener('change', () => { if (search.value) { search.value = ''; apply(); } });
+  }
+
+  // Keyboard shortcuts (ignored while a dialog or the receipt preview is open).
+  document.addEventListener('keydown', e => {
+    if (document.querySelector('.modal.show') || document.getElementById('receiptPreviewOverlay')?.classList.contains('is-visible')) return;
+    const type = document.getElementById('transactionType').value;
+    if (e.key === 'F2') {
+      e.preventDefault();
+      search?.focus(); search?.select();
+    } else if (e.key === 'F4') {
+      e.preventDefault();
+      if (type === 'gas_sale' || type === 'cylinder_sale') {
+        document.getElementById('addLine').click();
+        const rows = document.querySelectorAll('#lines tbody tr:not(.cylinderPickerRow) .cyl');
+        rows[rows.length - 1]?.focus();
+      } else if (type === 'security_deposit') {
+        document.getElementById('openIssuePicker').click();
+      } else if (type === 'cylinder_return') {
+        document.getElementById('openReturnPicker').click();
+      }
+    } else if (e.key === 'F7') {
+      e.preventDefault();
+      const amount = document.querySelector('#payments .payment .amount');
+      amount?.focus(); amount?.select();
+    } else if (e.key === 'F9' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
+      e.preventDefault();
+      if (!saveBtn.disabled) form.requestSubmit(saveBtn);
+    }
+  });
+
+  // Early warning: the same "payment cannot exceed the net receivable" rule the submit check
+  // applies to gas and cylinder sales, shown while typing instead of only after Post.
+  const payments = document.getElementById('payments');
+  const warning = document.createElement('div');
+  warning.className = 'small text-danger fw-semibold mb-2 d-none';
+  warning.setAttribute('role', 'status');
+  payments.after(warning);
+  const checkPayments = () => {
+    const type = document.getElementById('transactionType').value;
+    if (!['gas_sale', 'cylinder_sale'].includes(type)) { warning.classList.add('d-none'); return; }
+    const expected = Math.max(0, Number(document.getElementById('saleTotal').textContent || 0) + Number(document.getElementById('previousOs').textContent || 0));
+    const paid = [...payments.querySelectorAll('.payment .amount')].reduce((sum, input) => sum + Number(input.value || 0), 0);
+    const over = paid > expected + 0.01;
+    warning.textContent = over ? 'Payment Rs. ' + paid.toFixed(2) + ' is more than the net receivable Rs. ' + expected.toFixed(2) + '.' : '';
+    warning.classList.toggle('d-none', !over);
+  };
+  ['input', 'change'].forEach(evt => form.addEventListener(evt, () => setTimeout(checkPayments, 0)));
+  form.addEventListener('click', () => setTimeout(checkPayments, 0));
 })();
 </script>
 <?= $this->endSection() ?>

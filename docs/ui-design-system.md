@@ -66,3 +66,8 @@ Assets are linked with `?v=<filemtime>`; `public/.htaccess` lets Apache cache th
 - Single-series colour: `--lpg-viz-1` (light `#2a78d6`, dark `#3987e5`, both validated at 3:1 or better on their surface). Gridlines use `--lpg-viz-grid`. Read the tokens with `getComputedStyle` and redraw on a `data-bs-theme` change. The Dashboard has a working example.
 - One series needs no legend; the card title names it. Bars have 4 px rounded tops and hover tooltips, and every chart has a "Show as table" view.
 - For a few labelled categories (e.g. payment modes), plain HTML bars (`.dash-bar-*` on the Dashboard) are simpler than a chart.
+
+## POS conventions (11.4)
+- Shortcuts are shown in the POS status bar and handled in the POS page script: F2 customer search, F4 add line, F7 payment, F9 or Ctrl+Enter to post. Don't bind F5, F11 or F12. New shortcuts must be ignored while a `.modal.show` is open.
+- Keep every existing POS element ID and the customer option labels, because the E2E tests select by them. The POS page must contain only one link whose name includes "Sale History" (the sidebar's), or E2E-003a will fail.
+- Receipts: `sales/receipt/{id}` prints 80 mm by default; `?format=a4` prints on A4.

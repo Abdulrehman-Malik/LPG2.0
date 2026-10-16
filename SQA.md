@@ -882,3 +882,12 @@ Not verified locally: the Apache cache headers added in `public/.htaccess`, beca
 | P11-08 | Drill-down tiles, date filter, Current Stock tab | E2E-010 passes unchanged (7 tiles open the right modal titles, From/To + Apply Filter, stock tab) | PASS |
 | P11-09 | Light, dark and 390 px | No console errors; no horizontal scroll; chart redraws in the dark palette (series colour validated ≥ 3:1 on both surfaces) | PASS |
 | P11-10 | Regression | Playwright 26/26; PHPUnit 19/19; verify_branch_admin 19/19 (non-default-branch dashboard and customer scope), verify_phase9 28/28, verify_transfers 23/23, verify_hq 29/29; shell check 75/76. The one failure is an existing Expenses-page overflow, logged for the Expenses step. | PASS |
+
+### Phase 11.4 — POS UX — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-11 | Customer quick search | "credit" filters the list to QA-E2E-CREDIT; Enter selects it (credit status updates, lines reset as before); Enter never submits the sale; the list is restored afterwards; a search with no match is flagged | PASS |
+| P11-12 | Keyboard shortcuts and early errors | F2 focuses the search, F4 adds a line, F7 focuses the payment amount; an overpayment shows a warning while typing; F9 runs the same submit validation ("Payment cannot exceed the net receivable"); the corrected sale posts with F9 (`S20261016-00001`, Rs. 100, posted) | PASS |
+| P11-13 | Receipt formats | Default 80 mm layout (under 330 px wide); `?format=a4` gives the A4 layout with a paper switch; print controls are hidden when printing | PASS |
+| P11-14 | Regression and themes | No console errors; light and dark (including the security-deposit picker); no horizontal scroll at 390 px. Playwright 26/26 on a clean re-run. The first combined run reported 1 failed / 4 not run; artifacts were not retained, so it is tracked as possibly flaky and watched in the next runs. PHPUnit 19/19; verify_phase8 23/25 (same two no-session credit checks as before, which need the temporary CLI command); shell check 76/76 | PASS |

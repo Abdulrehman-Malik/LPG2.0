@@ -1,11 +1,19 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Receipt <?=esc($sale['sale_no'])?></title>
+<?php $format = service('request')->getGet('format') === 'a4' ? 'a4' : '80mm'; ?>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Receipt <?=esc($sale['sale_no'])?></title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;padding:0}body{width:80mm;max-width:80mm;margin:0 auto;padding:4mm 3mm;font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:1.25;color:#000;background:#fff}
 .header{text-align:center}.shop-name{font-size:15px;font-weight:700;margin-bottom:2px}.receipt-title{font-size:11px;font-weight:700;margin-top:2px}.transaction-type{font-size:10px;font-weight:700;margin-top:3px}.small{font-size:9px}.rule{border-top:1px dashed #000;margin:5px 0}.row{display:flex;justify-content:space-between;gap:6px}.row span:first-child{flex:1}.row span:last-child{text-align:right}
 table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:2px 0;vertical-align:top;border-bottom:1px dotted #888;word-wrap:break-word}th{font-weight:700}.item{width:35%}.qty{width:11%;text-align:right}.gas{width:15%;text-align:right}.rate{width:17%;text-align:right}.amount{width:22%;text-align:right}
 .total{font-size:13px;font-weight:700;margin-top:5px}.deposit{font-weight:700}.refund{font-weight:700}.footer{text-align:center;margin-top:6px;white-space:pre-line}.actions{text-align:center;margin-top:10px}button{font-size:12px;padding:6px 12px;margin:0 3px}
-@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;max-width:80mm}body{padding:3mm 2.5mm}.actions{display:none}}
+@media print{.actions{display:none}}
+<?php if ($format === 'a4'): ?>
+body{width:auto;max-width:180mm;padding:12mm 10mm;font-size:12.5px;line-height:1.4}.shop-name{font-size:22px}.receipt-title{font-size:14px;letter-spacing:.04em}.transaction-type{font-size:12.5px}.small{font-size:11px}.total{font-size:15px}.rule{margin:8px 0}th,td{padding:4px 2px}th{border-bottom:1px solid #000}
+@media print{@page{size:A4;margin:12mm}html,body{width:auto;max-width:none}body{padding:0}}
+<?php else: ?>
+@media print{@page{size:80mm auto;margin:0}html,body{width:80mm;max-width:80mm}body{padding:3mm 2.5mm}}
+<?php endif; ?>
+.actions a{font-size:12px;margin:0 3px;color:#000}.actions .current{font-weight:700;text-decoration:none}
 </style></head><body>
 <?php
 $typeLabels=[
@@ -64,6 +72,7 @@ $typeLabel=$typeLabels[$sale['transaction_type']]??ucwords(str_replace('_',' ',$
 <div class="row total"><span>OS Balance</span><span>Rs. <?=number_format((float)($sale['os_balance']??$sale['credit_amount']),2)?></span></div>
 <?php if($sale['transaction_type']==='security_deposit'): ?><div class="row total"><span>Net Amount Payable</span><span>Rs. <?=number_format((float)$sale['security_deposit_amount'],2)?></span></div><?php elseif($sale['transaction_type']==='cylinder_return'): ?><div class="row total"><span>Customer Receives</span><span>Rs. <?=number_format((float)$sale['security_deposit_refund_amount'],2)?></span></div><?php endif;?>
 <div class="rule"></div><div class="footer"><?=nl2br(esc($shopSettings['receipt_footer']??'Thank you'))?></div>
-<div class="actions"><button type="button" onclick="window.print()">Print</button><button type="button" onclick="window.close()">Close</button></div>
+<div class="actions"><button type="button" onclick="window.print()">Print</button><button type="button" onclick="window.close()">Close</button>
+<div style="margin-top:8px">Paper: <?php foreach (['80mm' => '80 mm receipt', 'a4' => 'A4'] as $key => $label): ?><?php if ($key === $format): ?><span class="current"><?= esc($label) ?></span><?php else: ?><a href="?format=<?= esc($key) ?>"><?= esc($label) ?></a><?php endif; ?> <?php endforeach; ?></div></div>
 <script>/* Receipt opens as a preview; print only when the user clicks Print. */</script>
 </body></html>
