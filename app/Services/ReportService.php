@@ -128,13 +128,13 @@ class ReportService
         $merge(
             "SELECT location_id,
                     COALESCE(SUM(CASE WHEN status='filled' THEN gas_weight_kg ELSE 0 END),0) gas_stock,
-                    SUM(status='filled') filled,SUM(status='empty') empty,SUM(status='custody') custody,SUM(status='in_transit') in_transit
+                    SUM(status='filled') filled,SUM(status='empty') empty_count,SUM(status='custody') custody,SUM(status='in_transit') in_transit
              FROM cylinder_units WHERE location_id IN ($in) GROUP BY location_id",
             $locationIds,
             static function (array &$b, array $r): void {
                 $b['gas_stock_kg'] = (float) $r['gas_stock'];
                 $b['filled_cylinders'] = (int) $r['filled'];
-                $b['empty_cylinders'] = (int) $r['empty'];
+                $b['empty_cylinders'] = (int) $r['empty_count'];
                 $b['custody_cylinders'] = (int) $r['custody'];
                 $b['outgoing_in_transit'] = (int) $r['in_transit'];
             }

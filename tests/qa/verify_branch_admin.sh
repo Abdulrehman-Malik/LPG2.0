@@ -26,7 +26,7 @@ post "$A" users/save -d "full_name=QA Two Branch Cashier" -d username=qa_two -d 
 U=$(q "SELECT id FROM users WHERE username='qa_two'")
 [ -n "$U" ] && [ "$(q "SELECT GROUP_CONCAT(location_id ORDER BY location_id) FROM user_shop_access WHERE user_id=$U")" = "$MAIN,$B2" ] && [ "$(q "SELECT location_id FROM user_shop_access WHERE user_id=$U AND is_default=1")" = "$B2" ] && [ "$(q "SELECT location_id FROM users WHERE id=$U")" = "$B2" ] && ok "new user has access to MAIN and QA-B2, default QA-B2" || bad "create with branches" "$(flash "$A" users)"
 X="$T/two.txt"; login "$X" qa_two Secret12345 >/dev/null
-curl -s -b "$X" $B/dashboard | grep -q "QA Branch Two" && ok "user signs in to the default branch QA-B2" || bad "default branch sign-in" ""
+curl -s -o "$T/two_dash.html" -w "%{http_code}" -b "$X" $B/dashboard > "$T/two_code.txt"; grep -q "QA Branch Two" "$T/two_dash.html" && ok "user signs in to the default branch QA-B2" || bad "default branch sign-in" "HTTP $(cat "$T/two_code.txt") $(grep -oE '"message": *"[^"]{0,200}|<title>[^<]*' "$T/two_dash.html" | head -1)"
 post "$A" users/save -d "id=$U" -d "full_name=QA Two Branch Cashier" -d username=qa_two -d "role_id=$CASHIER" -d is_active=1 -d branch_access_submitted=1 -d "branch_ids[]=$MAIN" -d "default_branch_id=$MAIN" >/dev/null
 [ "$(q "SELECT GROUP_CONCAT(location_id) FROM user_shop_access WHERE user_id=$U")" = "$MAIN" ] && ok "edit removes QA-B2 access and moves default to MAIN" || bad "edit branches" "$(q "SELECT GROUP_CONCAT(location_id) FROM user_shop_access WHERE user_id=$U")"
 curl -s -b "$X" $B/dashboard | grep -q "Main LPG Shop" && ok "signed-in user is moved to an allowed branch on the next request" || bad "stale branch repair" ""

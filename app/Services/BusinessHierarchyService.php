@@ -100,12 +100,12 @@ class BusinessHierarchyService
         }
         $in = implode(',', array_fill(0, count($shopIds), '?'));
         foreach ($this->db->query(
-            "SELECT location_id,SUM(status='filled') filled,SUM(status='empty') empty,COALESCE(SUM(CASE WHEN status='filled' THEN gas_weight_kg END),0) gas_kg
+            "SELECT location_id,SUM(status='filled') filled,SUM(status='empty') empty_count,COALESCE(SUM(CASE WHEN status='filled' THEN gas_weight_kg END),0) gas_kg
              FROM cylinder_units WHERE location_id IN ($in) AND status IN ('filled','empty') GROUP BY location_id",
             $shopIds
         )->getResultArray() as $r) {
             $out[(int) $r['location_id']]['filled'] = (int) $r['filled'];
-            $out[(int) $r['location_id']]['empty'] = (int) $r['empty'];
+            $out[(int) $r['location_id']]['empty'] = (int) $r['empty_count'];
             $out[(int) $r['location_id']]['gas_kg'] = (float) $r['gas_kg'];
         }
         foreach ($this->db->query("SELECT location_id,COUNT(*) n FROM customers WHERE location_id IN ($in) AND is_active=1 GROUP BY location_id", $shopIds)->getResultArray() as $r) {

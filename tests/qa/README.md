@@ -45,6 +45,7 @@ The run ends with a summary line per suite. A single suite can be run on its own
 | `verify_hq.sh` | Branch Overview figures against SQL, branch scope | P9-21…P9-22 |
 | `verify_branch_admin.sh` | Branch access on the Users screen, cash-close and ledger scope fixes, sidebar | P9-23…P9-30 |
 | `verify_business_flow.sh` | Opening stock, credit and part-paid purchases, supplier payable/payments, purchase void, Cylinder Sale, partial/full wastage, cylinder-type delete rule, §6 invariants | P12-02 |
+| `verify_pages.sh` | Every menu page and the drill-down/data pages return 200 with no PHP or database exception (run after `verify_hq.sh`); catches SQL that MySQL 8 rejects but MariaDB accepts | P12-04 |
 | `checks/pos_check.mjs` | POS customer search, shortcuts, overpayment warning, F9 posting, 80 mm / A4 receipts | P11-11…P11-14 |
 | `checks/history_check.mjs` | Sale History filters, details, void dialog | P11-15…P11-18 |
 | `checks/cash_check.mjs` | Counter Cash figures against SQL; open, count and close | P11-19…P11-21 |

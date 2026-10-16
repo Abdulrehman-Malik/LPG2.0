@@ -32,6 +32,7 @@ shell_suite verify_transfers
 shell_suite verify_hq
 shell_suite verify_branch_admin
 shell_suite verify_business_flow
+shell_suite verify_pages verify_hq
 if [ $SUITES_ONLY = 0 ]; then
 node_check pos_check true
 node_check history_check true
