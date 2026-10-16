@@ -17,11 +17,11 @@ Legend:
 |---|---|---|---|
 | 0–6 | Core POS / ERP foundation | — | Development complete; SQA execution pending |
 | 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
-| 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) and committed test suite (8.3.6) |
+| 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) |
 | 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
-| 10 | Code-logic review & refactoring | P1 | [ ] Pending |
-| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard, 11.4 POS and Sale History and Counter Cash, Customers/Suppliers/Ledgers done; Inventory next |
-| 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
+| 10 | Code-logic review & refactoring | P1 | [x] Done except 10.8 (owner decision D10-2) |
+| 11 | UI/UX modernization | P1 | [x] Done — every menu screen on the design system; WCAG 2.1 A/AA audit clean (SQA P11-01…P11-34) |
+| 12 | Back-office SQA, UAT & release | P1 | [~] Automated SQA, runbook and backup drill done (12.1, 12.2, 12.4); owner pilot (12.3) and sign-off (12.5) remain |
 | 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
 
 Phases 8–11 can overlap: Phase 8 must finish first because it fixes data-integrity and security defects. Phase 9 and 10 changes are done service-first so that the retained mobile API benefits from the same fixes. Phase 11 is done page by page after the page's logic has been reviewed.
@@ -189,9 +189,10 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 8.3.3 Sale void no longer posts cash reversals into a closed cash session; the reversal goes to the shop's current open session (and requires one).
 - [x] 8.3.4 Security Deposit / Issue Cylinder: payment plan and credit-limit checks run inside the posting transaction after the customer row is locked.
 - [x] 8.3.5 Cylinder Return / Refund Deposit: refundable deposit balance is re-checked inside the transaction under the customer lock (prevents double refunds), and inventory locks are taken.
-- [ ] 8.3.6 Business-logic PHPUnit suite against a disposable MySQL database for the four POS types, void, credit modes and deposit refund (CI job).
+- [x] 8.3.6 Business-logic suite against a disposable MySQL database for the four POS types, void, credit modes and deposit refund (CI job).
+  - Delivered 2026-10-16 as HTTP-level suites in `tests/qa/` (they post through the real controllers, so permissions, CSRF and redirects are covered too, not only services): `verify_phase8`, `verify_phase9`, `verify_transfers`, `verify_hq`, `verify_branch_admin`, `verify_business_flow`. `tests/qa/run_all.sh` rebuilds the database before each suite; CI job `business-logic-suites` runs them on MySQL 8 (`run_all.sh --suites-only`). See `tests/qa/README.md`.
 
-**Verification (2026-10-15):** items 8.1.1–8.3.5 were verified at runtime on a disposable local database. Each defect reproduced on the original code and passed after the fix (SQA.md, "Phase 8 stabilization & security regression", P8-01…P8-11). The 26-test Playwright regression and PHPUnit also pass. Remaining for Phase 8: owner credential rotation (8.1.2), the committed business-logic test suite (8.3.6), concurrency cases, and a CI run on MySQL 8.
+**Verification (2026-10-15):** items 8.1.1–8.3.5 were verified at runtime on a disposable local database. Each defect reproduced on the original code and passed after the fix (SQA.md, "Phase 8 stabilization & security regression", P8-01…P8-11). The 26-test Playwright regression and PHPUnit also pass. Remaining for Phase 8: owner credential rotation (8.1.2). (The committed suite 8.3.6, concurrency cases and the MySQL 8 CI run were completed on 2026-10-16.)
 
 **Exit criteria:** all 8.x items done, regression cases recorded in `SQA.md`, CI green.
 
@@ -263,7 +264,8 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 
 **Goal:** controllers stay thin, posting and reporting logic lives in services that can be reused by the API later, and pages are fast.
 
-- [/] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
+- [x] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
+  - Done 2026-10-16: `DashboardService` (dashboard), `LedgerService` (customer and supplier ledgers), `ReportService::periodReport` (Reports page), `CustomerBalanceService` (balances), `BusinessHierarchyService`. Moved unchanged and re-verified (dashboard figures, ledger statements vs SQL, Reports Rs. 130 / credit 30 on the HQ fixture). Remaining one-line list queries (Receipts, Expenses, Supplier Payments, Audit, Custody) are simple branch-filtered reads with no business rules; they move when the API needs them.
 - [x] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
   - Done 2026-10-16: POS, Dashboard, Customers list and Receipts use `CustomerBalanceService` (2–3 grouped queries per branch); Suppliers list uses `PurchaseService::supplierBalances()`; Business Hierarchy uses grouped queries.
 - [x] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
@@ -272,9 +274,12 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 10.4 Validate and normalize `transaction_at` — delivered by Phase 9.5.2 (`TransactionDatePolicy`, decision D10-1).
 - [x] 10.5 Concurrency-safe document numbering for sales and receipts (sequence table) instead of `MAX()+1` / timestamp+random.
   - Done 2026-10-16: migration 042 `document_sequences` + `app/Services/DocumentNumberService.php`; used by sales, POS OS-settlement receipts, customer receipts, purchases, supplier payments (purchase-time and screen) and expenses. Format `{S|R|P|SP|E}yyyymmdd-00001` per branch per transaction day (back-dated documents take their own day; previously receipts took the wall-clock time). Verified: 5 parallel transactions get 00001…00005 in order (row lock serialises them); a rolled-back number is reused (no gaps); branches are independent; a missing counter seeds from the highest existing number (00004 after three existing sales); an unknown branch fails instead of returning a number. Evidence: SQA.md P10-01.
-- [ ] 10.6 Retire or isolate the legacy five-mode POS path in `SalesService::post()`; it is still used by customer-order fulfilment. Move fulfilment onto the four header transaction types, then remove dead code.
-- [ ] 10.7 Split `SalesService` (1,700+ lines) into per-transaction-type posting classes sharing payment-plan, credit and inventory-lock components (aligned with the agent.md transaction-type isolation rule).
-- [ ] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
+- [x] 10.6 Retire or isolate the legacy five-mode POS path in `SalesService::post()`; it is still used by customer-order fulfilment. Move fulfilment onto the four header transaction types, then remove dead code.
+  - Done 2026-10-16 (isolated, not removed): a customer order can mix gas, filled and empty cylinders and must remain exactly one sale (`uq_sales_customer_order`, E2E-029), which none of the four single-type headers can express. The line path now runs only inside `postForCustomerOrder()` (`orderFulfillmentContext`); any other caller gets "Unsupported transaction type". The web POS controller already rejected these types; the service guard protects future callers (staff API).
+- [x] 10.7 Split `SalesService` (1,700+ lines) into per-transaction-type posting classes sharing payment-plan, credit and inventory-lock components (aligned with the agent.md transaction-type isolation rule).
+  - Done 2026-10-16: `PostsGasSales`, `PostsCylinderSales`, `PostsSecurityDeposits`, `PostsCylinderReturns` traits (one file per transaction type) used by `SalesService`, which keeps dispatch, the order line path, payment planning, credit, voids and locks (1,777 → 1,035 lines). Pure move, proven by comparing the original with traits + class (whitespace-normalised identical); POS/order E2E tests pass.
+- [~] 10.8 Consistent money rounding (2 decimals at line and document level) and DECIMAL-safe comparisons.
+  - Analysed 2026-10-16 — owner decision D10-2 needed. Today the POS screen and the server both total unrounded line amounts and round the document total, so the amount the cashier sees always equals what the server expects; payment checks use a 0.01 tolerance. Individual stored line totals are rounded by the DECIMAL(14,2) column, so the sum of printed lines can differ from the invoice total by at most 0.01 on multi-line gas sales with fractional KG. Rounding per line must change the POS script and the server together; the business rule (round each line vs round the invoice) is the owner's choice. No change made until decided.
 - [x] D10-1 Back-dating is configurable per business — see Phase 9.4.
 
 ## Phase 11 — UI/UX Modernization (P1)
@@ -289,10 +294,13 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
   - Not changed: receivables still call `SalesService::customerBalance()` once per customer (10.2/10.3).
 - [x] 11.4 POS UX: keyboard-first entry, customer quick search, clear sticky totals/payment panel, large touch targets, clear errors before submit, print-friendly receipt (A4 and 80 mm).
   - Delivered 2026-10-16 (view-only; `sales/save` and posting rules untouched): customer search by code/name/phone (Enter selects, never submits); shortcuts F2 customer, F4 add line / cylinder picker, F7 payment, F9 or Ctrl+Enter post (ignored while a dialog is open); live overpayment warning using the same rule as the submit check; Net Receivable shown as the panel headline; summary panel sticks below the top bar; 44 px targets on touch screens; status bar with cash-session state; POS CSS rebuilt on design tokens (dark mode works; fixed font-size rules that referenced the removed `--app-font-size`); receipt `?format=a4` alongside the 80 mm default. Evidence: SQA.md P11-11…P11-14.
-- [ ] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
-- [ ] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
-- [ ] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
-  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [x] Cash · [x] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
+- [x] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
+  - Delivered 2026-10-16: duplicate flash messages removed (8 screens); shared page header and status badges on 25 views; every native `confirm()` replaced by the shared dialog; DataTables keep server order; double-submit guard and loading state on every POST form; failed forms keep typed values. Evidence: SQA.md P11-27…P11-31.
+- [x] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
+  - Delivered 2026-10-16: axe-core 4.10.2 WCAG 2.1 A/AA audit of every menu page in light and dark mode (`tests/qa/checks/a11y_check.mjs`) went from 6 failing rules to 0: muted/warning/accent text tokens darkened to ≥4.5:1, Bootstrap text/outline utilities mapped to the tokens, branch accent shaded to 5:1 (`AppTheme::shadeForContrast`), accessible names added to unlabelled filters and checkboxes (plus a runtime helper for DataTables controls), invalid ARIA roles removed. Evidence: SQA.md P11-32.
+- [x] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
+  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [x] Cash · [x] Customers/Suppliers/Ledgers · [x] Inventory · [x] Purchases/Expenses · [x] Reports · [x] Settings/Admin (login button contrast fixed; the login card keeps its own brand layout).
+  - Final flow review (2026-10-16, `docs/app-flow-review.md`): Inventory Controls was a second copy of the Gas Wastage screen and had unlabelled override rows; it is now configuration only, with a per-type "Shop default / Custom" status and a "Use shop default" action. The wastage button and message no longer claim every wastage empties the cylinder. Rarely used forms (Create business, role permission grids) are collapsed. Evidence: SQA.md P11-33…P11-34.
   - Sale History (2026-10-16): page header, date presets, Enter-to-search, posted/received totals, status badges, sticky table header, loading/empty states; void uses a dialog with a required reason (was browser confirm/prompt) and the button now says "Void" (was "Delete", contradicting the void-not-delete rule); details modal has 80 mm / A4 receipt links; void now returns to Sale History (was POS); "All History" uses the local date (was UTC, which dropped today before 05:00 PKT). Evidence: SQA.md P11-15…P11-18.
   - Counter Cash (2026-10-16): open/close/manual-movement screens rebuilt; opening float shown separately from other cash in (it was counted under both Opening and Cash In); live over/short preview while counting; close asks for confirmation; this session's movements listed (`CashService::sessionTransactions()`); Cash History with presets, in/out/net totals and readable references. All DataTables now keep the server row order until the user sorts (`order: []`; previously every list was re-sorted oldest-first by its first column). Evidence: SQA.md P11-19…P11-21.
   - Customers / Suppliers / Ledgers (2026-10-16): lists show OS balance / payable and KPI totals; forms grouped into sections with required markers and keep the typed values after a failed save (previously lost); ledgers gain a running-balance Statement tab cross-checked against the current balance; customer balance colours fixed (amount owed was shown green). Evidence: SQA.md P11-22…P11-26.
@@ -300,11 +308,14 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 
 ## Phase 12 — Back-Office SQA, UAT & Release (P1)
 
-- [ ] 12.1 Execute `PAGE_TEST_WORKFLOW.md` page by page (PQA01–PQA16 web rows) on a disposable staging database.
-- [ ] 12.2 Execute financial/concurrency/reversal cases (FIP01, INV01, CRL01/02, REV01/02) and the Phase 8 regression cases.
-- [ ] 12.3 Two-branch web pilot with the owner (WP-10, web part).
-- [ ] 12.4 Deployment runbook, backup/restore drill, rollback plan.
-- [ ] 12.5 Owner sign-off; merge to `main` only after approval.
+- [x] 12.1 Execute `PAGE_TEST_WORKFLOW.md` page by page (PQA01–PQA16 web rows) on a disposable staging database.
+  - Done 2026-10-16 on the local disposable database `lpg_qa_phase8` (not a hosted staging server). The PQA register in SQA.md links each row to its evidence; rows with gaps say so.
+- [x] 12.2 Execute financial/concurrency/reversal cases (FIP01, INV01, CRL01/02, REV01/02) and the Phase 8 regression cases.
+  - Covered by the committed suites (E2E-014, E2E-030 concurrency, verify_phase8 REV02/credit/deposit, verify_business_flow §6 invariants). See SQA.md P12-02.
+- [ ] 12.3 Two-branch web pilot with the owner (WP-10, web part). **Owner task.**
+- [x] 12.4 Deployment runbook, backup/restore drill, rollback plan.
+  - `docs/release-runbook.md`; drill `tests/qa/drill_backup_restore.sh` passed 8/8 with both the native mysqldump engine and the portable PHP engine (SQA.md P12-01).
+- [ ] 12.5 Owner sign-off; merge to `main` only after approval. **Owner task.**
 
 ## Phase 13 — Mobile Apps (Postponed)
 

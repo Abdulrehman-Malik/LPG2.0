@@ -19,6 +19,20 @@ class InventoryControlService
         return $row ?: ['stock_validation_enabled'=>1,'wastage_mode'=>'percent','wastage_percent'=>0,'wastage_fixed_kg'=>0];
     }
 
+    /** Cylinder type IDs that have their own active policy at this branch. @return int[] */
+    public function overrideTypeIds(int $locationId): array
+    {
+        $rows=$this->db->table('inventory_policies')->select('cylinder_type_id')->where(['location_id'=>$locationId,'is_active'=>1])->where('cylinder_type_id IS NOT NULL')->get()->getResultArray();
+        return array_map('intval',array_column($rows,'cylinder_type_id'));
+    }
+
+    /** Switches a cylinder type back to the shop default policy (the row is kept, inactive). */
+    public function removeOverride(int $locationId, int $cylinderTypeId): void
+    {
+        if($cylinderTypeId<=0) return;
+        $this->db->table('inventory_policies')->where(['location_id'=>$locationId,'cylinder_type_id'=>$cylinderTypeId])->update(['is_active'=>0]);
+    }
+
     public function savePolicy(int $locationId, ?int $cylinderTypeId, bool $validation, string $mode, float $percent, float $fixedKg, int $userId): void
     {
         if(!in_array($mode,['percent','fixed_kg'],true) || $percent<0 || $percent>100 || $fixedKg<0) throw new RuntimeException('Invalid inventory control settings.');

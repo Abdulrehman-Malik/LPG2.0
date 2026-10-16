@@ -673,7 +673,7 @@ function paymentTypeOptions(){
 }
 function addPayment(paymentType){
  const div=document.createElement('div');div.className='payment';
- div.innerHTML='<select class="form-select paymentType"></select><select class="form-select mode"><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="online">Online</option><option value="credit">Credit</option></select><input class="form-control amount payment-amount" type="number" min="0" step="0.01" placeholder="Amount (optional)"><button type="button" class="btn btn-outline-danger remove" aria-label="Remove payment">×</button>';
+ div.innerHTML='<select class="form-select paymentType"></select><select class="form-select mode" aria-label="Payment method"><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="online">Online</option><option value="credit">Credit</option></select><input class="form-control amount payment-amount" type="number" min="0" step="0.01" placeholder="Amount (optional)"><button type="button" class="btn btn-outline-danger remove" aria-label="Remove payment">×</button>';
  payments.appendChild(div);
  const t=transactionType();
  const type=paymentType||((t==='security_deposit')?'combined':(t==='cylinder_return'?'security_deposit_refund':'sale'));

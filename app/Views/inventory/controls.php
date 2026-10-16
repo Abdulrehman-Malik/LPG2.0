@@ -1,26 +1,92 @@
 <?= $this->extend('layouts/app') ?><?= $this->section('content') ?>
-<h4>Inventory Controls & Wastage</h4>
-<p class="text-muted">Configure stock validation and permitted wastage, then record cylinder leakage or residual gas when a filled cylinder is made empty.</p>
+<?php
+$default = array_merge(['stock_validation_enabled' => 1, 'wastage_mode' => 'percent', 'wastage_percent' => 0, 'wastage_fixed_kg' => 0], (array) ($policies['default'] ?? []));
+$overrides = $overrides ?? [];
+$describe = static function (array $p): string {
+    $allowance = $p['wastage_mode'] === 'fixed_kg'
+        ? rtrim(rtrim(number_format((float) $p['wastage_fixed_kg'], 3, '.', ''), '0'), '.') . ' kg per cylinder'
+        : rtrim(rtrim(number_format((float) $p['wastage_percent'], 3, '.', ''), '0'), '.') . '% of the cylinder gas';
+    return 'Wastage allowance ' . $allowance;
+};
+?>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Inventory Controls</h1>
+        <p class="page-subtitle">Decide whether POS may sell more gas than is in stock, and how much gas may be written off as wastage per cylinder.</p>
+    </div>
+    <?php if (\App\Services\PermissionService::allows('GAS_WASTAGE_MANAGE')): ?>
+        <div class="page-actions"><a class="btn btn-outline-secondary" href="<?= site_url('inventory/wastage') ?>"><i class="bi bi-droplet-half me-1"></i>Record gas wastage</a></div>
+    <?php endif; ?>
+</div>
+
 <div class="card mb-4"><div class="card-body">
-<h6>Shop Default Policy</h6><form method="post" action="<?=site_url('inventory/controls/save')?>" class="row g-2"><?=csrf_field()?>
-<input type="hidden" name="cylinder_type_id" value="">
-<div class="col-md-3"><label class="form-label">Stock validation</label><select name="stock_validation_enabled" class="form-select"><option value="1" <?=!empty($policies['default']['stock_validation_enabled'])?'selected':''?>>ON — block overselling</option><option value="0" <?=empty($policies['default']['stock_validation_enabled'])?'selected':''?>>OFF — allow with confirmation</option></select></div>
-<div class="col-md-3"><label class="form-label">Wastage basis</label><select name="wastage_mode" class="form-select"><option value="percent" <?=$policies['default']['wastage_mode']==='percent'?'selected':''?>>Percentage</option><option value="fixed_kg" <?=$policies['default']['wastage_mode']==='fixed_kg'?'selected':''?>>Fixed KG</option></select></div>
-<div class="col-md-2"><label class="form-label">Wastage %</label><input name="wastage_percent" class="form-control" type="number" step=".001" min="0" max="100" value="<?=esc($policies['default']['wastage_percent'])?>"></div>
-<div class="col-md-2"><label class="form-label">Fixed KG</label><input name="wastage_fixed_kg" class="form-control" type="number" step=".001" min="0" value="<?=esc($policies['default']['wastage_fixed_kg'])?>"></div>
-<div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Save Default</button></div>
-</form>
-<hr><h6>Cylinder-Type Overrides</h6>
-<?php foreach ($types as $t): ?>
-<?php $p = $policies[(int) $t['id']] ?? ($policies['default'] ?? []); ?>
-<?php $p = array_merge(['stock_validation_enabled'=>1,'wastage_mode'=>'percent','wastage_percent'=>0,'wastage_fixed_kg'=>0], (array) $p); ?>
-<form method="post" action="<?=site_url('inventory/controls/save')?>" class="row g-2 border-top py-2"><?=csrf_field()?><input type="hidden" name="cylinder_type_id" value="<?=$t['id']?>">
-<div class="col-md-2 pt-2"><?=esc($t['code'].' — '.$t['name'])?></div><div class="col-md-2"><select name="stock_validation_enabled" class="form-select"><option value="1" <?=$p['stock_validation_enabled']?'selected':''?>>Validation ON</option><option value="0" <?=!$p['stock_validation_enabled']?'selected':''?>>Validation OFF</option></select></div><div class="col-md-2"><select name="wastage_mode" class="form-select"><option value="percent" <?=$p['wastage_mode']==='percent'?'selected':''?>>Percentage</option><option value="fixed_kg" <?=$p['wastage_mode']==='fixed_kg'?'selected':''?>>Fixed KG</option></select></div><div class="col-md-2"><input name="wastage_percent" class="form-control" type="number" step=".001" min="0" max="100" value="<?=esc($p['wastage_percent'])?>"></div><div class="col-md-2"><input name="wastage_fixed_kg" class="form-control" type="number" step=".001" min="0" value="<?=esc($p['wastage_fixed_kg'])?>"></div><div class="col-md-2"><button class="btn btn-outline-primary w-100">Save Override</button></div></form>
-<?php endforeach;?></div></div>
-<?php $units = $units ?? []; $rows = $rows ?? []; $filterFrom = $filterFrom ?? ''; $filterTo = $filterTo ?? ''; $filterType = $filterType ?? ''; ?>
-<div class="card"><div class="card-body"><h6>Record Cylinder Gas Wastage / Leakage</h6><div class="alert alert-info small">Select an available filled cylinder, enter the gas lost from that physical cylinder, and provide a reason. Partial loss reduces the cylinder gas weight; when the recorded loss equals its remaining gas, the cylinder is converted to empty stock. The configured percentage/fixed-KG allowance is enforced.</div>
-<form method="post" action="<?=site_url('inventory/wastage/record')?>" class="row g-2"><?=csrf_field()?><div class="col-md-5"><label class="form-label">Filled cylinder</label><select name="cylinder_unit_id" class="form-select" required><option value="">Select cylinder</option><?php foreach($units as $u):?><option value="<?=$u['id']?>"><?=esc($u['code'].' — '.$u['name'].' — '.$u['unit_code'].' — '.$u['gas_weight_kg'].' kg available')?></option><?php endforeach;?></select></div><div class="col-md-3"><label class="form-label">Gas wasted (KG)</label><input name="gas_weight_kg" class="form-control" type="number" step=".001" min=".001" required></div><div class="col-md-4"><label class="form-label">Reason</label><input name="reason" class="form-control" placeholder="Leakage / residual gas / refill wastage" required></div><div class="col-12"><button class="btn btn-warning">Record Wastage & Make Cylinder Empty</button></div></form>
-<hr><h6>Wastage History</h6><form class="row g-2 mb-3"><div class="col-md-3"><input name="from" type="date" class="form-control" value="<?=esc($filterFrom)?>"></div><div class="col-md-3"><input name="to" type="date" class="form-control" value="<?=esc($filterTo)?>"></div><div class="col-md-3"><select name="cylinder_type_id" class="form-select"><option value="">All cylinder types</option><?php foreach($types as $t):?><option value="<?=$t['id']?>" <?=((string)$filterType===(string)$t['id'])?'selected':''?>><?=esc($t['code'].' — '.$t['name'])?></option><?php endforeach;?></select></div><div class="col-md-3"><button class="btn btn-outline-secondary">Filter</button></div></form>
-<table class="table table-sm datatable"><thead><tr><th>Date</th><th>Cylinder</th><th>Unit</th><th>Wasted KG</th><th>Reason</th><th>User</th></tr></thead><tbody><?php foreach($rows as $r):?><tr><td><?=esc($r['created_at'])?></td><td><?=esc(($r['cylinder_code']??'').' — '.($r['cylinder_name']??''))?></td><td><?=esc($r['unit_code']??'')?></td><td><?=number_format((float)$r['gas_weight_kg'],3)?></td><td><?=esc($r['reason'])?></td><td><?=esc($r['full_name']??'')?></td></tr><?php endforeach;?></tbody></table>
+    <h2 class="h6 mb-1">Shop default policy</h2>
+    <p class="small text-muted mb-3">Applies to every cylinder type unless the type has its own setting below.</p>
+    <form method="post" action="<?= site_url('inventory/controls/save') ?>" class="row g-3 align-items-end"><?= csrf_field() ?>
+        <input type="hidden" name="cylinder_type_id" value="">
+        <div class="col-md-4"><label class="form-label" for="defValidation">Stock validation</label>
+            <select id="defValidation" name="stock_validation_enabled" class="form-select">
+                <option value="1" <?= !empty($default['stock_validation_enabled']) ? 'selected' : '' ?>>On — block selling more than stock</option>
+                <option value="0" <?= empty($default['stock_validation_enabled']) ? 'selected' : '' ?>>Off — allow with confirmation</option>
+            </select></div>
+        <div class="col-md-3"><label class="form-label" for="defMode">Wastage allowance basis</label>
+            <select id="defMode" name="wastage_mode" class="form-select">
+                <option value="percent" <?= $default['wastage_mode'] === 'percent' ? 'selected' : '' ?>>Percentage of cylinder gas</option>
+                <option value="fixed_kg" <?= $default['wastage_mode'] === 'fixed_kg' ? 'selected' : '' ?>>Fixed KG per cylinder</option>
+            </select></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="defPercent">Allowance %</label><input id="defPercent" name="wastage_percent" class="form-control" type="number" step=".001" min="0" max="100" value="<?= esc($default['wastage_percent']) ?>"></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="defKg">Allowance KG</label><input id="defKg" name="wastage_fixed_kg" class="form-control" type="number" step=".001" min="0" value="<?= esc($default['wastage_fixed_kg']) ?>"></div>
+        <div class="col-md-1"><button class="btn btn-primary w-100">Save</button></div>
+    </form>
+    <p class="small text-muted mt-2 mb-0">Only the field matching the basis is used: a percentage basis ignores the KG value and vice versa.</p>
+</div></div>
+
+<div class="card"><div class="card-body">
+    <h2 class="h6 mb-1">Per cylinder type</h2>
+    <p class="small text-muted mb-3">Give a cylinder type its own setting only when it differs from the shop default.</p>
+    <?php if (!$types): ?>
+        <div class="empty-state"><i class="bi bi-box"></i><p class="mb-0">No active cylinder types.</p></div>
+    <?php else: ?>
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Cylinder type</th><th>Current setting</th><th class="text-end">Action</th></tr></thead>
+        <tbody>
+        <?php foreach ($types as $t): $id = (int) $t['id']; $custom = in_array($id, $overrides, true);
+            $p = array_merge($default, (array) ($custom ? ($policies[$id] ?? []) : [])); ?>
+            <tr>
+                <td class="fw-semibold"><?= esc($t['code'] . ' — ' . $t['name']) ?></td>
+                <td>
+                    <?php if ($custom): ?><span class="status status-info">Custom</span><?php else: ?><span class="status">Shop default</span><?php endif; ?>
+                    <div class="small text-muted mt-1">Validation <?= !empty($p['stock_validation_enabled']) ? 'on' : 'off' ?> · <?= esc($describe($p)) ?></div>
+                </td>
+                <td class="text-end text-nowrap">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#ovr<?= $id ?>" aria-expanded="false" aria-controls="ovr<?= $id ?>"><?= $custom ? 'Edit' : 'Customise' ?></button>
+                    <?php if ($custom): ?>
+                        <form method="post" action="<?= site_url('inventory/controls/reset') ?>" class="d-inline"><?= csrf_field() ?><input type="hidden" name="cylinder_type_id" value="<?= $id ?>">
+                            <button class="btn btn-sm btn-outline-secondary" data-confirm="Use the shop default policy for <?= esc($t['code']) ?>?" data-confirm-danger="false" data-confirm-ok="Use shop default">Use shop default</button></form>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr class="collapse" id="ovr<?= $id ?>"><td colspan="3" class="bg-body-tertiary">
+                <form method="post" action="<?= site_url('inventory/controls/save') ?>" class="row g-2 align-items-end"><?= csrf_field() ?>
+                    <input type="hidden" name="cylinder_type_id" value="<?= $id ?>">
+                    <div class="col-md-4"><label class="form-label small" for="val<?= $id ?>">Stock validation</label>
+                        <select id="val<?= $id ?>" name="stock_validation_enabled" class="form-select form-select-sm">
+                            <option value="1" <?= !empty($p['stock_validation_enabled']) ? 'selected' : '' ?>>On — block selling more than stock</option>
+                            <option value="0" <?= empty($p['stock_validation_enabled']) ? 'selected' : '' ?>>Off — allow with confirmation</option>
+                        </select></div>
+                    <div class="col-md-3"><label class="form-label small" for="mode<?= $id ?>">Allowance basis</label>
+                        <select id="mode<?= $id ?>" name="wastage_mode" class="form-select form-select-sm">
+                            <option value="percent" <?= $p['wastage_mode'] === 'percent' ? 'selected' : '' ?>>Percentage</option>
+                            <option value="fixed_kg" <?= $p['wastage_mode'] === 'fixed_kg' ? 'selected' : '' ?>>Fixed KG</option>
+                        </select></div>
+                    <div class="col-6 col-md-2"><label class="form-label small" for="pct<?= $id ?>">Allowance %</label><input id="pct<?= $id ?>" name="wastage_percent" class="form-control form-control-sm" type="number" step=".001" min="0" max="100" value="<?= esc($p['wastage_percent']) ?>"></div>
+                    <div class="col-6 col-md-2"><label class="form-label small" for="kg<?= $id ?>">Allowance KG</label><input id="kg<?= $id ?>" name="wastage_fixed_kg" class="form-control form-control-sm" type="number" step=".001" min="0" value="<?= esc($p['wastage_fixed_kg']) ?>"></div>
+                    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Save</button></div>
+                </form>
+            </td></tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table></div>
+    <?php endif; ?>
 </div></div>
 <?= $this->endSection() ?>

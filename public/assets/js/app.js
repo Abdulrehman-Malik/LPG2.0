@@ -204,6 +204,45 @@
         if (field && document.activeElement === field) field.blur();
     }, { capture: true, passive: true });
 
+    /* ---------- Accessible names for form fields (Phase 11.6) ----------
+       Older screens show a visual label next to a field without linking them. Link each unnamed
+       field to its group's visible label, to its table column header in line-item grids, or to its
+       placeholder, so screen readers announce what the field is. Re-runs when rows are added. */
+    var uid = 0;
+    function hasName(el) {
+        if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.closest('label')) return true;
+        return !!(el.id && document.querySelector('label[for="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"]'));
+    }
+    function nameFields(scope) {
+        (scope || document).querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]), select, textarea').forEach(function (el) {
+            if (hasName(el)) return;
+            // 1) A visual label in the same small group that is not already linked to another field.
+            for (var node = el.parentElement, depth = 0; node && depth < 3; node = node.parentElement, depth++) {
+                var label = node.querySelector(':scope > .form-label, :scope > label');
+                if (label && !label.htmlFor && !label.contains(el) && node.querySelectorAll('input:not([type=hidden]), select, textarea').length === 1) {
+                    if (!el.id) el.id = 'lpg-field-' + (++uid);
+                    if (label.tagName === 'LABEL') { label.htmlFor = el.id; } else { if (!label.id) label.id = 'lpg-label-' + (++uid); el.setAttribute('aria-labelledby', label.id); }
+                    return;
+                }
+            }
+            // 2) Line-item grids: the column header.
+            var cell = el.closest('td');
+            var table = cell && cell.closest('table');
+            if (cell && table) {
+                var header = table.querySelectorAll('thead th')[cell.cellIndex];
+                var text = header && header.textContent.trim();
+                if (text) { el.setAttribute('aria-label', text); return; }
+            }
+            // 3) Placeholder or title.
+            var hint = el.getAttribute('placeholder') || el.getAttribute('title');
+            if (hint) el.setAttribute('aria-label', hint);
+        });
+    }
+    nameFields();
+    var nameTimer = null;
+    new MutationObserver(function () { clearTimeout(nameTimer); nameTimer = setTimeout(function () { nameFields(); }, 50); })
+        .observe(document.body, { childList: true, subtree: true });
+
     window.LPG = Object.assign(window.LPG || {}, { toast: toast, confirm: confirmDialog });
 
     if (window.jQuery && window.jQuery.fn.DataTable) {

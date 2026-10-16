@@ -17,8 +17,8 @@
 <?php endforeach; ?>
 
 <?php if ($canCreateBusiness): ?>
-<div class="card mb-4">
-    <div class="card-header"><strong><i class="bi bi-building-add me-2"></i>Create business / Head Office</strong></div>
+<details class="card mb-4"<?= (!$businesses || old('code') !== null) ? ' open' : '' ?>>
+    <summary class="card-header"><strong><i class="bi bi-building-add me-2"></i>Create a new business / Head Office</strong> <span class="small text-muted ms-1">Only needed when onboarding a new company</span></summary>
     <div class="card-body">
         <form method="post" action="<?= site_url('business-management/business/save') ?>" class="row g-3">
             <?= csrf_field() ?>
@@ -32,7 +32,7 @@
         </form>
         <div class="form-text mt-2">Only a System Administrator can create a new business. Business owners do not receive platform-wide administrator privileges.</div>
     </div>
-</div>
+</details>
 <?php endif; ?>
 
 <?php if (!$businesses): ?>

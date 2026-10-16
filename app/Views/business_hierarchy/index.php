@@ -18,7 +18,7 @@
 .hier-row { display: flex; align-items: center; gap: .45rem; width: 100%; min-height: 2.35rem; padding: .3rem .5rem; border: 0; border-radius: var(--lpg-radius-sm); background: transparent; color: var(--lpg-text); text-align: left; cursor: pointer; }
 .hier-row:hover { background: var(--lpg-surface-2); }
 .hier-row:focus-visible { outline: 2px solid var(--lpg-accent); outline-offset: -2px; }
-.hier-row[aria-selected="true"] { background: rgba(var(--lpg-accent-rgb), .14); box-shadow: inset 3px 0 0 var(--lpg-accent); }
+[aria-selected="true"] > .hier-row { background: rgba(var(--lpg-accent-rgb), .14); box-shadow: inset 3px 0 0 var(--lpg-accent); }
 .hier-caret { flex: 0 0 1rem; color: var(--lpg-muted); font-size: .75rem; transition: transform .15s ease; }
 li[aria-expanded="true"] > .hier-row > .hier-caret { transform: rotate(90deg); }
 .hier-caret.is-leaf { visibility: hidden; }
@@ -359,11 +359,11 @@ $personRow = static function (array $u, string $extra = '') use ($initials): str
     function select(nodeId, row) {
         const tpl = document.getElementById('detail-' + nodeId);
         if (!tpl) return;
-        tree.querySelectorAll('.hier-row[aria-selected]').forEach(r => r.removeAttribute('aria-selected'));
+        tree.querySelectorAll('[role="treeitem"][aria-selected]').forEach(i => i.removeAttribute('aria-selected'));
         row = row || tree.querySelector('.hier-row[data-select="' + nodeId + '"]');
         if (row) {
             for (let p = row.parentElement.closest('[role="treeitem"]')?.parentElement?.closest('[role="treeitem"]'); p; p = p.parentElement.closest('[role="treeitem"]')) setExpanded(p, true);
-            row.setAttribute('aria-selected', 'true');
+            row.closest('[role="treeitem"]')?.setAttribute('aria-selected', 'true');
             row.tabIndex = 0;
             row.scrollIntoView({ block: 'nearest' });
         }
@@ -380,7 +380,7 @@ $personRow = static function (array $u, string $extra = '') use ($initials): str
             setExpanded(item, item.getAttribute('aria-expanded') !== 'true');
             return;
         }
-        if (hasChildren(item) && row.getAttribute('aria-selected') === 'true') setExpanded(item, item.getAttribute('aria-expanded') !== 'true');
+        if (hasChildren(item) && item.getAttribute('aria-selected') === 'true') setExpanded(item, item.getAttribute('aria-expanded') !== 'true');
         else if (hasChildren(item)) setExpanded(item, true);
         select(row.dataset.select, row);
         focusRow(row);
@@ -408,7 +408,7 @@ $personRow = static function (array $u, string $extra = '') use ($initials): str
     // Links inside the detail panel jump to another node.
     detail.addEventListener('click', (e) => {
         const go = e.target.closest('[data-goto]');
-        if (go) { select(go.dataset.goto); const r = tree.querySelector('.hier-row[aria-selected="true"]'); if (r) r.focus({ preventScroll: true }); }
+        if (go) { select(go.dataset.goto); const r = tree.querySelector('[aria-selected="true"] > .hier-row'); if (r) r.focus({ preventScroll: true }); }
     });
 
     document.getElementById('hierExpand').onclick = () => tree.querySelectorAll('[role="treeitem"]').forEach(i => setExpanded(i, true));
@@ -464,7 +464,7 @@ $personRow = static function (array $u, string $extra = '') use ($initials): str
     const initial = params.get('node') && document.getElementById('detail-' + params.get('node')) ? params.get('node')
         : (document.getElementById('detail-shop-<?= (int) $currentShopId ?>') ? 'shop-<?= (int) $currentShopId ?>' : tree.querySelector('.hier-row')?.dataset.select);
     if (initial) select(initial);
-    const first = tree.querySelector('.hier-row[aria-selected="true"]') || tree.querySelector('.hier-row');
+    const first = tree.querySelector('[aria-selected="true"] > .hier-row') || tree.querySelector('.hier-row');
     if (first) first.tabIndex = 0;
 })();
 </script>

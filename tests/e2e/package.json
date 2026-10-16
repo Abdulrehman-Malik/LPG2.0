@@ -1,11 +1,13 @@
 {
-  "name": "perfect-lpg-runtime-qa",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test:mobile-ordering": "playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]'"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.56.0"
-  }
+    "name": "perfect-lpg-runtime-qa",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test:mobile-ordering": "playwright test lpg-runtime.spec.mjs --grep 'E2E-02[0-3]'",
+        "qa": "bash ../qa/run_all.sh"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.56.0",
+        "axe-core": "4.10.2"
+    }
 }

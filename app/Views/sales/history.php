@@ -133,12 +133,15 @@ function renderRow(s){
     +'<td class="text-end">'+money(received(s))+'</td><td class="text-end">'+money(s.net_receivable_amount??s.total_amount)+'</td><td class="text-end">'+money(s.os_balance??s.credit_amount)+'</td>'
     +'<td>'+statusBadge(s)+'</td><td>'+escapeHtml(s.created_by_name||'-')+'</td><td class="text-end">'+action+'</td></tr>';
 }
+let historyRequest=0;
 async function loadSaleHistory(){
+  const requestId=++historyRequest; // ignore responses from searches that were replaced by a newer one
   historyBody.innerHTML='<tr><td colspan="14" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading…</td></tr>';
   document.getElementById('historyTotals').innerHTML='';
   try{
     const res=await fetch(<?= json_encode(site_url('sales/history/data')) ?>+'?'+historyQuery(),{headers:{Accept:'application/json'}});
     const d=await res.json();
+    if(requestId!==historyRequest)return;
     if(!res.ok)throw new Error(d.error||'Unable to load sale history.');
     const rows=d.sales||[];
     document.getElementById('historyCount').textContent=rows.length+' sale(s)';

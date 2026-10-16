@@ -234,3 +234,55 @@ jobs:
             tests/e2e/test-results/
           if-no-files-found: warn
           retention-days: 14
+
+  business-logic-suites:
+    # Phase 8.3.6: posting, void, credit, deposit, transfer, purchase, wastage and scope suites
+    # (tests/qa) against a disposable MySQL database rebuilt from database/schema.sql.
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: intl, mbstring, mysqli
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run business-logic suites
+        env:
+          QA_DB: lpg_qa
+          QA_DB_PASS: root
+          QA_BASE_URL: http://localhost:8080
+        shell: bash
+        run: |
+          set -uo pipefail
+          bash tests/qa/reset_db.sh
+          nohup env CI_ENVIRONMENT=development LPG_DB_HOST=127.0.0.1 LPG_DB_PORT=3306 LPG_DB_USER=root LPG_DB_PASS=root LPG_DB_NAME=lpg_qa LPG_DB_DRIVER=MySQLi \
+            php spark serve --host 127.0.0.1 --port 8080 > /tmp/lpg-qa-server.log 2>&1 &
+          for attempt in $(seq 1 40); do curl --silent --fail http://127.0.0.1:8080/login >/dev/null && break; sleep 1; done
+          status=0
+          bash tests/qa/run_all.sh --suites-only || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo '--- PHP server log ---'; tail -n 200 /tmp/lpg-qa-server.log || true
+            find writable/logs -maxdepth 1 -type f -name '*.log' -exec tail -n 200 {} \; 2>/dev/null || true
+          fi
+          exit "$status"

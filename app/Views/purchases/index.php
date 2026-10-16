@@ -53,6 +53,13 @@
 </style>
 
 <div class="purchase-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Purchases</h1>
+            <p class="page-subtitle">Receive stock from a supplier. Anything not paid now is added to the supplier's payable.</p>
+        </div>
+        <div class="page-actions"><a class="btn btn-outline-secondary" href="<?= site_url('supplier-payments') ?>"><i class="bi bi-cash-coin me-1"></i>Pay a supplier</a></div>
+    </div>
     <ul class="nav nav-tabs purchase-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <a class="nav-link <?= ($activeTab ?? 'new') === 'new' ? 'active' : '' ?>" href="#new-purchase" data-bs-toggle="tab" role="tab" aria-controls="new-purchase" aria-selected="<?= ($activeTab ?? 'new') === 'new' ? 'true' : 'false' ?>">
@@ -140,7 +147,7 @@
             </div>
 
             <div class="card-body">
-                <div class="row g-4 mt-2">
+                <div class="row g-4">
                     <div class="col-lg-7">
                         <?= view('partials/transaction_date') ?>
                         <label class="form-label fw-semibold">Purchase Notes</label>
@@ -176,7 +183,7 @@
 
                             <div class="summary-row align-items-center">
                                 <span class="fw-semibold">Payment Type</span>
-                                <select id="paymentType" class="form-select form-select-sm" style="max-width:180px">
+                                <select id="paymentType" class="form-select form-select-sm" style="max-width:180px" aria-label="Payment type">
                                     <option value="">No Payment</option>
                                     <option value="cash">Cash</option>
                                     <option value="online">Online</option>

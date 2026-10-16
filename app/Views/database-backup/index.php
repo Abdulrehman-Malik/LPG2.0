@@ -259,7 +259,7 @@
                         <thead>
                             <tr>
                                 <th style="width:40px;">
-                                    <input class="form-check-input" type="checkbox" id="selectAllBackups"
+                                    <input class="form-check-input" type="checkbox" id="selectAllBackups" aria-label="Select all backups"
                                            onchange="toggleAllBackups(this.checked)">
                                 </th>
                                 <th>Backup File</th>
@@ -273,7 +273,7 @@
                             <tr>
                                 <td>
                                     <input class="form-check-input backup-select" type="checkbox"
-                                           name="backup_files[]" value="<?= esc($backup['name']) ?>"
+                                           name="backup_files[]" value="<?= esc($backup['name']) ?>" aria-label="Select backup <?= esc($backup['name']) ?>"
                                            onchange="updateBackupSelection()">
                                 </td>
                                 <td><code><?= esc($backup['name']) ?></code></td>

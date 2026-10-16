@@ -37,12 +37,12 @@
         .btn-brand {
             background: var(--lpg-accent);
             border-color: var(--lpg-accent);
-            color: #fff;
+            color: #0f172a; /* 6.8:1 on the accent; white was 2.6:1 */
         }
         .btn-brand:hover {
             background: #e2680f;
             border-color: #e2680f;
-            color: #fff;
+            color: #0f172a;
         }
         .form-control:focus {
             border-color: var(--lpg-accent);

@@ -74,10 +74,11 @@
             <span class="badge text-bg-light border permission-count"><?= count($assigned) ?> / <?= count($permissions) ?></span>
             <button type="button" class="btn btn-sm btn-outline-secondary select-all-permissions">Select All</button>
             <button type="button" class="btn btn-sm btn-outline-secondary clear-all-permissions">Clear All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#perm-<?= (int)$role['id'] ?>" aria-expanded="false" aria-controls="perm-<?= (int)$role['id'] ?>"><i class="bi bi-chevron-down me-1"></i>Show permissions</button>
             <button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2-circle me-1"></i>Save Permissions</button>
         </div>
     </div>
-    <div class="card-body">
+    <div class="card-body collapse" id="perm-<?= (int)$role['id'] ?>">
         <div class="row g-2">
             <?php foreach($permissions as $p): ?>
                 <div class="col-md-6 col-xl-4">

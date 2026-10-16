@@ -225,6 +225,22 @@ class ReportService
         )->getResultArray();
     }
 
+    /**
+     * Single-branch period report for the Reports page (Phase 10.1; moved from the controller unchanged).
+     * @return array{sales:array,saleRows:array,purchases:array,payments:array,deposits:array,depositBalance:float}
+     */
+    public function periodReport(int $loc, string $from, string $to): array
+    {
+        $sales=$this->db->table('sales')->select('COUNT(*) count,SUM(total_amount) total,SUM(credit_amount) credit')->where(['location_id'=>$loc,'status'=>'posted'])->where('transaction_type !=','security_deposit')->where('transaction_type !=','cylinder_return')->where('transaction_at >=',$from.' 00:00:00')->where('transaction_at <=',$to.' 23:59:59')->get()->getRowArray();
+        $saleRows=$this->db->table('sales s')->select('s.id,s.sale_no,s.transaction_at,s.transaction_type,s.total_amount,s.credit_amount,c.name customer_name,u.full_name created_by_name')->join('customers c','c.id=s.customer_id','left')->join('users u','u.id=s.created_by','left')->where(['s.location_id'=>$loc,'s.status'=>'posted'])->whereNotIn('s.transaction_type',['security_deposit','cylinder_return'])->where('s.transaction_at >=',$from.' 00:00:00')->where('s.transaction_at <=',$to.' 23:59:59')->orderBy('s.transaction_at','DESC')->orderBy('s.id','DESC')->get()->getResultArray();
+        $purchases=$this->db->table('purchases')->select('COUNT(*) count,SUM(total_amount) total,SUM(credit_amount) credit')->where(['location_id'=>$loc,'status'=>'posted'])->where('transaction_at >=',$from.' 00:00:00')->where('transaction_at <=',$to.' 23:59:59')->get()->getRowArray();
+        $payments=$this->db->table('sale_payments sp')->select('payment_mode,SUM(amount) amount')->join('sales s','s.id=sp.sale_id')->where('s.location_id',$loc)->where('s.status','posted')->whereNotIn('s.transaction_type',['security_deposit','cylinder_return'])->where('sp.payment_at >=',$from.' 00:00:00')->where('sp.payment_at <=',$to.' 23:59:59')->groupBy('payment_mode')->get()->getResultArray();
+        $deposits=$this->db->table('customer_security_deposits')->select("SUM(CASE WHEN entry_type='hold' THEN amount ELSE 0 END) held,SUM(CASE WHEN entry_type='refund' THEN amount ELSE 0 END) refunded")->where(['location_id'=>$loc])->where('transaction_at >=',$from.' 00:00:00')->where('transaction_at <=',$to.' 23:59:59')->get()->getRowArray();
+        $depositBalance=$this->db->table('customer_security_deposits')->select("SUM(CASE WHEN entry_type='hold' THEN amount ELSE -amount END) balance")->where(['location_id'=>$loc])->get()->getRowArray();
+        
+        return ['sales'=>$sales,'saleRows'=>$saleRows,'purchases'=>$purchases,'payments'=>$payments,'deposits'=>$deposits,'depositBalance'=>(float)($depositBalance['balance']??0)];
+    }
+
     private function emptyRow(): array
     {
         return [

@@ -33,3 +33,11 @@ node_modules/
 
 # Playwright run output
 tests/e2e/test-results/
+
+# Database backups contain all business data: never commit them.
+writable/backups/*
+!writable/backups/index.html
+!writable/backups/.htaccess
+
+# QA screenshots/output
+tests/qa/checks/qa-output/

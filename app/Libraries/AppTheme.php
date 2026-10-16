@@ -48,7 +48,8 @@ final class AppTheme
         $fontSize = (float) ($settings['pos_font_size_px'] ?? 14);
         $fontSize = $fontSize >= 10 && $fontSize <= 24 ? $fontSize : 14;
         $sidebarFg = self::readableOn($primary);
-        $accentStrong = self::shadeForContrast($accent, '#ffffff', 4.5);
+        // 5:1 on white keeps links/tabs at least 4.5:1 on the light tinted surfaces too (Phase 11.6).
+        $accentStrong = self::shadeForContrast($accent, '#ffffff', 5.0);
 
         $vars = [
             '--lpg-font' => self::fontStack($settings['font_family'] ?? 'system'),

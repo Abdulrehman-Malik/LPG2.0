@@ -33,8 +33,8 @@
     --lpg-accent: #ff7a1a;
     --lpg-accent-rgb: 255, 122, 26;
     --lpg-accent-contrast: #0f172a;
-    --lpg-accent-strong: #ab4f0d;
-    --lpg-accent-strong-rgb: 171, 79, 13;
+    --lpg-accent-strong: #a75011;
+    --lpg-accent-strong-rgb: 167, 80, 17;
 
     --lpg-page: #f3f5f9;
     --lpg-surface: #ffffff;
@@ -43,11 +43,11 @@
     --lpg-border-strong: #cbd5e1;
     --lpg-text: #0f172a;
     --lpg-text-2: #334155;
-    --lpg-muted: #64748b;
+    --lpg-muted: #5b6b80;
     --lpg-link: var(--lpg-accent-strong);
 
     --lpg-success: #15803d; --lpg-success-soft: #dcfce7;
-    --lpg-warning: #a16207; --lpg-warning-soft: #fef3c7;
+    --lpg-warning: #92400e; --lpg-warning-soft: #fef3c7;
     --lpg-danger: #b91c1c;  --lpg-danger-soft: #fee2e2;
     --lpg-info: #0369a1;    --lpg-info-soft: #e0f2fe;
     --lpg-neutral: #475569; --lpg-neutral-soft: #eef2f6;
@@ -221,6 +221,19 @@ div.dataTables_wrapper div:has(> table.dataTable) { overflow-x: auto; }
 .nav-tabs .nav-link.active { color: var(--lpg-link); background: transparent; border-bottom-color: var(--lpg-accent); }
 .list-group { --bs-list-group-bg: var(--lpg-surface); --bs-list-group-border-color: var(--lpg-border); --bs-list-group-color: var(--lpg-text); }
 
+/* Accessibility (Phase 11.6): Bootstrap's fixed status colours replaced by theme tokens so text and
+   outline buttons keep at least 4.5:1 contrast in light and dark mode. */
+.text-success { color: var(--lpg-success) !important; }
+.text-danger { color: var(--lpg-danger) !important; }
+.text-warning { color: var(--lpg-warning) !important; }
+.text-info { color: var(--lpg-info) !important; }
+.btn-outline-danger { --bs-btn-color: var(--lpg-danger); --bs-btn-border-color: var(--lpg-danger); --bs-btn-hover-bg: var(--lpg-danger); --bs-btn-hover-border-color: var(--lpg-danger); --bs-btn-hover-color: var(--lpg-surface); --bs-btn-active-bg: var(--lpg-danger); --bs-btn-active-color: var(--lpg-surface); }
+.btn-outline-success { --bs-btn-color: var(--lpg-success); --bs-btn-border-color: var(--lpg-success); --bs-btn-hover-bg: var(--lpg-success); --bs-btn-hover-border-color: var(--lpg-success); --bs-btn-hover-color: var(--lpg-surface); }
+.btn-outline-warning { --bs-btn-color: var(--lpg-warning); --bs-btn-border-color: var(--lpg-warning); --bs-btn-hover-bg: var(--lpg-warning-soft); --bs-btn-hover-border-color: var(--lpg-warning); --bs-btn-hover-color: var(--lpg-warning); }
+code { color: #9d174d; }
+[data-bs-theme="dark"] code { color: #f9a8d4; }
+.bg-light-subtle { background-color: var(--lpg-surface-2) !important; }
+
 /* ---------- Components ---------- */
 
 /* Page header: <div class="page-header"><div><h1 class="page-title">…</h1><p class="page-subtitle">…</p></div><div class="page-actions">…</div></div> */
@@ -386,3 +399,10 @@ div.dataTables_wrapper div:has(> table.dataTable) { overflow-x: auto; }
     body { background: #fff; }
     .card { box-shadow: none; }
 }
+
+/* Collapsible card sections (<details class="card"><summary class="card-header">) */
+details.card > summary.card-header { cursor: pointer; list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; }
+details.card > summary.card-header::-webkit-details-marker { display: none; }
+details.card > summary.card-header::before { content: "\F285"; font-family: bootstrap-icons; font-size: .8rem; margin-right: .4rem; transition: transform .15s; }
+details.card[open] > summary.card-header::before { transform: rotate(90deg); }
+details.card:not([open]) > summary.card-header { border-bottom: 0; }
