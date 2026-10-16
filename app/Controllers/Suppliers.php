@@ -32,7 +32,8 @@ class Suppliers extends Controller
         $editId=(int)$this->request->getGet('edit');
         return view('suppliers/index',[
             'title'=>'Suppliers',
-            'suppliers'=>$this->model->visibleTo($this->locationId()),
+            'suppliers'=>$suppliers=$this->model->visibleTo($this->locationId()),
+            'balances'=>(new \App\Services\PurchaseService())->supplierBalances($suppliers,$this->locationId()),
             'edit'=>$editId?BusinessContext::supplierVisibleTo($editId,$this->locationId(),false):null,
             'scopeMode'=>$this->scopeMode(),
         ]);

@@ -1464,14 +1464,10 @@ class SalesService
         return ['sale_payments'=>$salePayments,'settlements'=>$settlements,'credit_amount'=>$creditAmount,'previous_os'=>$previousOs,'payment_total'=>$paymentTotal,'net_receivable'=>$maxReceivable,'remaining_os'=>$newOs];
     }
 
+    /** Sum of positive gas balances of this branch's customers (shop credit-limit mode). */
     protected function shopOutstanding(int $locationId): float
     {
-        $sql="SELECT COALESCE(SUM(CASE WHEN (c.opening_balance+COALESCE(s.credit,0)+COALESCE(s.return_ledger,0)-COALESCE(r.paid,0))>0 THEN (c.opening_balance+COALESCE(s.credit,0)+COALESCE(s.return_ledger,0)-COALESCE(r.paid,0)) ELSE 0 END),0) AS shop_os
-              FROM customers c
-              LEFT JOIN (SELECT customer_id,SUM(credit_amount) credit,SUM(return_gas_ledger_amount) return_ledger FROM sales WHERE location_id=? AND status='posted' AND customer_id IS NOT NULL GROUP BY customer_id) s ON s.customer_id=c.id
-              LEFT JOIN (SELECT customer_id,SUM(amount) paid FROM customer_receipts WHERE location_id=? AND status='posted' GROUP BY customer_id) r ON r.customer_id=c.id";
-        $row=$this->db->query($sql,[$locationId,$locationId])->getRowArray();
-        return (float)($row['shop_os']??0);
+        return array_sum(array_filter((new CustomerBalanceService($this->db))->gasBalances($locationId), static fn (float $b): bool => $b > 0));
     }
 
     protected function acquireCreditLimitLock(int $locationId): void
@@ -1523,22 +1519,15 @@ class SalesService
 
     protected function securityDepositBalance(int $locationId,int $customerId): float
     {
-        $row=$this->db->query(
-            "SELECT COALESCE(SUM(CASE WHEN entry_type='hold' THEN amount ELSE -amount END),0) AS balance
-             FROM customer_security_deposits WHERE location_id=? AND customer_id=?",
-            [$locationId,$customerId]
-        )->getRowArray();
-        return max(0,(float)($row['balance']??0));
+        return (new CustomerBalanceService($this->db))->depositBalances($locationId,[$customerId])[$customerId] ?? 0.0;
     }
 
     protected function customerGasBalance(int $customerId): float
     {
-        $s=$this->db->table('sales')->selectSum('credit_amount','credit')->selectSum('return_gas_ledger_amount','return_ledger')
-            ->where('customer_id',$customerId)->where('status','posted')->where('location_id',$this->currentLocationId)->get()->getRowArray();
-        $r=$this->db->table('customer_receipts')->selectSum('amount','paid')
-            ->where('customer_id',$customerId)->where('status','posted')->where('location_id',$this->currentLocationId)->get()->getRowArray();
+        $balances=(new CustomerBalanceService($this->db))->gasBalances((int)$this->currentLocationId,[$customerId]);
+        if(array_key_exists($customerId,$balances)) return $balances[$customerId];
         $c=$this->customers->find($customerId);
-        return (float)($c['opening_balance']??0)+(float)($s['credit']??0)+(float)($s['return_ledger']??0)-(float)($r['paid']??0);
+        return (float)($c['opening_balance']??0);
     }
 
     protected function paymentCash(array $payments): float {return array_sum(array_map(static fn($p)=>(string)($p['payment_mode'])==='cash'?(float)$p['amount']:0,$payments));}

@@ -104,6 +104,21 @@ class PurchaseService{
       -(float)($ap['account_paid']??0);
  }
 
+ /**
+  * supplierBalance() for every supplier visible at the branch, in two grouped queries.
+  * @param list<array> $suppliers rows with id and opening_balance
+  * @return array<int,float>
+  */
+ public function supplierBalances(array $suppliers,int $locationId): array
+ {
+  $credit=[];$paid=[];
+  foreach($this->db->table('purchases')->select('supplier_id,SUM(credit_amount) c')->where(['status'=>'posted','location_id'=>$locationId])->groupBy('supplier_id')->get()->getResultArray() as $r)$credit[(int)$r['supplier_id']]=(float)$r['c'];
+  foreach($this->db->table('supplier_payments')->select('supplier_id,SUM(amount) p')->where(['status'=>'posted','location_id'=>$locationId])->groupBy('supplier_id')->get()->getResultArray() as $r)$paid[(int)$r['supplier_id']]=(float)$r['p'];
+  $out=[];
+  foreach($suppliers as $sp){$id=(int)$sp['id'];$out[$id]=(float)($sp['opening_balance']??0)+($credit[$id]??0)-($paid[$id]??0);}
+  return $out;
+ }
+
  public function canVoidPurchase(int $userId,int $locationId): bool
  {
   if($userId<=0 || $locationId<=0) return false;

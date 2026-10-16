@@ -181,7 +181,7 @@ class DashboardService
         return ['cashRegisters' => array_values($registers), 'cashIn' => $in, 'cashOut' => $out];
     }
 
-    /** Current customer OS (SalesService::customerBalance is the single balance rule) and the ledger drill-down. */
+    /** Current customer OS (CustomerBalanceService, the single balance rule) and the ledger drill-down. */
     private function receivables(int $locationId): array
     {
         $customers = $this->db->table('customers')->where('location_id', $locationId)->where('is_active', 1)->orderBy('name')->get()->getResultArray();
@@ -196,11 +196,11 @@ class DashboardService
             $paidBy[(int) $row['customer_id']] = (float) $row['paid'];
         }
 
-        $salesService = new SalesService();
+        $osBalances = (new CustomerBalanceService($this->db))->osBalances($locationId);
         $receivables = [];
         foreach ($customers as $c) {
             $id = (int) $c['id'];
-            $balance = max(0, (float) $salesService->customerBalance($id));
+            $balance = max(0, (float) ($osBalances[$id] ?? 0));
             if ($balance <= 0.005) {
                 continue;
             }

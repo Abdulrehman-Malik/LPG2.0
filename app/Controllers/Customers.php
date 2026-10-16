@@ -64,6 +64,7 @@ class Customers extends Controller
         return view('customers/index',[
             'title'=>'Customers / Parties',
             'customers'=>$this->model->where('location_id',$locationId)->orderBy('name')->findAll(),
+            'balances'=>(new \App\Services\CustomerBalanceService())->osBalances($locationId),
             'edit'=>$edit,
         ]);
     }

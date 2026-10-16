@@ -1,10 +1,129 @@
 <?= $this->extend('layouts/app') ?>
 <?= $this->section('content') ?>
-<div class="d-flex justify-content-between align-items-center mb-3"><h4>Customers / Parties</h4><div class="d-flex gap-2"><a class="btn btn-outline-success" href="<?= site_url('customers/template') ?>">Download Excel Template</a><button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#excelImport">Upload Excel</button><button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#form">Add Customer</button></div></div>
-<div class="card"><div class="card-body table-responsive"><table class="table table-sm align-middle datatable"><thead><tr><th>Code</th><th>Name</th><th>Phone</th><th>City</th><th>Credit Sale</th><th>Credit Limit</th><th>Opening</th><th>Status</th><th></th></tr></thead><tbody>
-<?php foreach($customers as $c): ?><tr><td><?= esc($c['code']??'') ?></td><td><?= esc($c['name']) ?></td><td><?= esc($c['phone']??'') ?></td><td><?= esc($c['city']??'') ?></td><td><?= !empty($c['allow_credit_sale']) ? 'Allowed' : 'Cash Only' ?></td><td><?= number_format((float)$c['credit_limit'],2) ?></td><td><?= number_format((float)$c['opening_balance'],2) ?></td><td><?= $c['is_active']?'Active':'Inactive' ?></td><td><a class="btn btn-sm btn-outline-secondary" href="<?= site_url('customers?edit='.$c['id']) ?>">Edit</a> <a class="btn btn-sm btn-outline-primary" href="<?= site_url('customers/ledger/'.$c['id']) ?>">Ledger</a></td></tr><?php endforeach; ?>
-</tbody></table></div></div>
-<div class="modal fade" id="excelImport"><div class="modal-dialog"><form method="post" action="<?= site_url('customers/import') ?>" enctype="multipart/form-data" class="modal-content"><?= csrf_field() ?><div class="modal-header"><h5>Upload Customers from Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="small text-muted mb-2">Use the Excel template. Each row creates one customer. Existing customer codes are rejected and existing customers are never overwritten.</p><input type="file" name="customer_excel" class="form-control" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required><div class="small text-muted mt-2">Maximum file size: 5 MB. Maximum 5,000 customer rows.</div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary">Upload &amp; Import</button></div></form></div></div><div class="modal fade" id="form"><div class="modal-dialog modal-lg"><form method="post" action="<?= site_url('customers/save') ?>" class="modal-content"><?= csrf_field() ?><?php if($edit): ?><input type="hidden" name="id" value="<?= $edit['id'] ?>"><?php endif; ?><div class="modal-header"><h5><?= $edit ? 'Edit Customer' : 'Add Customer' ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-3">
-<?php foreach([['code','Code'],['name','Name'],['phone','Phone'],['city','City'],['vehicle_no','Vehicle No'],['credit_limit','Credit Limit'],['opening_balance','Opening Balance']] as [$n,$l]): ?><div class="col-md-<?= in_array($n,['name'])?'6':'3' ?>"><label class="form-label"><?= $l ?></label><input name="<?= $n ?>" class="form-control" value="<?= esc($edit[$n]??'') ?>" <?= $n==='name'?'required':'' ?>></div><?php endforeach; ?><div class="col-12"><label class="form-label">Address</label><input name="address" class="form-control" value="<?= esc($edit['address']??'') ?>"></div><div class="col-md-6 form-check ms-2"><input name="allow_credit_sale" value="1" type="checkbox" class="form-check-input" <?= isset($edit) && $edit && !empty($edit['allow_credit_sale']) ? 'checked' : '' ?>><label class="form-check-label"><strong>Allow Credit Sale</strong> <span class="text-muted small">Customer may have a positive OS from unpaid sales, subject to the Shop Settings credit-limit mode.</span></label></div><div class="col-12 form-check ms-2"><input name="is_active" value="1" type="checkbox" class="form-check-input" <?= !isset($edit)||$edit['is_active'] ? 'checked' : '' ?>><label class="form-check-label">Active</label></div></div></div><div class="modal-footer"><button class="btn btn-primary"><?= $edit ? 'Update Customer' : 'Save Customer' ?></button></div></form></div></div>
-<?php if(isset($edit)&&$edit): ?><script>document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('form');if(m)new bootstrap.Modal(m).show();});</script><?php endif; ?>
+<?php
+// Re-open the form with the submitted values when a save failed (redirect()->withInput()).
+$hasOld = old('name') !== null;
+$val = static fn (string $field) => old($field) ?? ($edit[$field] ?? '');
+$checked = static fn (string $field, bool $default) => $hasOld ? (old($field) ? 'checked' : '') : (($edit ? !empty($edit[$field]) : $default) ? 'checked' : '');
+$active = array_filter($customers, static fn ($c) => (int) $c['is_active'] === 1);
+$credit = array_filter($active, static fn ($c) => !empty($c['allow_credit_sale']));
+$owing = array_filter($balances, static fn ($b) => $b > 0.005);
+?>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Customers / Parties</h1>
+        <p class="page-subtitle">Customers of this branch, their credit terms and what they currently owe. Open a ledger to see every sale, receipt and deposit.</p>
+    </div>
+    <div class="page-actions">
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="<?= site_url('customers/template') ?>"><i class="bi bi-download me-2"></i>Download template</a></li>
+                <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#excelImport"><i class="bi bi-upload me-2"></i>Upload customers</button></li>
+            </ul>
+        </div>
+        <?php if ($edit): ?>
+        <a class="btn btn-primary" href="<?= site_url('customers?new=1') ?>"><i class="bi bi-person-plus me-1"></i>Add customer</a>
+        <?php else: ?>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#form"><i class="bi bi-person-plus me-1"></i>Add customer</button>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-4"><div class="kpi"><div class="kpi-label">Active customers <i class="bi bi-people"></i></div><div class="kpi-value"><?= count($active) ?></div><div class="kpi-hint"><?= count($customers) - count($active) ?> inactive</div></div></div>
+    <div class="col-sm-4"><div class="kpi is-info"><div class="kpi-label">Credit allowed <i class="bi bi-credit-card"></i></div><div class="kpi-value"><?= count($credit) ?></div><div class="kpi-hint">Others are cash only</div></div></div>
+    <div class="col-sm-4"><div class="kpi is-danger"><div class="kpi-label">Outstanding (OS) <i class="bi bi-hourglass-split"></i></div><div class="kpi-value">Rs. <?= number_format(array_sum($owing), 2) ?></div><div class="kpi-hint"><?= count($owing) ?> customer<?= count($owing) === 1 ? '' : 's' ?> owe money</div></div></div>
+</div>
+
+<div class="card">
+    <?php if (!$customers): ?>
+        <div class="empty-state"><i class="bi bi-people"></i><div class="empty-state-title">No customers yet</div>Add a customer or upload them from the Excel template. Walk-in sales need no customer.</div>
+    <?php else: ?>
+    <div class="card-body table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0 datatable">
+            <thead><tr><th>Code</th><th>Name</th><th>Phone</th><th>City</th><th>Credit</th><th class="text-end">Credit Limit</th><th class="text-end">Opening</th><th class="text-end">OS Balance</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            <?php foreach ($customers as $c): $os = (float) ($balances[(int) $c['id']] ?? 0); ?>
+                <tr>
+                    <td class="fw-semibold"><?= esc($c['code'] ?? '') ?></td>
+                    <td><?= esc($c['name']) ?><?php if (!empty($c['vehicle_no'])): ?><div class="small text-muted"><?= esc($c['vehicle_no']) ?></div><?php endif; ?></td>
+                    <td class="text-nowrap"><?= esc($c['phone'] ?? '') ?></td>
+                    <td><?= esc($c['city'] ?? '') ?></td>
+                    <td><?= !empty($c['allow_credit_sale']) ? '<span class="status status-info">Allowed</span>' : '<span class="status">Cash only</span>' ?></td>
+                    <td class="text-end"><?= (float) $c['credit_limit'] > 0 ? number_format((float) $c['credit_limit'], 2) : (!empty($c['allow_credit_sale']) ? '<span class="text-muted">No limit</span>' : '—') ?></td>
+                    <td class="text-end"><?= number_format((float) $c['opening_balance'], 2) ?></td>
+                    <td class="text-end fw-semibold <?= $os > 0.005 ? 'text-danger' : '' ?>" data-order="<?= $os ?>"><?= number_format($os, 2) ?></td>
+                    <td><?= $c['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="status">Inactive</span>' ?></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= site_url('customers?edit=' . $c['id']) ?>"><i class="bi bi-pencil me-1"></i>Edit</a>
+                        <a class="btn btn-sm btn-outline-primary" href="<?= site_url('customers/ledger/' . $c['id']) ?>"><i class="bi bi-journal-text me-1"></i>Ledger</a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+</div>
+
+<div class="modal fade" id="excelImport" tabindex="-1" aria-labelledby="excelImportTitle" aria-hidden="true">
+    <div class="modal-dialog"><form method="post" action="<?= site_url('customers/import') ?>" enctype="multipart/form-data" class="modal-content">
+        <?= csrf_field() ?>
+        <div class="modal-header"><h2 class="modal-title fs-5" id="excelImportTitle">Upload customers from Excel</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+            <p class="small text-muted">Use the <a href="<?= site_url('customers/template') ?>">Excel template</a>. Each row creates one customer. Existing customer codes are rejected; existing customers are never overwritten.</p>
+            <label class="form-label required" for="customerExcel">Excel file (.xlsx)</label>
+            <input type="file" id="customerExcel" name="customer_excel" class="form-control" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+            <div class="form-text">Maximum 5 MB and 5,000 rows.</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-upload me-1"></i>Upload &amp; import</button></div>
+    </form></div>
+</div>
+
+<div class="modal fade" id="form" tabindex="-1" aria-labelledby="customerFormTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg"><form method="post" action="<?= site_url('customers/save') ?>" class="modal-content">
+        <?= csrf_field() ?>
+        <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int) $edit['id'] ?>"><?php endif; ?>
+        <div class="modal-header"><h2 class="modal-title fs-5" id="customerFormTitle"><?= $edit ? 'Edit customer — ' . esc($edit['name']) : 'Add customer' ?></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+            <div class="form-section">
+                <h3 class="form-section-title">Contact</h3>
+                <div class="row g-3">
+                    <div class="col-md-3"><label class="form-label" for="cCode">Code</label><input id="cCode" name="code" class="form-control" maxlength="40" value="<?= esc($val('code')) ?>" placeholder="Optional"></div>
+                    <div class="col-md-6"><label class="form-label required" for="cName">Name</label><input id="cName" name="name" class="form-control" maxlength="150" required value="<?= esc($val('name')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label" for="cPhone">Phone</label><input id="cPhone" name="phone" class="form-control" maxlength="30" inputmode="tel" value="<?= esc($val('phone')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label" for="cCity">City</label><input id="cCity" name="city" class="form-control" maxlength="80" value="<?= esc($val('city')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label" for="cVehicle">Vehicle no.</label><input id="cVehicle" name="vehicle_no" class="form-control" maxlength="40" value="<?= esc($val('vehicle_no')) ?>"></div>
+                    <div class="col-md-6"><label class="form-label" for="cAddress">Address</label><input id="cAddress" name="address" class="form-control" maxlength="255" value="<?= esc($val('address')) ?>"></div>
+                </div>
+            </div>
+            <div class="form-section mb-0">
+                <h3 class="form-section-title">Credit and balances</h3>
+                <p class="form-section-hint">Credit sales are also limited by the branch's credit-limit mode in Shop Settings.</p>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" id="cCredit" name="allow_credit_sale" value="1" <?= $checked('allow_credit_sale', false) ?>>
+                    <label class="form-check-label" for="cCredit"><strong>Allow credit sale</strong> — the customer may leave part of a sale unpaid (OS)</label>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label" for="cLimit">Credit limit (Rs.)</label><input id="cLimit" name="credit_limit" type="number" min="0" step="0.01" class="form-control" value="<?= esc($val('credit_limit') !== '' ? $val('credit_limit') : '0') ?>" inputmode="decimal"><div class="form-text">0 = no limit when credit is allowed</div></div>
+                    <div class="col-md-4"><label class="form-label" for="cOpening">Opening balance (Rs.)</label><input id="cOpening" name="opening_balance" type="number" min="0" step="0.01" class="form-control" value="<?= esc($val('opening_balance') !== '' ? $val('opening_balance') : '0') ?>" inputmode="decimal"><div class="form-text">Amount owed before using this system</div></div>
+                    <div class="col-md-4 d-flex align-items-center">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="cActive" name="is_active" value="1" <?= $checked('is_active', true) ?>>
+                            <label class="form-check-label" for="cActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><?= $edit ? 'Update customer' : 'Save customer' ?></button></div>
+    </form></div>
+</div>
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<?php if ($edit || $hasOld || service('request')->getGet('new')): ?>
+<script>document.addEventListener('DOMContentLoaded', () => bootstrap.Modal.getOrCreateInstance(document.getElementById('form')).show());</script>
+<?php endif; ?>
 <?= $this->endSection() ?>

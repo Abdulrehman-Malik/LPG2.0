@@ -920,3 +920,13 @@ Data: fresh QA database plus the verify_branch_admin fixture (businesses DEFAULT
 | P9-35 | Add shop from the tree | Code `qa-b3` saved as `QA-B3`; shop settings, main counter and inventory policy provisioned (1/1/1); returns to the tree with the new shop selected and the success message; `SHOP_CREATED` audit entry written | PASS |
 | P9-36 | Scope and permissions | MAIN-only manager (`SHOP_ACCESS_MANAGE`) sees only MAIN, and no other branch name appears in the page source; cashier gets 403 and has no menu entry | PASS |
 | P9-37 | Presentation | No console errors; dark mode; no horizontal scroll at 390 px (tree and details stack) | PASS |
+
+### Phase 10.2/10.3 and 11 — Customer balances, Customers / Suppliers / Ledgers — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-22 | `CustomerBalanceService` vs the previous per-customer formula (temporary CLI check, since removed), with deposit-in-OS off and on. Data: opening balances, credit sales, a return-gas ledger amount, posted and voided receipts, deposits held, refunded and over-refunded, and customers in two branches | 12/12 equal (e.g. Balance A: 150.50 − 50 = 100.50, or 480.50 with the Rs. 380 deposit; voided receipt ignored; over-refund counted as 0) | PASS |
+| P11-23 | Shop credit-limit outstanding (`shopOutstanding`) | Old query: MAIN 247.75, QA-OTHER 265.50, QA-B2 240.50 (it included other branches' and other businesses' customers). New: MAIN 172.75, QA-OTHER 0.00, QA-B2 50.00 | PASS (fixed defect) |
+| P11-24 | Customers and Suppliers lists | OS column equals SQL for every customer; Outstanding KPI equals the sum of positive balances; supplier payables QS1 2,800 (1,000 + 3,000 − 1,200; voided purchase and payment ignored) and QB1 400; a failed save (negative amount) reopens the form with the typed values; the corrected save succeeds | PASS |
+| P11-25 | Ledgers | Statement closing balance equals the current balance for every customer and supplier at MAIN (no mismatch warning); shared-supplier opening note shown (owner decision D9-4); 390 px without horizontal scroll; no console errors | PASS |
+| P11-26 | Regression | Playwright 26/26; PHPUnit 19/19; verify_hq 29/29; verify_phase9 28/28; verify_transfers 23/23; verify_branch_admin 19/19; verify_phase8 23/25 (known); hierarchy check 30/30; shell check 78/78 | PASS |

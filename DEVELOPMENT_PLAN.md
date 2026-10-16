@@ -20,7 +20,7 @@ Legend:
 | 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) and committed test suite (8.3.6) |
 | 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
-| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard, 11.4 POS and Sale History and Counter Cash done; Customers/Suppliers/Ledgers next |
+| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard, 11.4 POS and Sale History and Counter Cash, Customers/Suppliers/Ledgers done; Inventory next |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
 | 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
 
@@ -231,6 +231,9 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 9.7.4 Menu entry under Configuration; browser and scope tests; SQA evidence.
 - Requirement text: requirements.md § Business Hierarchy Screen. Delivered 2026-10-16: `app/Services/BusinessHierarchyService.php`, `app/Controllers/BusinessHierarchy.php`, `app/Views/business_hierarchy/index.php`, route `business-hierarchy`, menu Configuration → Business Hierarchy; Businesses & Shops `saveShop` accepts `return_to=hierarchy`. Evidence: SQA.md P9-33…P9-37.
 
+### 9.8 Open owner decision
+- [ ] D9-4 **Opening balance of a supplier shared by all branches.** A shared supplier has one `opening_balance`, and each branch's payable starts from it, so the same opening debt is counted at every branch (QA: a Rs. 1,000 opening appears in MAIN and QA-B2 payables). Recommendation: record supplier opening balances per branch (new `supplier_opening_balances(location_id, supplier_id, amount)`, migrated from the current value to the branch that created the supplier) or treat the shared opening as Head Office only. Until decided, the supplier ledger shows a note on shared suppliers with an opening balance.
+
 ### 9.4 Owner decisions (confirmed 2026-10-15)
 - [x] **D9-1** Cylinder types and expense categories are **owned by a business**. Each business has its own list; branches of that business share it. A new business is provisioned with the standard cylinder types and expense categories.
 - [x] **D9-2** **Inter-branch stock transfer is required** and its flow is **configurable per business**:
@@ -261,8 +264,11 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 **Goal:** controllers stay thin, posting and reporting logic lives in services that can be reused by the API later, and pages are fast.
 
 - [/] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
-- [ ] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
-- [ ] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
+- [x] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
+  - Done 2026-10-16: POS, Dashboard, Customers list and Receipts use `CustomerBalanceService` (2–3 grouped queries per branch); Suppliers list uses `PurchaseService::supplierBalances()`; Business Hierarchy uses grouped queries.
+- [x] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
+  - Done 2026-10-16: `app/Services/CustomerBalanceService.php` is the single rule; `SalesService::customerGasBalance/securityDepositBalance/shopOutstanding` delegate to it. Verified equal to the previous formula for every customer with deposit-in-OS off and on (12/12). `ReportService` keeps its multi-branch grouped query (same formula, branch-filtered). `CustomerModel::withLedgerTotals` (ledger header) uses the same formula and is cross-checked by the new ledger statement.
+  - **Defect fixed:** `shopOutstanding()` (shop credit-limit mode) summed the opening balances of customers of **every branch and every business** because its query had no customer branch filter (QA: QA-OTHER showed Rs. 265.50 outstanding with no customers; MAIN overstated by another branch's Rs. 75). Now branch-only. The POS "available shop credit" figure now uses the same enforced figure.
 - [x] 10.4 Validate and normalize `transaction_at` — delivered by Phase 9.5.2 (`TransactionDatePolicy`, decision D10-1).
 - [ ] 10.5 Concurrency-safe document numbering for sales and receipts (sequence table) instead of `MAX()+1` / timestamp+random.
 - [ ] 10.6 Retire or isolate the legacy five-mode POS path in `SalesService::post()`; it is still used by customer-order fulfilment. Move fulfilment onto the four header transaction types, then remove dead code.
@@ -285,9 +291,10 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [ ] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
 - [ ] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
 - [ ] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
-  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [x] Cash · [ ] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
+  - Progress: [x] Layout/shell · [x] Dashboard · [x] POS · [x] Sale History/Receipt · [x] Cash · [x] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
   - Sale History (2026-10-16): page header, date presets, Enter-to-search, posted/received totals, status badges, sticky table header, loading/empty states; void uses a dialog with a required reason (was browser confirm/prompt) and the button now says "Void" (was "Delete", contradicting the void-not-delete rule); details modal has 80 mm / A4 receipt links; void now returns to Sale History (was POS); "All History" uses the local date (was UTC, which dropped today before 05:00 PKT). Evidence: SQA.md P11-15…P11-18.
   - Counter Cash (2026-10-16): open/close/manual-movement screens rebuilt; opening float shown separately from other cash in (it was counted under both Opening and Cash In); live over/short preview while counting; close asks for confirmation; this session's movements listed (`CashService::sessionTransactions()`); Cash History with presets, in/out/net totals and readable references. All DataTables now keep the server row order until the user sorts (`order: []`; previously every list was re-sorted oldest-first by its first column). Evidence: SQA.md P11-19…P11-21.
+  - Customers / Suppliers / Ledgers (2026-10-16): lists show OS balance / payable and KPI totals; forms grouped into sections with required markers and keep the typed values after a failed save (previously lost); ledgers gain a running-balance Statement tab cross-checked against the current balance; customer balance colours fixed (amount owed was shown green). Evidence: SQA.md P11-22…P11-26.
   - Per screen: use the components in `docs/ui-design-system.md`; replace `onsubmit="return confirm(...)"` with `data-confirm`; run Playwright `tests/e2e` and check light/dark at 1440 px and 390 px.
 
 ## Phase 12 — Back-Office SQA, UAT & Release (P1)

@@ -23,10 +23,13 @@ class Sales extends Controller
         if($r=$this->guard()) return $r;
         $types=(new CylinderTypeModel())->activeOrdered();
         $customers=(new CustomerModel())->activeDirectory();
-        $service=new SalesService();
-        $balances=[];$creditLimits=[];$shopOutstanding=0.0;
-        foreach($customers as $c){$balances[$c['id']]=$service->customerBalance((int)$c['id']);$creditLimits[$c['id']]=(float)$c['credit_limit'];}
-        foreach($balances as $balance){if((float)$balance>0)$shopOutstanding+=(float)$balance;}
+        // One grouped balance query for the whole branch (CustomerBalanceService) instead of one per customer.
+        $balanceService=new \App\Services\CustomerBalanceService();
+        $osBalances=$balanceService->osBalances((int)session()->get('location_id'));
+        $balances=[];$creditLimits=[];
+        foreach($customers as $c){$balances[$c['id']]=$osBalances[(int)$c['id']]??0.0;$creditLimits[$c['id']]=(float)$c['credit_limit'];}
+        // Same figure the shop credit-limit check enforces (SalesService::shopOutstanding).
+        $shopOutstanding=array_sum(array_filter($balanceService->gasBalances((int)session()->get('location_id')),static fn(float $b):bool=>$b>0));
         $locationId=(int)session()->get('location_id');
         $rateModel=new GasRateModel();
         $cylinderRates=[];
