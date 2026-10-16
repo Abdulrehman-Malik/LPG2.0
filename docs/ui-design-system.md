@@ -60,3 +60,9 @@ Assets are linked with `?v=<filemtime>`; `public/.htaccess` lets Apache cache th
 - Keep the logic in services and controllers. A redesign changes views (and view-only JS) unless a defect is found.
 - Every page must work at 390 px width without horizontal page scroll. Wide tables scroll inside their container.
 - After each screen: run the Playwright suite (`tests/e2e`), and check the page in light and dark mode at 1440 px and 390 px.
+
+## Charts
+- Chart.js 4.4.1 is at `assets/vendor/chartjs/chart.umd.min.js`. Load it only on the pages that draw charts, in `section('scripts')`.
+- Single-series colour: `--lpg-viz-1` (light `#2a78d6`, dark `#3987e5`, both validated at 3:1 or better on their surface). Gridlines use `--lpg-viz-grid`. Read the tokens with `getComputedStyle` and redraw on a `data-bs-theme` change. The Dashboard has a working example.
+- One series needs no legend; the card title names it. Bars have 4 px rounded tops and hover tooltips, and every chart has a "Show as table" view.
+- For a few labelled categories (e.g. payment modes), plain HTML bars (`.dash-bar-*` on the Dashboard) are simpler than a chart.

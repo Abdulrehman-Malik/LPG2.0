@@ -873,3 +873,12 @@ Environment: disposable `lpg_qa_phase8` database (MariaDB 10.4), `php spark serv
 | P11-06 | Regression | Playwright 26/26 (E2E-011 timeout raised to 150 s: it loads 24 screens and the single-threaded dev server now serves the local assets too); PHPUnit 19/19 (4 new shell tests); Phase 9 suites 28/28, 23/23, 19/19, 29/29 | PASS |
 
 Not verified locally: the Apache cache headers added in `public/.htaccess`, because Apache was not running on this machine. Check them on staging with `curl -I <app>/assets/css/app.css`.
+
+### Phase 11.3 — Dashboard redesign — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-07 | Dashboard figures after the move to `DashboardService`, using the verify_hq fixture (cash sale 100, credit sale 30, voided sale, expense 25, receipt 10, sale at QA-B2) | Sales Rs. 130 (cash 100, credit 30, void excluded); cash counter in 160 / out 75 / net 85; receivables Rs. 20; gas 10.20 KG; expenses Rs. 25; branch comparison MAIN 130 / QA-B2 200, matching the SQL-verified Branch Overview | PASS |
+| P11-08 | Drill-down tiles, date filter, Current Stock tab | E2E-010 passes unchanged (7 tiles open the right modal titles, From/To + Apply Filter, stock tab) | PASS |
+| P11-09 | Light, dark and 390 px | No console errors; no horizontal scroll; chart redraws in the dark palette (series colour validated ≥ 3:1 on both surfaces) | PASS |
+| P11-10 | Regression | Playwright 26/26; PHPUnit 19/19; verify_branch_admin 19/19 (non-default-branch dashboard and customer scope), verify_phase9 28/28, verify_transfers 23/23, verify_hq 29/29; shell check 75/76. The one failure is an existing Expenses-page overflow, logged for the Expenses step. | PASS |

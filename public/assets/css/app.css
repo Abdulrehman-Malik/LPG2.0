@@ -51,6 +51,8 @@
     --lpg-danger: #b91c1c;  --lpg-danger-soft: #fee2e2;
     --lpg-info: #0369a1;    --lpg-info-soft: #e0f2fe;
     --lpg-neutral: #475569; --lpg-neutral-soft: #eef2f6;
+    --lpg-viz-1: #2a78d6;  /* chart series (validated: dataviz palette slot 1, light) */
+    --lpg-viz-grid: #e8edf3;
 
     --lpg-space-1: .25rem; --lpg-space-2: .5rem; --lpg-space-3: .75rem;
     --lpg-space-4: 1rem;   --lpg-space-5: 1.5rem; --lpg-space-6: 2rem;
@@ -82,6 +84,8 @@
     --lpg-danger: #f87171;  --lpg-danger-soft: rgba(239, 68, 68, .16);
     --lpg-info: #38bdf8;    --lpg-info-soft: rgba(14, 165, 233, .16);
     --lpg-neutral: #b6c2d1; --lpg-neutral-soft: rgba(148, 163, 184, .14);
+    --lpg-viz-1: #3987e5;
+    --lpg-viz-grid: #243041;
     --lpg-shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
     --lpg-shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 4px 14px rgba(0, 0, 0, .2);
     --lpg-shadow-lg: 0 18px 48px rgba(0, 0, 0, .5);

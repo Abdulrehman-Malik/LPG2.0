@@ -20,7 +20,7 @@ Legend:
 | 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) and committed test suite (8.3.6) |
 | 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
-| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system and 11.2 app shell done; Dashboard next |
+| 11 | UI/UX modernization | P1 | [~] In progress — 11.1 design system, 11.2 app shell and 11.3 Dashboard done; POS next |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
 | 13 | Mobile apps (Customer / Staff) | Future | [~] Postponed |
 
@@ -270,12 +270,14 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 11.1 Design system: extract inline layout CSS into `public/assets/css/app.css`; define color, spacing, typography and radius tokens; standard components (page header with actions, KPI tile, card, data table, form section, empty state, status badge, confirm dialog, toast).
 - [x] 11.2 App shell: grouped sidebar with icons and search, top bar with branch switcher, user menu and breadcrumbs, working dark mode, mobile off-canvas navigation.
   - Delivered 2026-10-16: `app/Libraries/Navigation.php` (menu + active entry + breadcrumb), `app/Libraries/AppTheme.php` (branch appearance settings to CSS variables with readable contrast), `public/assets/css/app.css`, `public/assets/js/app.js`, libraries self-hosted in `public/assets/vendor/` (no CDN), Inter as the default font, per-user Light/Dark/Auto switch, `data-confirm` confirm dialog, toasts, double-submit guard on POST forms, skip link, DataTables scroll inside their container on phones. Conventions: `docs/ui-design-system.md`. Evidence: SQA.md P11-01…P11-06.
-- [ ] 11.3 Dashboard redesign: KPI tiles, sales trend and payment-mix charts, stock alerts (low filled stock, partial cylinders), open cash session status, Head Office branch comparison.
+- [x] 11.3 Dashboard redesign: KPI tiles, sales trend and payment-mix charts, stock alerts (low filled stock, partial cylinders), open cash session status, Head Office branch comparison.
+  - Delivered 2026-10-16: query logic moved to `app/Services/DashboardService.php` (same figures; duplicate stock queries removed); controller only parses the range and permissions. Date presets, alerts (no open cash session, transfers awaiting receipt, cylinder type out of stock, partly used cylinders), daily sales bar chart (Chart.js, validated single hue `--lpg-viz-1`, table view), payment-mode bars, cash-session card, stock by cylinder type, latest sales, branch comparison (REPORT_VIEW and 2+ accessible branches of the business). The 7 drill-down tiles, date filter and Current Stock tab are kept (E2E-010). Evidence: SQA.md P11-07…P11-10.
+  - Not changed: receivables still call `SalesService::customerBalance()` once per customer (10.2/10.3).
 - [ ] 11.4 POS UX: keyboard-first entry, customer quick search, clear sticky totals/payment panel, large touch targets, clear errors before submit, print-friendly receipt (A4 and 80 mm).
 - [ ] 11.5 Lists and forms: consistent DataTables (search, export, paging), inline validation messages, required markers, confirmation for destructive actions, loading states.
 - [ ] 11.6 Accessibility: contrast, visible focus, labels, keyboard navigation.
 - [ ] 11.7 Page-by-page rollout order: layout → Dashboard → POS → Sale History/Receipt → Cash → Customers/Suppliers/Ledgers → Inventory → Purchases/Expenses → Reports → Settings/Admin.
-  - Progress: [x] Layout/shell · [ ] Dashboard (remove the `.content-wrap` hero-move script when redesigning) · [ ] POS · [ ] Sale History/Receipt · [ ] Cash · [ ] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
+  - Progress: [x] Layout/shell · [x] Dashboard · [ ] POS · [ ] Sale History/Receipt · [ ] Cash · [ ] Customers/Suppliers/Ledgers · [ ] Inventory · [ ] Purchases/Expenses (Expenses page: bare table overflows at 390 px; page repeats the flash messages the layout already shows) · [ ] Reports · [ ] Settings/Admin (incl. login page restyle).
   - Per screen: use the components in `docs/ui-design-system.md`; replace `onsubmit="return confirm(...)"` with `data-confirm`; run Playwright `tests/e2e` and check light/dark at 1440 px and 390 px.
 
 ## Phase 12 — Back-Office SQA, UAT & Release (P1)

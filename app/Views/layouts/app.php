@@ -173,7 +173,7 @@ try {
         </div>
     </header>
 
-    <main class="app-content content-wrap" id="main" tabindex="-1">
+    <main class="app-content" id="main" tabindex="-1">
         <?php if ($pendingMigrationNotice !== null): ?>
         <div class="alert alert-warning d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3" role="alert"><div><i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Migration Required:</strong> <?= esc($pendingMigrationNotice) ?></div><a class="btn btn-sm btn-warning" href="<?= site_url('logout') ?>"><i class="bi bi-box-arrow-right me-1"></i>Log Off</a></div>
         <?php endif; ?>
