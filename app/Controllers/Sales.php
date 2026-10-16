@@ -149,7 +149,7 @@ class Sales extends Controller
         try{
             $reason=trim((string)$this->request->getPost('void_reason'));
             $no=(new SalesService())->void($id,(int)session()->get('user_id'),(int)session()->get('location_id'),$reason);
-            return redirect()->to('/sales')->with('success','Sale '.$no.' voided successfully.');
+            return redirect()->to('/sales/history')->with('success','Sale '.$no.' voided successfully.');
         }catch(\Throwable $e){return redirect()->back()->with('error',$e->getMessage());}
     }
 }

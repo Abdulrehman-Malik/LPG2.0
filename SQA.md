@@ -891,3 +891,12 @@ Not verified locally: the Apache cache headers added in `public/.htaccess`, beca
 | P11-12 | Keyboard shortcuts and early errors | F2 focuses the search, F4 adds a line, F7 focuses the payment amount; an overpayment shows a warning while typing; F9 runs the same submit validation ("Payment cannot exceed the net receivable"); the corrected sale posts with F9 (`S20261016-00001`, Rs. 100, posted) | PASS |
 | P11-13 | Receipt formats | Default 80 mm layout (under 330 px wide); `?format=a4` gives the A4 layout with a paper switch; print controls are hidden when printing | PASS |
 | P11-14 | Regression and themes | No console errors; light and dark (including the security-deposit picker); no horizontal scroll at 390 px. Playwright 26/26 on a clean re-run. The first combined run reported 1 failed / 4 not run; artifacts were not retained, so it is tracked as possibly flaky and watched in the next runs. PHPUnit 19/19; verify_phase8 23/25 (same two no-session credit checks as before, which need the temporary CLI command); shell check 76/76 | PASS |
+
+### Phase 11 — Sale History — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P11-15 | List, filters and totals | Two posted POS sales listed; posted total Rs. 200 / received Rs. 200; Enter in Sale No. filters to one sale; Last 7 days preset sets From to the local date six days back | PASS |
+| P11-16 | Details and receipts | Details modal shows lines, payments and inventory movements (`gas_kg`, `out`); 80 mm and A4 receipt links point to `sales/receipt/{id}` | PASS |
+| P11-17 | Void dialog | Button reads "Void" (was "Delete"); an empty reason keeps the dialog open and nothing is voided; with a reason the sale becomes `voided` with the reason stored, the user returns to Sale History with the success message, and the row shows VOID (struck through) | PASS |
+| P11-18 | Regression | Playwright 26/26; PHPUnit 19/19; verify_phase8 23/25 (known two no-session checks); verify_hq 29/29; verify_phase9 28/28; shell check 75/76 (known Expenses overflow); no console errors; light, dark and 390 px | PASS |
