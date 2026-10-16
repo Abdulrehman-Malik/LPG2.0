@@ -14,7 +14,8 @@ mkdir -p "$QA_TMP"
 RESULTS=()
 FAILED=0
 reset(){ local out; out=$(bash "$DIR/reset_db.sh" 2>&1) || { echo "reset_db.sh failed:"; echo "$out" | tail -5; echo "$out" | tail -5 | gh_annotate "reset_db.sh"; exit 1; }; }
-gh_annotate(){ [ -n "${GITHUB_ACTIONS:-}" ] || return 0; local line; while IFS= read -r line; do [ -n "$line" ] && echo "::error title=$1::$line"; done; }
+# GitHub shows at most 10 annotations per step, so each suite's failures go into one annotation.
+gh_annotate(){ [ -n "${GITHUB_ACTIONS:-}" ] || return 0; local line msg=""; while IFS= read -r line; do [ -n "$line" ] && msg+="${line//%/%25}%0A"; done; [ -n "$msg" ] && echo "::error title=$1::$msg"; return 0; }
 record(){ RESULTS+=("$(printf '%-24s %s' "$1" "$2")"); echo "== $1: $2"; if [[ "$2" =~ [1-9][0-9]*\ failed ]]; then FAILED=1; fi; }
 shell_suite(){ reset; for pre in "${@:2}"; do bash "$DIR/$pre.sh" >/dev/null 2>&1; done; local out; out=$(bash "$DIR/$1.sh" 2>&1); echo "$out" | grep '^FAIL' | tee >(gh_annotate "$1"); [ "$(echo "$out" | grep -c '^PASS')" = 0 ] && echo "$out" | tail -5 | gh_annotate "$1 (no PASS lines)"; record "$1" "$(echo "$out" | grep -c '^PASS') passed, $(echo "$out" | grep -c '^FAIL') failed"; }
 node_check(){ local name=$1; shift; reset; "$@"; local out; out=$(cd "$DIR/checks" && node "$name.mjs" 2>&1); echo "$out" | grep '^FAIL'; record "$name" "$(echo "$out" | tail -1)"; }
