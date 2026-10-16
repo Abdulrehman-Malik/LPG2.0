@@ -41,6 +41,7 @@ Review of the web back office after Phases 8–11, done at the owner's request (
 | 15 | Inventory Controls (save) | Posting without a cylinder type created a policy for type 0 instead of the shop default | A missing type means the shop default | P11-33 |
 | 16 | Businesses & Shops | "Create business" form always open above the shops | Collapsed (opens when there is no business or after a failed save) | P11-34 |
 | 17 | Users & Roles | Every role's 31-permission grid fully expanded (very long page) | Grids collapsed behind "Show permissions"; Select/Clear/Save stay in the header | P11-34 |
+| 18a | Branch Overview, Business Hierarchy, document numbers | Database errors on MySQL 8 (reserved words `empty`, `last_value`); MariaDB accepted them, so local testing missed it | Renamed; CI now runs every suite and a crawl of every screen on MySQL 8 | P10-04, P12-04 |
 | 18 | Purchases | Only screen without a page title; blank band in the settlement card | Standard page header with "Pay a supplier"; spacing fixed | P11-34 |
 
 ## 3. Still open
