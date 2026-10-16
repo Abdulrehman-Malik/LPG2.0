@@ -56,6 +56,7 @@ final class Navigation
             ['permission' => 'RATE_MANAGE', 'url' => 'rates', 'label' => 'LPG Rates', 'icon' => 'bi-tags'],
             ['permission' => 'USER_MANAGE', 'url' => 'users', 'label' => 'Users / Roles', 'icon' => 'bi-person-gear'],
             ['permission' => ['APPLICATION_SETTINGS_VIEW', 'BUSINESS_SETTINGS_VIEW', 'SHOP_SETTINGS_VIEW'], 'url' => 'configuration', 'label' => 'Central Configuration', 'icon' => 'bi-sliders2'],
+            ['permission' => ['APPLICATION_SETTINGS_VIEW', 'APPLICATION_SETTINGS_MANAGE', 'SHOP_ACCESS_MANAGE'], 'url' => 'business-hierarchy', 'label' => 'Business Hierarchy', 'icon' => 'bi-diagram-2'],
             ['permission' => ['APPLICATION_SETTINGS_VIEW', 'APPLICATION_SETTINGS_MANAGE', 'SHOP_ACCESS_MANAGE'], 'url' => 'business-management', 'label' => 'Businesses & Shops', 'icon' => 'bi-building-gear'],
             ['permission' => ['USER_MANAGE', 'INVENTORY_MANAGE'], 'url' => 'shop-settings', 'label' => 'Shop Settings', 'icon' => 'bi-gear-wide-connected'],
             ['permission' => 'BACKUP_MANAGE', 'url' => 'database-backup', 'label' => 'Database Backup & Restore', 'icon' => 'bi-database-gear'],

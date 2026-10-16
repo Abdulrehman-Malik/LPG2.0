@@ -144,3 +144,15 @@ A requirement is marked Done only after implementation, validation, transaction 
 - Appearance settings are branch-level and apply consistently across the whole authenticated application through the shared layout.
 - Appearance settings must not be POS-only; all application pages use the same configured appearance.
 - Appearance values must be validated against supported themes, fonts, safe font-size bounds and six-digit hexadecimal colors.
+
+
+## Business Hierarchy Screen (owner request, 2026-10-16)
+- A Business Hierarchy screen shows the whole tenant structure as a tree: business (tenant), then its Head Office users, then its shops (branches), and under each shop the staff assigned to it.
+- Every node can be expanded and collapsed, with "expand all" and "collapse all" controls, and the tree can be searched by business, shop, user name, username or code.
+- Selecting a node shows its details in one place without leaving the screen:
+  - Business: contact details, number of shops and users, Head Office users, shop list with setup status.
+  - Shop: code, contact details, active/inactive status, setup readiness (settings, cash register, gas rate, stock, staff), live position (gas KG and filled/empty cylinders in stock, cash session open or closed, today's sales), staff with role and default-branch flag, and shortcuts to switch into the shop and to its settings.
+  - User: name, username, role, active status, access type (Head Office or shop staff), default branch and last sign-in.
+- Users with shop administration rights can add a new shop to a business directly from the tree. It uses the same validation and default provisioning as Businesses & Shops (shop settings, main counter, inventory policy).
+- The screen shows only the businesses and shops the signed-in user is allowed to access, and it is available to users who can view business/shop administration.
+- The interface must be clean and professional: a two-pane layout (tree on the left, details on the right) on desktop, stacking on phones, full keyboard support and dark-mode support.

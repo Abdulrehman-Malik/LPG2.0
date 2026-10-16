@@ -908,3 +908,15 @@ Not verified locally: the Apache cache headers added in `public/.htaccess`, beca
 | P11-19 | Session figures vs SQL | Expected in drawer equals the session's in − out; opening float + cash in − cash out = expected; a manual cash-in of Rs. 50 appears in the session list and updates the expected amount | PASS |
 | P11-20 | Count and close | Live preview shows "Short by Rs. 10.00", "Over by Rs. 5.00" and "balances"; cancelling the confirm dialog keeps the session open; confirming closes it with the counted cash stored and "Difference: Rs. -10.00"; reopening with Rs. 500 shows float 500, cash in 0, expected 500 | PASS |
 | P11-21 | Cash History and regression | In/out totals match SQL for the period; no horizontal scroll at 390 px; no console errors. Playwright 26/26 (with the DataTables `order: []` change); PHPUnit 19/19; verify_hq 29/29; verify_branch_admin 19/19; verify_phase8 23/25 (known); shell check 76/76 | PASS |
+
+### Phase 9.7 — Business Hierarchy screen — 2026-10-16
+
+Data: fresh QA database plus the verify_branch_admin fixture (businesses DEFAULT and QA-ISOLATION; shops MAIN, QA-B2, QA-OTHER).
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P9-33 | Tree and details (admin) | Both businesses, their Head Office groups and all three shops listed; the current shop is selected first; MAIN gas KG matches SQL; MAIN staff match `user_shop_access`; QA-B2 shows "No staff assigned" consistent with SQL; a user's details list every Head Office and shop access; the selection is kept in the URL (`?node=`) | PASS |
+| P9-34 | Tree interaction | Collapse all / expand all; ArrowDown moves focus and Enter selects; search "branch two" leaves only QA Branch Two with the match highlighted; a search with no match shows a message | PASS |
+| P9-35 | Add shop from the tree | Code `qa-b3` saved as `QA-B3`; shop settings, main counter and inventory policy provisioned (1/1/1); returns to the tree with the new shop selected and the success message; `SHOP_CREATED` audit entry written | PASS |
+| P9-36 | Scope and permissions | MAIN-only manager (`SHOP_ACCESS_MANAGE`) sees only MAIN, and no other branch name appears in the page source; cashier gets 403 and has no menu entry | PASS |
+| P9-37 | Presentation | No console errors; dark mode; no horizontal scroll at 390 px (tree and details stack) | PASS |

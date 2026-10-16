@@ -243,7 +243,8 @@ class BusinessManagement extends Controller
             AuditService::log('SHOP_CREATED', 'location', $shopId, null, [
                 'business_id' => $businessId, 'code' => $input['code'], 'name' => $input['name'],
             ], $userId, $shopId);
-            return redirect()->to(site_url('business-management'))->with('success', 'Shop created with default settings and counter. Activate catalog products and assign shop staff before taking orders.');
+            $back = $this->request->getPost('return_to') === 'hierarchy' ? 'business-hierarchy?node=shop-' . $shopId : 'business-management';
+            return redirect()->to(site_url($back))->with('success', 'Shop created with default settings and counter. Activate catalog products and assign shop staff before taking orders.');
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Web shop create failed: {message}', ['message' => $e->getMessage()]);

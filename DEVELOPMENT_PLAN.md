@@ -224,6 +224,13 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - Sidebar highlights only the most specific menu entry.
 - Printed receipts already show the branch name and address; the top-bar branch switcher lists only authorized branches.
 
+### 9.7 Business Hierarchy screen (owner request 2026-10-16)
+- [x] 9.7.1 `BusinessHierarchyService`: scoped tree of businesses, Head Office users, shops and shop staff, with per-shop readiness and live figures (grouped queries; no per-shop N+1).
+- [x] 9.7.2 `business-hierarchy` screen: two-pane tree and details, expand/collapse all, search, keyboard navigation, dark mode, phone layout.
+- [x] 9.7.3 Add a shop from the tree, reusing the Businesses & Shops provisioning and permission checks (`SHOP_ACCESS_MANAGE` and business access).
+- [x] 9.7.4 Menu entry under Configuration; browser and scope tests; SQA evidence.
+- Requirement text: requirements.md § Business Hierarchy Screen. Delivered 2026-10-16: `app/Services/BusinessHierarchyService.php`, `app/Controllers/BusinessHierarchy.php`, `app/Views/business_hierarchy/index.php`, route `business-hierarchy`, menu Configuration → Business Hierarchy; Businesses & Shops `saveShop` accepts `return_to=hierarchy`. Evidence: SQA.md P9-33…P9-37.
+
 ### 9.4 Owner decisions (confirmed 2026-10-15)
 - [x] **D9-1** Cylinder types and expense categories are **owned by a business**. Each business has its own list; branches of that business share it. A new business is provisioned with the standard cylinder types and expense categories.
 - [x] **D9-2** **Inter-branch stock transfer is required** and its flow is **configurable per business**:
