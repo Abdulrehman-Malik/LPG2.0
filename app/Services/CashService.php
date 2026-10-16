@@ -49,12 +49,12 @@ class CashService {
   if($registerId) $q->where('cr.id',$registerId);
   return $q->orderBy('ct.transaction_at','DESC')->orderBy('ct.id','DESC')->get()->getResultArray();
  }
- public function closeSession(int $sessionId,int $userId,float $countedCash,string $notes=''): array {
+ public function closeSession(int $sessionId,int $userId,float $countedCash,string $notes='',?int $locationId=null): array {
   if($countedCash<0) throw new RuntimeException('Counted cash cannot be negative.');
   $this->db->transBegin();
   try {
-   $session=$this->db->query("SELECT * FROM cash_sessions WHERE id=? FOR UPDATE",[$sessionId])->getRowArray();
-   if(!$session) throw new RuntimeException('Cash session not found.');
+   $session=$this->db->query("SELECT cs.* FROM cash_sessions cs JOIN cash_registers cr ON cr.id=cs.register_id WHERE cs.id=?".($locationId!==null?" AND cr.location_id=?":"")." FOR UPDATE",$locationId!==null?[$sessionId,$locationId]:[$sessionId])->getRowArray();
+   if(!$session) throw new RuntimeException('Cash session not found for this branch.');
    if($session['status']!=='open') throw new RuntimeException('Cash session is already closed.');
    $summary=$this->summary($sessionId);
    $this->db->table('cash_sessions')->where('id',$sessionId)->update(['closed_by'=>$userId,'closed_at'=>date('Y-m-d H:i:s'),'counted_cash'=>$countedCash,'status'=>'closed','notes'=>trim($notes)?:$summary['session']['notes']]);

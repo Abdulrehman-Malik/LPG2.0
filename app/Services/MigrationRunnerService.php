@@ -56,7 +56,8 @@ class MigrationRunnerService
                 'seq' => $seq,
                 'file' => $name,
                 'path' => $path,
-                'checksum' => hash_file('sha256', $path),
+                'checksum' => $this->normalizedChecksum($path),
+                'checksums' => $this->acceptedChecksums($path),
             ];
         }
 
@@ -170,7 +171,7 @@ class MigrationRunnerService
             $history = $latest[$migration['file']] ?? null;
 
             if ($history && in_array($history['status'], ['success','skipped'], true)) {
-                if (!hash_equals((string) $history['checksum'], $migration['checksum'])) {
+                if (!in_array((string) $history['checksum'], $migration['checksums'], true)) {
                     $ready = false;
                     $blockedMessage = 'Migration file '.$migration['file'].' was changed after it was applied. Create a new migration sequence instead.';
                     $results[] = [
@@ -265,7 +266,7 @@ class MigrationRunnerService
                 $history = $latest[$migration['file']] ?? null;
 
                 if ($history && $history['status'] === 'success') {
-                    if (!hash_equals((string) $history['checksum'], $migration['checksum'])) {
+                    if (!in_array((string) $history['checksum'], $migration['checksums'], true)) {
                         throw new RuntimeException('Migration file '.$migration['file'].' was changed after it was applied. Create a new migration sequence instead.');
                     }
                     continue;
@@ -397,6 +398,32 @@ class MigrationRunnerService
         } finally {
             $this->db->query('SELECT RELEASE_LOCK(?)', [$this->lockKey]);
         }
+    }
+
+    /**
+     * Checksum of the migration with line endings normalized to LF, so a checkout that
+     * converts line endings (Git autocrlf on Windows) does not look like an edited file.
+     */
+    protected function normalizedChecksum(string $path): string
+    {
+        return hash('sha256', str_replace("\r\n", "\n", (string) file_get_contents($path)));
+    }
+
+    /**
+     * Checksums that identify an unchanged file: LF-normalized (stored from now on), CRLF,
+     * and the raw bytes. Older installs stored the raw-byte hash of whichever line endings
+     * their checkout had, so all three must be accepted.
+     *
+     * @return list<string>
+     */
+    protected function acceptedChecksums(string $path): array
+    {
+        $lf = str_replace("\r\n", "\n", (string) file_get_contents($path));
+        return array_values(array_unique([
+            hash('sha256', $lf),
+            hash('sha256', str_replace("\n", "\r\n", $lf)),
+            hash_file('sha256', $path),
+        ]));
     }
 
     protected function splitSqlStatements(string $sql): array

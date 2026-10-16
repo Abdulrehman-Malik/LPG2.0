@@ -66,7 +66,21 @@ class Users extends Controller
             'permissions'=>$this->permissions->orderBy('code')->findAll(),
             'rolePermissions'=>$map,
             'currentPermissions'=>$currentPermissions,
-        ]);
+        ]+$this->branchViewData($locationId,(int) $this->request->getGet('edit')));
+    }
+
+    /** Branch checkboxes for the user form: branches of this business the signed-in user may assign. */
+    private function branchViewData(int $locationId, int $editUserId): array
+    {
+        $canManage=PermissionService::allows('SHOP_ACCESS_MANAGE');
+        $businessId=\App\Services\BusinessContext::businessIdForLocation($locationId);
+        $access=new \App\Services\StaffAccessService();
+        $assignment=$editUserId && $this->scopedUser($editUserId,$locationId) ? $access->assignment($editUserId,$businessId) : ['branch_ids'=>[$locationId],'default_id'=>$locationId];
+        return [
+            'canManageBranches'=>$canManage,
+            'branches'=>$canManage ? $access->manageableBranches((int)session()->get('user_id'),$businessId) : [],
+            'branchAssignment'=>$assignment,
+        ];
     }
 
     private function scopedUser(int $userId, int $locationId): ?array
@@ -110,6 +124,18 @@ class Users extends Controller
         $password=(string)$this->request->getPost('password');
         if($data['full_name']===''||$data['username']===''||$data['role_id']<=0) return redirect()->back()->withInput()->with('error','Name, username and role are required.');
 
+        // Branch access (Phase 9.3.2) is edited here only by users allowed to manage staff access.
+        $actorId=(int)session()->get('user_id');
+        $businessId=\App\Services\BusinessContext::businessIdForLocation($locationId);
+        $access=new \App\Services\StaffAccessService();
+        $manageBranches=PermissionService::allows('SHOP_ACCESS_MANAGE') && $this->request->getPost('branch_access_submitted')==='1';
+        $branchIds=[];$defaultBranchId=null;
+        if($manageBranches){
+            $defaultBranchId=(int)$this->request->getPost('default_branch_id') ?: null;
+            try { $branchIds=$access->validate($actorId,$businessId,array_map('intval',(array)$this->request->getPost('branch_ids')),$defaultBranchId); }
+            catch(\Throwable $e){ return redirect()->back()->withInput()->with('error',$e->getMessage()); }
+        }
+
         try {
             if($id){
                 if($password!=='') $data['password_hash']=password_hash($password,PASSWORD_DEFAULT);
@@ -123,6 +149,9 @@ class Users extends Controller
             }
 
             $db = Database::connect();
+            if ($manageBranches) {
+                $access->sync($actorId, $targetUserId, $businessId, $branchIds, $defaultBranchId);
+            }
             $hasAssignments = $db->table('user_shop_access')->where('user_id', $targetUserId)->countAllResults() > 0;
             if (!$hasAssignments) {
                 $db->table('user_shop_access')->insert([

@@ -137,12 +137,14 @@ $groups=[
         'items'=>[
             ['permission'=>'CASH_MANAGE','url'=>'cash','label'=>'Counter Cash','icon'=>'bi-cash-stack'],
             ['permission'=>'EXPENSE_MANAGE','url'=>'expenses','label'=>'Expenses','icon'=>'bi-receipt'],
+            ['permission'=>'EXPENSE_MANAGE','url'=>'expenses/categories','label'=>'Expense Categories','icon'=>'bi-tags'],
         ],
     ],
     'reporting'=>[
         'label'=>'Reporting & Audit',
         'icon'=>'bi-bar-chart',
         'items'=>[
+            ['permission'=>'REPORT_VIEW','url'=>'reports/branches','label'=>'Branch Overview','icon'=>'bi-diagram-3'],
             ['permission'=>'REPORT_VIEW','url'=>'reports','label'=>'Reports','icon'=>'bi-bar-chart'],
             ['permission'=>'REPORT_VIEW','url'=>'reports/inventory-detail','label'=>'Inventory Detail Report','icon'=>'bi-clipboard-data'],
             ['permission'=>'AUDIT_VIEW','url'=>'audit','label'=>'Audit Log','icon'=>'bi-shield-check'],
@@ -168,15 +170,22 @@ foreach($groups as $groupKey=>&$group){
         return is_array($required) ? (bool) array_filter($required,$can) : $can($required);
     }));
     $group['visible']=count($group['items'])>0;
-    $group['open']=false;
-    foreach($group['items'] as $item){
-        if(str_starts_with($current,$item['url'])){
-            $group['open']=true;
-            break;
-        }
-    }
 }
 unset($group);
+// Highlight only the most specific menu entry for the current page: the longest item URL that
+// equals the path or is a parent of it (so "expenses/categories" does not also light up "expenses").
+$activeUrl=$current===''||str_starts_with($current,'dashboard')?'dashboard':'';
+foreach($groups as $group){
+    foreach($group['items'] as $item){
+        $url=$item['url'];
+        if(($current===$url||str_starts_with($current,$url.'/')) && strlen($url)>strlen($activeUrl)) $activeUrl=$url;
+    }
+}
+foreach($groups as &$group){
+    $group['open']=in_array($activeUrl,array_column($group['items'],'url'),true);
+}
+unset($group);
+$isActive=static fn(string $n):string=>$n===$activeUrl?'active':'';
 ?>
 <?php if($can('DASHBOARD_VIEW')): ?>
 <li class="nav-item mb-1">

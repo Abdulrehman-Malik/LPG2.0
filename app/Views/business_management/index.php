@@ -52,15 +52,26 @@
         </div>
         <div class="table-responsive mb-3">
             <table class="table table-sm align-middle">
-                <thead class="table-light"><tr><th>Code</th><th>Shop</th><th>City</th><th>Phone</th><th class="text-end">Settings</th></tr></thead>
+                <thead class="table-light"><tr><th>Code</th><th>Shop</th><th>City</th><th>Phone</th><th>Setup</th><th class="text-end">Settings</th></tr></thead>
                 <tbody>
                 <?php if (empty($business['shops'])): ?>
-                    <tr><td colspan="5" class="text-muted text-center py-3">No accessible active shops.</td></tr>
+                    <tr><td colspan="6" class="text-muted text-center py-3">No accessible active shops.</td></tr>
                 <?php else: ?>
-                    <?php foreach ($business['shops'] as $shop): ?>
+                    <?php $readiness = (new \App\Services\BranchReadinessService())->forLocations(array_map(static fn($s) => (int) $s['id'], $business['shops'])); ?>
+                    <?php foreach ($business['shops'] as $shop): $checks = $readiness[(int) $shop['id']] ?? []; $missing = array_values(array_filter($checks, static fn($c) => !$c['ok'])); ?>
                     <tr>
                         <td><?= esc($shop['code'] ?? '') ?></td><td class="fw-semibold"><?= esc($shop['name']) ?></td>
                         <td><?= esc($shop['city'] ?? '') ?></td><td><?= esc($shop['phone'] ?? '') ?></td>
+                        <td>
+                            <?php if (!$missing): ?>
+                                <span class="badge text-bg-success"><i class="bi bi-check2-circle me-1"></i>Ready</span>
+                            <?php else: ?>
+                                <?php foreach ($missing as $item): ?><span class="badge text-bg-warning me-1" title="<?= esc($item['hint']) ?>"><i class="bi bi-exclamation-triangle me-1"></i><?= esc($item['label']) ?></span><?php endforeach; ?>
+                                <?php if ((int) $shop['id'] !== (int) session()->get('location_id')): ?>
+                                    <form method="post" action="<?= site_url('shop-context/select') ?>" class="d-inline"><?= csrf_field() ?><input type="hidden" name="location_id" value="<?= (int) $shop['id'] ?>"><button class="btn btn-link btn-sm p-0 ms-1" type="submit">Open branch to finish setup</button></form>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </td>
                         <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="<?= site_url('configuration/shop/' . (int)$shop['id']) ?>">Shop settings</a></td>
                     </tr>
                     <?php endforeach; ?>

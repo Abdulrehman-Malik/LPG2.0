@@ -134,6 +134,26 @@
                         <label class="form-check-label">Active</label>
                     </div>
                 </div>
+                <?php if (!empty($canManageBranches) && !empty($branches)): ?>
+                    <input type="hidden" name="branch_access_submitted" value="1">
+                    <hr>
+                    <div class="fw-semibold mb-1">Branch access</div>
+                    <div class="form-text mb-2">The branches of this business this user can work in. The default branch opens after sign-in. Head Office access is managed in Businesses &amp; Shops.</div>
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>Branch</th><th class="text-center" style="width:7rem">Can access</th><th class="text-center" style="width:7rem">Default</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($branches as $branch): $bid = (int) $branch['id']; $has = in_array($bid, $branchAssignment['branch_ids'], true); ?>
+                                <tr>
+                                    <td><?= esc($branch['name']) ?> <span class="text-muted small"><?= esc($branch['code']) ?></span></td>
+                                    <td class="text-center"><input class="form-check-input" type="checkbox" name="branch_ids[]" value="<?= $bid ?>" id="branch-access-<?= $bid ?>" <?= $has ? 'checked' : '' ?> aria-label="Access to <?= esc($branch['name']) ?>"></td>
+                                    <td class="text-center"><input class="form-check-input" type="radio" name="default_branch_id" value="<?= $bid ?>" <?= $branchAssignment['default_id'] === $bid ? 'checked' : '' ?> aria-label="Default branch <?= esc($branch['name']) ?>"></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="modal-footer"><button class="btn btn-primary"><?= $edit ? 'Update User' : 'Create User' ?></button></div>
         </form>

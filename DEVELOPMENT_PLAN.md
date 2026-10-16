@@ -17,8 +17,8 @@ Legend:
 |---|---|---|---|
 | 0–6 | Core POS / ERP foundation | — | Development complete; SQA execution pending |
 | 7 | Mobile & multi-shop backend (API, scope, orders) | — | Backend complete; **mobile apps postponed** (see Phase 13) |
-| 8 | Stabilization & security hardening | P0 | [/] In progress |
-| 9 | Multi-branch back-office completion | P1 | [/] In progress (9.5.1–9.5.4 done) |
+| 8 | Stabilization & security hardening | P0 | [x] Done except owner credential rotation (8.1.2) and committed test suite (8.3.6) |
+| 9 | Multi-branch back-office completion | P1 | [x] Done — SQA evidence P9-01…P9-32 |
 | 10 | Code-logic review & refactoring | P1 | [ ] Pending |
 | 11 | UI/UX modernization | P1 | [ ] Pending |
 | 12 | Back-office SQA, UAT & release | P1 | [ ] Pending |
@@ -178,6 +178,7 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 8.1.5 Login throttling: repeated failed logins for the same login name / IP are temporarily blocked.
 - [x] 8.1.6 The web/CLI migration runner ignores `USE <database>;` statements found in older migration files, so a migration can never switch to and alter a different database on the same server (installs whose database is not named `perfect_lpg`).
 - [x] 8.1.7 The migration runner's SQL splitter ignores whole-line comments. Previously a `;` inside a comment (migration 039 header) split the statement, so 039 failed when applied by the web/CLI runner. CI did not catch it because CI pre-applies 039 with the `mysql` client. Verified locally: fresh schema + `php spark migrations:run` now completes.
+- [x] 8.1.8 Migration checksums ignore line endings. A checkout that converts LF/CRLF (Git autocrlf on Windows) previously made an unchanged migration look edited and the migration gate blocked every sign-in. Checksums are now stored LF-normalized; LF, CRLF and raw-byte checksums recorded by existing installs are all accepted.
 
 ### 8.2 Permissions
 - [x] 8.2.1 `PermissionService::syncStandardRolePermissions()` no longer re-grants permissions that an administrator removed from a standard role. Default role grants are applied only when a permission code is first created.
@@ -199,20 +200,29 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 **Goal:** the web back office fully supports the approved hierarchy (Business → Head Office → Shops/branches; staff assigned to one or more shops; each customer belongs to one shop) with no cross-branch or cross-business data leakage, plus Head Office oversight. Requirements: `docs/mobile-multishop/02-business-shops-users-permissions.md`, `03-customer-accounts.md`, `10-configuration-management.md`.
 
 ### 9.1 Branch-scope audit and fixes
-- [ ] 9.1.1 Audit every controller/service query for business/shop scope; record results in a scope register (`docs/branch-scope-register.md`).
-- [ ] 9.1.2 Fix known gaps: `Reports::ledger` loads the customer without a shop check; suppliers, cylinder types and expense categories are global tables.
-- [ ] 9.1.3 Suppliers become business-owned (migration 040, backward compatible). Supplier balances stay per shop.
-- [ ] 9.1.4 Cylinder types and expense categories: decide platform-wide vs business-owned (decision D9-1), then implement.
+- [x] 9.1.1 Audit every controller/service query for business/shop scope; record results in a scope register (`docs/branch-scope-register.md`).
+- [x] 9.1.2 Fix known gaps: `Reports::ledger` loads the customer without a shop check; suppliers, cylinder types and expense categories are global tables.
+- [x] 9.1.3 Suppliers become business-owned (migration 040, backward compatible). Supplier balances stay per shop.
+- [x] 9.1.4 Cylinder types and expense categories: decide platform-wide vs business-owned (decision D9-1), then implement.
 
 ### 9.2 Head Office oversight
-- [ ] 9.2.1 "All branches" view for users with business scope: consolidated dashboard with per-branch breakdown.
-- [ ] 9.2.2 Consolidated reports with a branch filter: sales, payment modes, purchases, expenses, cash, stock by branch, customer OS by branch, deposits/custody.
-- [ ] 9.2.3 Branch comparison report (sales, gas KG sold, margin indicators, cash variance).
+- [x] 9.2.1 "All branches" view for users with business scope: consolidated dashboard with per-branch breakdown.
+- [x] 9.2.2 Consolidated reports with a branch filter: sales, payment modes, purchases, expenses, cash, stock by branch, customer OS by branch, deposits/custody.
+- [x] 9.2.3 Branch comparison report (sales, gas KG sold, margin indicators, cash variance).
 
 ### 9.3 Branch administration UX
-- [ ] 9.3.1 Branch switcher in the top bar with a clear active-branch badge on every page and on printed receipts.
-- [ ] 9.3.2 Users screen: assign shops / Head Office scope and default branch when creating or editing a user (today this is split across screens).
-- [ ] 9.3.3 Branch onboarding checklist (settings, cash register, rates, opening stock, users).
+- [x] 9.3.1 Branch switcher in the top bar with a clear active-branch badge on every page and on printed receipts.
+- [x] 9.3.2 Users screen: assign shops / Head Office scope and default branch when creating or editing a user (today this is split across screens).
+- [x] 9.3.3 Branch onboarding checklist (settings, cash register, rates, opening stock, users).
+
+### 9.6 Delivered (2026-10-16)
+- **Branch Overview** (Reporting → Branch Overview): one business at a time, only the user's accessible branches, date range, branch filter, CSV export. Trading (sales, gas KG, payment modes, receipts, discounts, voids), purchases/expenses/deposits, and current stock/balances (gas, filled/empty/custody/in-transit cylinders, customer OS, open cash). Built on `ReportService` with one grouped query per metric (also starts 10.1).
+- **Users screen**: branch access checkboxes and default branch per user (`StaffAccessService`), limited to branches the administrator manages; Head Office access stays in Businesses & Shops.
+- **Branch setup checklist** on Businesses & Shops: shop settings, cash register, effective gas rate, cylinder stock, staff assigned (`BranchReadinessService`), with a one-click switch to the branch.
+- **Expense Categories** screen (business-owned; deactivate instead of delete).
+- **Scope register** `docs/branch-scope-register.md`; fixes: report ledger customer check, cash-session close limited to the branch, Dashboard receivables limited to the branch (was a cross-branch data leak and an HTTP 500 in any non-default branch).
+- Sidebar highlights only the most specific menu entry.
+- Printed receipts already show the branch name and address; the top-bar branch switcher lists only authorized branches.
 
 ### 9.4 Owner decisions (confirmed 2026-10-15)
 - [x] **D9-1** Cylinder types and expense categories are **owned by a business**. Each business has its own list; branches of that business share it. A new business is provisioned with the standard cylinder types and expense categories.
@@ -236,14 +246,14 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 9.5.2 `TransactionDatePolicy` service applied to every financial posting path (closes Phase 10.4).
 - [x] 9.5.3 Migration 040: business ownership for cylinder types, expense categories and suppliers (+ optional supplier branch); scoped screens, lookups and validation; provisioning of defaults for new businesses.
 - [x] 9.5.4 Migration 041 + `StockTransferService`: transfer documents, one-step/two-step flow, screens, permission `STOCK_TRANSFER_MANAGE`, reports.
-- [ ] 9.5.5 Head Office consolidated dashboard/reports (9.2) and branch administration UX (9.3).
-- [ ] 9.5.6 Branch-scope audit register and fixes (9.1).
+- [x] 9.5.5 Head Office consolidated dashboard/reports (9.2) and branch administration UX (9.3).
+- [x] 9.5.6 Branch-scope audit register and fixes (9.1).
 
 ## Phase 10 — Code-Logic Review & Refactoring (P1)
 
 **Goal:** controllers stay thin, posting and reporting logic lives in services that can be reused by the API later, and pages are fast.
 
-- [ ] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
+- [/] 10.1 Move query/report logic out of controllers into services: `ReportService`, `DashboardService`, `LedgerService` (Reports, Dashboard, Customers/Suppliers ledgers are currently one-line controller queries).
 - [ ] 10.2 Performance: POS page loads balances customer by customer (several queries per customer); replace with set-based balance queries. Same review for Dashboard and Reports.
 - [ ] 10.3 One customer-balance calculation used everywhere (POS, ledger, reports, receipts, credit checks, API).
 - [x] 10.4 Validate and normalize `transaction_at` — delivered by Phase 9.5.2 (`TransactionDatePolicy`, decision D10-1).

@@ -841,3 +841,20 @@ This evidence covers the listed automated cases only. It does **not** mark the c
 | P9-20 | Browser walkthrough (Playwright, Chromium): enable settings in Business Configuration, select cylinders, dispatch, switch branch, confirm receipt; open Suppliers, Cylinder Types, Expenses, POS | Completed with no browser console/page errors; screenshots reviewed | PASS |
 
 Regression after 9.5.4: Playwright 26/26, Phase 9 checks 28/28, Phase 8 checks passed (the two no-session credit checks need a temporary CLI command and were verified in the earlier run).
+
+### Phase 9.1–9.3 — Head Office report, branch administration and scope review — 2026-10-16
+
+| ID | Scenario | Actual result | Status |
+|---|---|---|---|
+| P9-21 | Branch Overview figures vs independent SQL, two branches with cash sale, credit sale, voided sale, expense, customer receipt, one-step transfer and a sale at the second branch | Sales count/total, gas KG, credit, voids, expenses, receipts, gas stock, filled cylinders, open-cash expected and customer OS match SQL for both branches and the total (29 checks) | PASS |
+| P9-22 | Branch Overview scope: MAIN-only manager requests QA-B2 via `branch_ids[]`; admin filters to QA-B2 | Manager sees only MAIN; filter limits the report to QA-B2 | PASS |
+| P9-23 | Users screen: create a cashier with access to MAIN + QA-B2, default QA-B2; sign in | Access rows and default saved; user lands in QA-B2 | PASS |
+| P9-24 | Users screen: remove QA-B2 access while the user is signed in there; save with no branch; default outside the selection | Access removed and user moved to MAIN on the next request; empty selection and invalid default refused | PASS |
+| P9-25 | Branch setup checklist | MAIN "Ready"; new branch lists missing gas rate, cylinder stock and staff with a switch-branch link | PASS |
+| P9-26 | Expense categories: create (code upper-cased), duplicate code, deactivate then post an expense with it | Created for the business; duplicate refused; deactivated category rejected | PASS |
+| P9-27 | Sidebar on Expense Categories | Exactly one active entry (Expense Categories) | PASS |
+| P9-28 | QA-B2 posts `cash/close` with MAIN's open session ID | Refused ("Cash session not found for this branch"); session stays open | PASS (fixed defect) |
+| P9-29 | QA-B2 opens `reports/ledger/{MAIN customer}` | 404; MAIN itself gets 200 | PASS (fixed defect) |
+| P9-30 | Dashboard opened in a non-default branch | Previously HTTP 500 and listed every branch's customers; now 200 and limited to the branch | PASS (fixed defect) |
+| P9-31 | Browser walkthrough (Chromium): Businesses & Shops checklist, Branch Overview, user branch-access form, expense category create, Dashboard in second branch | No console/page errors; screenshots reviewed | PASS |
+| P9-32 | Regression on final code | Playwright 26/26; P9-01…P9-20 suites 28/28 and 23/23; Phase 8 suite passed (two no-session credit checks need a temporary CLI command; verified earlier); migration gate accepts CRLF/LF checkouts (8.1.8) | PASS |

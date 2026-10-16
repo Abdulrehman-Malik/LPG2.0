@@ -165,7 +165,7 @@ class Dashboard extends Controller
         $cashOut=array_sum(array_map(static fn($x)=>(float)$x['out'],$cashRegisters));
 
         // 6) Current customer receivables, independent of the selected sales date range.
-        $customers=$db->table('customers')->where('is_active',1)->orderBy('name')->get()->getResultArray();
+        $customers=$db->table('customers')->where('location_id',$locationId)->where('is_active',1)->orderBy('name')->get()->getResultArray();
         $salesCreditRows=$db->table('sales')->select('customer_id,SUM(credit_amount) credit')
             ->where(['location_id'=>$locationId,'status'=>'posted'])->where('customer_id IS NOT NULL',null,false)->groupBy('customer_id')->get()->getResultArray();
         $receiptRows=$db->table('customer_receipts')->select('customer_id,SUM(amount) paid')
