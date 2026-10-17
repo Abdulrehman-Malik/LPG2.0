@@ -51,6 +51,7 @@ class InstallationSetupService
             $tables = 0;
             $adminExists = false;
             $complete = false;
+            $interrupted = false;
             if ($exists) {
                 $stmt = $db->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?');
                 $stmt->bind_param('s', $s['name']);
@@ -77,10 +78,13 @@ class InstallationSetupService
                         $result = $db->query("SELECT state FROM " . $dbName . ".lpg_installation_state WHERE id=1");
                         $row = $result->fetch_assoc();
                         $complete = ($row['state'] ?? '') === 'complete';
+                        // 'installing' is written by this installer before it starts and replaced by
+                        // 'complete' at the end, so it marks a database the installer itself left unfinished.
+                        $interrupted = ($row['state'] ?? '') === 'installing' && !$this->hasTransactions($db, $dbName);
                     }
                 }
             }
-            return ['database' => $s['name'], 'exists' => $exists, 'tables' => $tables, 'has_data' => $tables > 0, 'admin_exists' => $adminExists, 'complete' => $complete];
+            return ['database' => $s['name'], 'exists' => $exists, 'tables' => $tables, 'has_data' => $tables > 0, 'admin_exists' => $adminExists, 'complete' => $complete, 'interrupted' => $interrupted];
         } finally {
             $db->close();
         }
@@ -165,14 +169,29 @@ class InstallationSetupService
         }
     }
 
-    private function recordComplete(): void
+    /** True when any posted business document exists (then a database is never treated as a disposable partial install). */
+    private function hasTransactions(\mysqli $db, string $dbName): bool
+    {
+        foreach (['sales', 'purchases', 'customer_receipts', 'supplier_payments', 'expenses', 'cash_sessions'] as $table) {
+            try {
+                if ((int) $db->query('SELECT COUNT(*) FROM ' . $dbName . '.' . $table)->fetch_row()[0] > 0) return true;
+            } catch (\Throwable $ignored) {
+                // table not created yet
+            }
+        }
+        return false;
+    }
+
+    private function recordState(string $state): void
     {
         $s = $this->settings();
         $db = new \mysqli($s['host'], $s['user'], $s['pass'], $s['name'], $s['port']);
         $db->set_charset('utf8mb4');
         try {
             $db->query("CREATE TABLE IF NOT EXISTS lpg_installation_state (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, state VARCHAR(20) NOT NULL, completed_at DATETIME NULL) ENGINE=InnoDB");
-            $db->query("INSERT INTO lpg_installation_state (id,state,completed_at) VALUES (1,'complete',NOW()) ON DUPLICATE KEY UPDATE state='complete', completed_at=NOW()");
+            $stmt = $db->prepare("INSERT INTO lpg_installation_state (id,state,completed_at) VALUES (1,?,IF(?='complete',NOW(),NULL)) ON DUPLICATE KEY UPDATE state=VALUES(state), completed_at=VALUES(completed_at)");
+            $stmt->bind_param('ss', $state, $state);
+            $stmt->execute();
         } finally {
             $db->close();
         }
@@ -185,7 +204,12 @@ class InstallationSetupService
         if (($post['confirm'] ?? '') !== 'INSTALL DATABASE') throw new RuntimeException('Please enter INSTALL DATABASE in the confirmation field.');
         $backupPath = null;
 
-        if ($state['has_data']) {
+        if ($state['has_data'] && !empty($state['interrupted'])) {
+            // A previous run of this installer did not finish and no business documents exist:
+            // rebuild it without the replacement safeguards meant for live data.
+            log_message('warning', 'Rebuilding unfinished installation of database {database}.', ['database' => $state['database']]);
+            $this->replaceDatabase();
+        } elseif ($state['has_data']) {
             if (!$state['admin_exists']) throw new RuntimeException('This database contains tables but no verifiable active administrator was found. Replacement is blocked for safety.');
             $password = (string) ($post['admin_password'] ?? '');
             if ($password === '' || !$this->verifyAdminPassword($password)) {
@@ -204,10 +228,11 @@ class InstallationSetupService
             $this->createDatabase();
         }
 
+        $this->recordState('installing');
         $this->executeSchema();
         $result = (new MigrationRunnerService())->runPending();
         if (empty($result['success'])) throw new RuntimeException('Schema was created, but one or more migrations failed. Login remains blocked. ' . ($result['message'] ?? ''));
-        $this->recordComplete();
+        $this->recordState('complete');
         log_message('info', 'Fresh database installation completed for database {database}.', ['database' => $state['database']]);
         return ['database' => $state['database'], 'backup' => $backupPath, 'migration_result' => $result];
     }

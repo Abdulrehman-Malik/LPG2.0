@@ -55,6 +55,14 @@ The installer does not run while this flag is false. Regular login and the exist
 
 If the existing database has tables but no verifiable active administrator, replacement is blocked. If backup creation fails, the existing database is not dropped.
 
+## If an installation does not finish
+
+The installer marks the database as *installing* before it applies the schema and as *complete* only after every migration succeeds. If a run stops part-way (for example a lost connection or a failed migration), opening Installation Setup again shows **A previous installation did not finish**. Typing INSTALL DATABASE then rebuilds that database from the start, with no administrator password or backup needed, because nothing in it was entered by users. This applies only while the database contains no sales, purchases, receipts, supplier payments, expenses or cash sessions. Once any of those exist, the normal replacement safeguards above apply.
+
+## Supported database servers
+
+The schema runs on MySQL 8 and on MariaDB 10.4 or later (as shipped with XAMPP).
+
 ## Migration behavior
 
 - Schema creation runs before numbered migrations.

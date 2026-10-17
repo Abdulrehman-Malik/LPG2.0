@@ -52,4 +52,5 @@ The run ends with a summary line per suite. A single suite can be run on its own
 | `checks/hier_check.mjs` | Business Hierarchy tree, adding a shop, scope | P9-33…P9-37 |
 | `checks/parties_check.mjs` | Customer and supplier balances and ledger statements against SQL (data: `fixtures/parties.sql`) | P11-22…P11-26 |
 | `checks/shell_check.mjs` | Every menu page at 1440 and 390 px: HTTP 200, no console errors, no sideways scroll, one active menu entry; theme and phone menu | P11-01…P11-06 |
+| `checks/install_check.mjs` | Installation wizard: fresh install on a new database, wrong confirmation refused, first admin login, an unfinished install can be rerun, replacement needs the admin password and REPLACE DATABASE and takes a backup, no browser errors. Run it alone against a server started with `FRESH_DATABASE_SETUP=true` and a database name that does not exist (`QA_INSTALL_URL`, `QA_INSTALL_DB`) | P12-06 |
 | `checks/a11y_check.mjs` | axe-core WCAG 2.1 A/AA audit of every menu page in light and dark mode (report only) | P11-32 |

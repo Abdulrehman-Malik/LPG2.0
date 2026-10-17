@@ -104,15 +104,15 @@ FROM locations l JOIN business_catalog_products p ON p.business_id=l.business_id
 WHERE l.code='MAIN';
 
 INSERT INTO application_settings(setting_key,setting_value) VALUES
-('customer_ordering_feature_enabled',CAST('true' AS JSON)),
-('orders_enabled',CAST('true' AS JSON)),
-('delivery_enabled',CAST('true' AS JSON)),
-('collection_enabled',CAST('true' AS JSON)),
-('delivery_fee',CAST('0' AS JSON)),
-('customer_self_registration_enabled',CAST('true' AS JSON)),
-('supported_languages',CAST('["en"]' AS JSON)),
-('access_token_ttl_seconds',CAST('900' AS JSON)),
-('refresh_idle_ttl_seconds',CAST('2592000' AS JSON)),
-('refresh_absolute_ttl_seconds',CAST('7776000' AS JSON)),
-('password_min_length',CAST('10' AS JSON))
+('customer_ordering_feature_enabled','true'),
+('orders_enabled','true'),
+('delivery_enabled','true'),
+('collection_enabled','true'),
+('delivery_fee','0'),
+('customer_self_registration_enabled','true'),
+('supported_languages','["en"]'),
+('access_token_ttl_seconds','900'),
+('refresh_idle_ttl_seconds','2592000'),
+('refresh_absolute_ttl_seconds','7776000'),
+('password_min_length','10')
 ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key);

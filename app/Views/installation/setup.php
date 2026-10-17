@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= esc($title ?? 'Database Installation Setup') ?></title>
     <link href="<?= base_url('assets/vendor/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
+    <link rel="stylesheet" href="<?= base_url('assets/vendor/bootstrap-icons/bootstrap-icons.min.css') ?>">
     <link rel="stylesheet" href="<?= base_url('assets/css/app.css') ?>">
     <style>
         body { min-height:100vh; background:#172534; display:flex; align-items:center; padding:24px 0; }
@@ -13,11 +14,16 @@
     </style>
 </head>
 <body>
+<?php
+$interrupted = !empty($state['interrupted']);
+$replace = !empty($state['has_data']) && !$interrupted;
+$blocked = $replace && empty($state['admin_exists']);
+?>
 <div class="container" style="max-width:820px">
     <div class="card setup-card">
         <div class="card-header bg-white p-4">
             <h3 class="mb-1">First-Time Database Installation</h3>
-            <div class="text-muted">Prepare the database, install the schema, seed master data, and execute pending migrations.</div>
+            <div class="text-muted">Creates the configured database, installs the schema with its starting data, and runs the pending migrations.</div>
         </div>
         <div class="card-body p-4">
             <?php if (!empty($error)) : ?><div class="alert alert-danger"><?= esc($error) ?></div><?php endif; ?>
@@ -28,7 +34,9 @@
                 <dt class="col-sm-4">Tables detected</dt><dd class="col-sm-8"><?= (int)($state['tables'] ?? 0) ?></dd>
             </dl>
 
-            <?php if (!empty($state['has_data'])) : ?>
+            <?php if ($interrupted) : ?>
+                <div class="alert alert-warning"><strong>A previous installation did not finish.</strong> No sales or other business records exist in this database, so running setup again rebuilds it from the start.</div>
+            <?php elseif ($replace) : ?>
                 <div class="warning mb-4">
                     <h5 class="text-danger"><i class="bi bi-exclamation-triangle"></i> Destructive database replacement</h5>
                     <p class="mb-2"><strong>All existing records and tables in this database will be permanently deleted.</strong> A verified SQL backup is required before replacement. This operation is separate from Transactional Data Refresh.</p>
@@ -40,9 +48,9 @@
                 <div class="alert alert-info">No existing table data was detected. The installer will create or initialize the configured database, apply <code>database/schema.sql</code>, seed initial data, and run pending migrations.</div>
             <?php endif; ?>
 
-            <form method="post" action="<?= site_url('installation/run') ?>" onsubmit="return confirm('Continue with database installation? Existing database data may be permanently deleted if replacement is selected.');">
+            <form method="post" action="<?= site_url('installation/run') ?>" onsubmit="if (!window.confirm(<?= esc(json_encode($replace ? 'Replace this database? All existing data will be permanently deleted after a backup is made.' : 'Install the database now?'), 'attr') ?>)) return false; var b=this.querySelector('button[type=submit]'); b.disabled=true; b.textContent='Installing… please wait';">
                 <?= csrf_field() ?>
-                <?php if (!empty($state['has_data'])) : ?>
+                <?php if ($replace) : ?>
                     <div class="mb-3">
                         <label for="admin_password" class="form-label">Existing administrator password</label>
                         <input type="password" class="form-control" id="admin_password" name="admin_password" autocomplete="current-password" required <?= empty($state['admin_exists']) ? 'disabled' : '' ?>>
@@ -61,7 +69,8 @@
                     <input class="form-check-input" type="checkbox" id="understand" required>
                     <label class="form-check-label" for="understand">I understand this runs schema and migration scripts and may replace all existing data.</label>
                 </div>
-                <button type="submit" class="btn btn-primary w-100 py-2" <?= (!empty($state['has_data']) && empty($state['admin_exists'])) ? 'disabled' : '' ?>>Run Installation Setup</button>
+                <button type="submit" class="btn btn-primary w-100 py-2" <?= $blocked ? 'disabled' : '' ?>>Run Installation Setup</button>
+                <div class="form-text text-center mt-2">Installation can take a minute. Keep this page open until you are taken to the sign-in page.</div>
             </form>
             <div class="text-center mt-3"><a href="<?= site_url('login') ?>">Return to login</a></div>
         </div>
