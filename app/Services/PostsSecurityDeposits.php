@@ -65,19 +65,23 @@ trait PostsSecurityDeposits
             // when no usable rate was supplied by the POS. This keeps the custody workflow
             // independent from the normal gas-sale rate validation while preserving the
             // configured rate as the default.
-            $stdGas=$cfg['status']==='filled'?$this->rates->currentKgRate($transactionAt,$locationId):0;
+            // Issue Cylinder sells the gas only, priced with the filled cylinder rate (per-KG equivalent,
+            // so a partly filled cylinder costs rate x gas / capacity). See requirements.md, Rates.
+            $stdGas=$cfg['status']==='filled'?$this->rateService()->filledCylinderRate($locationId,$customerId,['id'=>(int)$row['cylinder_type_id'],'capacity_kg'=>$row['capacity_kg']],$transactionAt)['per_kg']:0;
             $enteredGasRate=$cfg['status']==='filled'?(float)$cfg['gas_rate']:0;
             if($cfg['status']==='filled'&&$enteredGasRate<=0&&$stdGas===null){
                 throw new RuntimeException('No effective gas/kg rate exists.');
             }
-            $stdCyl=$this->rates->currentCylinderRate((int)$row['cylinder_type_id'],$transactionAt,$locationId);
-            $stdCyl=($stdCyl!==null&&$stdCyl>0)?$stdCyl:(float)$row['empty_cylinder_price'];
+            // The cylinder is on deposit: charged only when the business setting says so.
+            $chargeCylinder=$this->rateService()->issueChargesCylinder($locationId);
+            $stdCyl=$chargeCylinder?$this->rateService()->emptyCylinderPrice($locationId,$customerId,['id'=>(int)$row['cylinder_type_id'],'empty_cylinder_price'=>$row['empty_cylinder_price']],$transactionAt):0.0;
             $gasRate=$enteredGasRate>0?$enteredGasRate:($stdGas??0);
-            $cylRate=$cfg['cylinder_rate']>0?$cfg['cylinder_rate']:$stdCyl;
+            $cylRate=$chargeCylinder?($cfg['cylinder_rate']>0?$cfg['cylinder_rate']:$stdCyl):0.0;
             $gas=(float)$row['gas_weight_kg'];
             $lineTotal=$this->rounding($locationId)->line($cfg['status']==='filled'?($gas*$gasRate+$cylRate):$cylRate);
-            $customRate=$customRate||($cfg['status']==='filled'&&abs($gasRate-(float)$stdGas)>0.00001)||abs($cylRate-$stdCyl)>0.00001;
-            $prepared[]=['row'=>$row,'status'=>$cfg['status'],'gas'=>$gas,'gas_rate'=>$gasRate,'cyl_rate'=>$cylRate,'line_total'=>$lineTotal,'std_gas'=>$stdGas,'std_cyl'=>$stdCyl];
+            $lineCustom=($cfg['status']==='filled'&&abs($gasRate-(float)$stdGas)>0.00001)||abs($cylRate-$stdCyl)>0.00001;
+            $customRate=$customRate||$lineCustom;
+            $prepared[]=['row'=>$row,'status'=>$cfg['status'],'gas'=>$gas,'gas_rate'=>$gasRate,'cyl_rate'=>$cylRate,'line_total'=>$lineTotal,'custom'=>$lineCustom,'std_gas'=>$stdGas,'std_cyl'=>$stdCyl];
             $subtotal+=$lineTotal;$totalKg+=$gas;
         }
         $chargeTotal=round($subtotal,2);
@@ -190,7 +194,7 @@ trait PostsSecurityDeposits
                     'cylinder_type_id'=>$row['cylinder_type_id'],'customer_cylinder_unit_id'=>$unitId,'quantity'=>1,'gas_weight_kg'=>$item['gas'],
                     'applied_rate'=>$item['status']==='filled'?($item['gas_rate']+$item['cyl_rate']):$item['cyl_rate'],
                     'gas_rate'=>$item['gas_rate'],'cylinder_price'=>$item['cyl_rate'],'standard_rate'=>$item['status']==='filled'?$item['std_gas']:$item['std_cyl'],
-                    'custom_rate_flag'=>0,'empty_cylinder_received'=>0,'line_discount'=>0,'line_total'=>$item['line_total'],'notes'=>'Custody issued: '.$row['unit_code']
+                    'custom_rate_flag'=>!empty($item['custom'])?1:0,'empty_cylinder_received'=>0,'line_discount'=>0,'line_total'=>$item['line_total'],'notes'=>'Custody issued: '.$row['unit_code']
                 ]);
                 $lineId=(int)$this->db->insertID();
                 $this->db->table('inventory_movements')->insert(['location_id'=>$locationId,'inventory_type'=>$item['status']==='filled'?'filled_cylinder':'empty_cylinder','cylinder_type_id'=>$row['cylinder_type_id'],'quantity'=>1,'direction'=>'out','movement_at'=>$transactionAt,'source_type'=>'security_deposit','source_id'=>$saleId,'source_line_id'=>$lineId,'cylinder_unit_id'=>$unitId,'created_by'=>$userId,'notes'=>'Cylinder placed on customer custody']);

@@ -124,6 +124,27 @@ class ConfigurationService
             ],
             'scopes' => ['application', 'business'],
         ],
+        // Rates and customer pricing (requirements.md, 2026-10-17), applied by App\Services\RateService.
+        'filled_cylinder_pricing' => [
+            'label' => 'Pricing of gas in a cylinder',
+            'type' => 'choice',
+            'default' => 'cylinder_rate',
+            'options' => [
+                'cylinder_rate' => 'Per cylinder — use the filled cylinder rate (pro-rata for partly filled); per KG when none is set',
+                'kg_rate' => 'Per KG — always gas weight × gas rate per KG',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
+        'issue_cylinder_charge' => [
+            'label' => 'Issue Cylinder (security deposit) charge',
+            'type' => 'choice',
+            'default' => 'gas_only',
+            'options' => [
+                'gas_only' => 'Gas only — the cylinder stays on deposit and is not charged',
+                'gas_and_cylinder' => 'Gas and cylinder price — also charge the empty cylinder price',
+            ],
+            'scopes' => ['application', 'business'],
+        ],
         'stock_transfer_enabled' => [
             'label' => 'Inter-branch stock transfer',
             'type' => 'boolean',

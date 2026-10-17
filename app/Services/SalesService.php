@@ -45,6 +45,14 @@ class SalesService
         $this->cylinders=new CylinderUnitService();
     }
 
+    private ?RateService $rateService = null;
+
+    /** Rate rules: customer -> branch -> global, per-cylinder pricing (requirements.md, Rates). */
+    protected function rateService(): RateService
+    {
+        return $this->rateService ??= new RateService($this->db);
+    }
+
     /** @var array<int,MoneyRounding> */
     private array $roundingByShop = [];
 
@@ -247,7 +255,10 @@ class SalesService
             $emptyReceived=0;$previewUnits=[];
 
             if(in_array($mode,['sell_gas_only','replace_same','sell_filled','replace_different'],true)){
-                $standardGasRate=$this->rates->currentKgRate($transactionAt,$locationId);
+                // Gas in a whole cylinder uses the filled cylinder rate (per-KG equivalent); refill by KG uses the KG rate.
+                $standardGasRate=in_array($mode,['sell_filled','replace_different'],true)
+                    ? $this->rateService()->filledCylinderRate($locationId,$customerId,$type,$transactionAt)['per_kg']
+                    : $this->rateService()->kgRate($locationId,$customerId,$transactionAt)['rate'];
                 if($standardGasRate!==null && $standardGasRate<=0) $standardGasRate=null;
                 // A positive line rate is an allowed override. Only require a configured
                 // effective rate when the cashier has not supplied a usable line rate.
@@ -259,8 +270,8 @@ class SalesService
                 }
             }
             if(in_array($mode,['sell_filled','replace_different','sell_empty'],true)){
-                $standardCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt,$locationId);
-                if($standardCylinderRate===null) throw new RuntimeException('No effective cylinder price exists for '.$type['name'].'.');
+                $standardCylinderRate=$this->rateService()->emptyCylinderPrice($locationId,$customerId,$type,$transactionAt);
+                if($standardCylinderRate<=0 && $cylinderRateInput===null) throw new RuntimeException('No effective cylinder price exists for '.$type['name'].'.');
                 $cylinderRate=$cylinderRateInput??$standardCylinderRate;
             }
 

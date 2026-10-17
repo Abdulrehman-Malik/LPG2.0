@@ -75,8 +75,10 @@ AFTER=$(q "SELECT COUNT(*) FROM role_permissions WHERE role_id=$CASHIER")
 [ "$AFTER" = 1 ] && ok "CASHIER permissions $BEFORE -> 1 and stayed 1 after later requests" || bad "permission re-granted" "count=$AFTER"
 
 echo "--- 8.3.4 / 8.3.5 security deposit issue and refund re-check"
+# Issue Cylinder charges the gas only (business default issue_cylinder_charge=gas_only), so an empty
+# cylinder costs nothing and the customer pays just the 500 deposit.
 ISSUE="[{\"cylinder_type_id\":\"$C6\",\"cylinder_status\":\"empty\",\"selected_cylinder_unit_ids\":[$UE],\"gas_rate\":\"0\",\"cylinder_rate\":\"0\"}]"
-R=$(sale "$A" security_deposit "$CUST" "$ISSUE" "[{\"payment_type\":\"combined\",\"payment_mode\":\"cash\",\"amount\":\"$(q "SELECT 500+rate_value FROM rate_cards WHERE rate_type='cylinder_package' AND cylinder_type_id=$C6 ORDER BY id DESC LIMIT 1")\"}]" --data-urlencode security_deposit_amount=500)
+R=$(sale "$A" security_deposit "$CUST" "$ISSUE" "[{\"payment_type\":\"combined\",\"payment_mode\":\"cash\",\"amount\":\"500\"}]" --data-urlencode security_deposit_amount=500)
 echo "$R" | grep -qE '"success": *true' && ok "security deposit issued ($R)" || bad "deposit issue" "$R"
 DEP=$(q "SELECT COALESCE(SUM(CASE WHEN entry_type='hold' THEN amount ELSE -amount END),0) FROM customer_security_deposits WHERE customer_id=$CUST")
 RET="[{\"unit_id\":\"$UE\",\"return_gas_kg\":\"0\",\"return_gas_rate\":\"0\"}]"

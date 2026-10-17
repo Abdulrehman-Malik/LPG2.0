@@ -232,6 +232,15 @@ See [WP-0 source inventory](docs/mobile-multishop/wp0-source-inventory.md), [the
 - [x] 9.7.4 Menu entry under Configuration; browser and scope tests; SQA evidence.
 - Requirement text: requirements.md § Business Hierarchy Screen. Delivered 2026-10-16: `app/Services/BusinessHierarchyService.php`, `app/Controllers/BusinessHierarchy.php`, `app/Views/business_hierarchy/index.php`, route `business-hierarchy`, menu Configuration → Business Hierarchy; Businesses & Shops `saveShop` accepts `return_to=hierarchy`. Evidence: SQA.md P9-33…P9-37.
 
+### 9.9 Rates and customer pricing (owner request 2026-10-17)
+Requirements: `requirements.md` "Rates and Customer Pricing".
+- [x] 9.9.1 Rate type `filled_cylinder` (price of the gas in one full cylinder of a type) beside gas per KG and the empty cylinder price; migration 044, named CHECK `chk_rate_cards_type`.
+- [x] 9.9.2 Customer-specific rates (`customer_rates`, effective-dated, can be ended) for all three rate types; managed on the Rates screen (Customer rates tab) and shown on the customer ledger.
+- [x] 9.9.3 One resolver, `App\Services\RateService`: customer rate -> branch -> global; gas in a cylinder: customer filled rate -> customer per-KG x capacity -> filled rate -> per-KG x capacity. Used by Gas Sale, Cylinder Sale, Issue Cylinder, customer-order quotes/catalog and order fulfilment; the POS script mirrors it.
+- [x] 9.9.4 Issue Cylinder charges the gas only, at the filled cylinder rate, pro-rata for partly filled cylinders (rate x gas / capacity, stored as the per-KG equivalent so returns stay consistent); the cashier edits the rate per cylinder; edited lines are flagged as custom (now also on each issue line, previously only the header).
+- [x] 9.9.5 Business settings `filled_cylinder_pricing` (per cylinder / per KG) and `issue_cylinder_charge` (gas only / gas and cylinder price).
+- Evidence: SQA.md P12-07 (`tests/qa/verify_rates.sh`, `tests/qa/checks/rates_check.mjs`).
+
 ### 9.8 Open owner decision
 - [x] D9-4 **Balance of a supplier shared by all branches** — decided by the owner 2026-10-16: configurable per business.
   - Supplier sharing stays the existing setting `supplier_scope_mode` (shared / branch / both, D9-3).

@@ -53,7 +53,8 @@ trait PostsGasSales
             if($enteredAmount!==null && $enteredAmount<=0) throw new RuntimeException('Entered amount on gas line '.$n.' must be greater than zero.');
             if($gasRateInput!==null&&$gasRateInput<0) throw new RuntimeException('Gas rate cannot be negative on line '.$n.'.');
 
-            $standardRate=$this->rates->currentKgRate($transactionAt,$locationId);
+            // Gas Sale is priced per KG; the customer's own KG rate first (requirements.md, Rates).
+            $standardRate=$this->rateService()->kgRate($locationId,$customerId,$transactionAt)['rate'];
             // A zero rate is not usable for calculating KG from an amount.
             if($standardRate!==null && $standardRate<=0) $standardRate=null;
 

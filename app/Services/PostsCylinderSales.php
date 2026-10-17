@@ -39,10 +39,7 @@ trait PostsCylinderSales
             // Cylinder Sale pricing priority: a positive rate configured against this cylinder type
             // overrides the Cylinder Type master price. A zero/negative configured rate means
             // no rate is defined there, so fall back to the Cylinder Type empty-cylinder price.
-            $configuredCylinderRate=$this->rates->currentCylinderRate($typeId,$transactionAt,$locationId);
-            $configuredCylinderRate=($configuredCylinderRate!==null && $configuredCylinderRate>0)?$configuredCylinderRate:null;
-            $masterCylinderRate=(float)($type['empty_cylinder_price']??0);
-            $stdCylinderRate=$configuredCylinderRate??$masterCylinderRate;
+            $stdCylinderRate=$this->rateService()->emptyCylinderPrice($locationId,$customerId,$type,$transactionAt);
             // A manually entered cylinder price is valid even when it is 0.00.
             // Only require a configured/default price when the user leaves the price blank.
             if($cylRateInput===null && $stdCylinderRate<=0) throw new RuntimeException('No empty-cylinder price is defined for '.$type['name'].'. Enter a cylinder price on the POS line or configure a default rate.');
@@ -55,7 +52,8 @@ trait PostsCylinderSales
                     if(isset($selectedAcrossLines[$selectedId])) throw new RuntimeException('Physical cylinder '.$selectedId.' is selected more than once in this sale.');
                     $selectedAcrossLines[$selectedId]=$n;
                 }
-                $stdGas=$this->rates->currentKgRate($transactionAt,$locationId);
+                // Gas in a filled cylinder: filled cylinder rate as a per-KG equivalent (pro-rata for partly filled).
+                $stdGas=$this->rateService()->filledCylinderRate($locationId,$customerId,$type,$transactionAt)['per_kg'];
                 if($stdGas!==null && $stdGas<=0) $stdGas=null;
                 $gasRate=$gasRateInput??$stdGas;
                 if($gasRate===null || $gasRate<=0){

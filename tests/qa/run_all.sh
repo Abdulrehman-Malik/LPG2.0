@@ -33,6 +33,7 @@ shell_suite verify_hq
 shell_suite verify_branch_admin
 shell_suite verify_business_flow
 shell_suite verify_pages verify_hq
+shell_suite verify_rates
 if [ $SUITES_ONLY = 0 ]; then
 node_check pos_check true
 node_check history_check true
@@ -40,6 +41,7 @@ node_check cash_check true
 node_check hier_check bash "$DIR/verify_branch_admin.sh"
 node_check parties_check eval 'bash "$DIR/verify_phase9.sh" >/dev/null 2>&1; bash "$DIR/verify_hq.sh" >/dev/null 2>&1; $M < "$DIR/fixtures/parties.sql"'
 node_check shell_check bash "$DIR/verify_hq.sh"
+node_check rates_check bash "$DIR/verify_rates.sh"
 fi
 if [[ " $* " == *" --a11y "* ]]; then reset; (cd "$DIR/checks" && node a11y_check.mjs) | tee "$QA_TMP/a11y-report.txt" | head -1; fi
 echo; echo "SUMMARY"; printf '%s\n' "${RESULTS[@]}"

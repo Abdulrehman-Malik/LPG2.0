@@ -156,3 +156,41 @@ A requirement is marked Done only after implementation, validation, transaction 
 - Users with shop administration rights can add a new shop to a business directly from the tree. It uses the same validation and default provisioning as Businesses & Shops (shop settings, main counter, inventory policy).
 - The screen shows only the businesses and shops the signed-in user is allowed to access, and it is available to users who can view business/shop administration.
 - The interface must be clean and professional: a two-pane layout (tree on the left, details on the right) on desktop, stacking on phones, full keyboard support and dark-mode support.
+
+## Rates and Customer Pricing (owner request, 2026-10-17)
+
+### Rate types
+| Rate | Meaning | Used for |
+|---|---|---|
+| **Gas rate per KG** | Price of 1 KG of gas. | Gas Sale / Refill by KG or amount; the fallback for every gas charge. |
+| **Filled cylinder rate** (new, per cylinder type) | Price of the gas in one *full* cylinder of that type (gas only, not the cylinder shell). | Issue Cylinder (Security Deposit) gas charge; gas portion of a filled Cylinder Sale; filled-cylinder products in customer orders. Gas Sale / Refill is always priced per KG. |
+| **Empty cylinder price** (per cylinder type) | Price of the cylinder shell itself. | Cylinder Sale (empty, and the shell part of a filled cylinder); Issue Cylinder only when the business charges for the cylinder (see settings). |
+
+All rates are effective-dated (a new rate applies from its effective time; earlier sales keep the rate they were sold at) and every change is logged with old/new value and user.
+
+### Customer-specific rates
+- Any of the three rates can be set for an individual customer (gas per KG, filled cylinder rate per type, empty cylinder price per type), effective-dated, at the customer's branch. A customer rate can be ended; history is kept.
+- Customer rates are managed on the Rates screen (Customer rates) and shown on the customer's ledger.
+
+### Which rate applies (most specific first)
+1. The customer's own rate for that rate type (and cylinder type).
+2. The branch rate.
+3. The business-wide/global rate.
+4. **Filled cylinder rate fallback:** if no filled cylinder rate is configured at any level, the gas is priced as *gas rate per KG × gas weight* (today's behaviour). If the customer has a special *gas rate per KG* but no special filled cylinder rate, the customer's per-KG rate × capacity is used before any generic filled cylinder rate (a customer's special price always beats a generic one).
+5. Walk-in sales use rules 2–4.
+
+### Partially filled cylinders
+- A cylinder is charged in proportion to the gas it actually holds: **amount = filled cylinder rate × gas KG ÷ cylinder capacity KG.** A full cylinder costs exactly the filled cylinder rate.
+- The line keeps the per-cylinder rate (shown to the user) and the equivalent rate per KG (rate ÷ capacity), so a later Cylinder Return values returned gas consistently.
+
+### Issue Cylinder (Security Deposit) on POS
+- Only the gas is sold; the cylinder stays the shop's property on deposit. The gas is priced with the **filled cylinder rate** (pro-rata for partly filled cylinders), not the per-KG rate.
+- Empty cylinders issued carry no gas charge.
+- The cashier may change the rate per cylinder on the issue line; the edited rate is used for that transaction only and the line is flagged as a custom rate.
+
+### Cashier overrides
+- Every POS rate field starts at the applicable rate (rules above) and remains editable; edited rates are flagged as custom rate lines (existing rule).
+
+### Business settings (configurable per business, defaults shown)
+- `filled_cylinder_pricing` — **Per cylinder** (use filled cylinder rates when configured, else per KG) / **Per KG** (always gas KG × rate per KG).
+- `issue_cylinder_charge` — **Gas only** (cylinder on deposit, not charged) / **Gas and cylinder price** (also charge the empty cylinder price, the previous behaviour).

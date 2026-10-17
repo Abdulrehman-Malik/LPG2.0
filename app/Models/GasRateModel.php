@@ -48,6 +48,13 @@ class GasRateModel extends RateCardModel
         return $row ? (float) $row['rate_value'] : null;
     }
 
+    /** Price of the gas in one full cylinder of this type (rate type filled_cylinder). */
+    public function currentFilledCylinderRate(int $id, ?string $asOf = null, ?int $locationId = null): ?float
+    {
+        $row = $this->effectiveRow('filled_cylinder', $id, $asOf, $locationId);
+        return $row ? (float) $row['rate_value'] : null;
+    }
+
     public function currentKgRate(?string $asOf = null, ?int $locationId = null): ?float
     {
         $row = $this->effectiveRow('gas_per_kg', null, $asOf, $locationId);

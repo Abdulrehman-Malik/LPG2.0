@@ -55,6 +55,7 @@ The **NNN** prefix is the deployment sequence. The date remains in the filename 
 | 041 | `041_20261015_inter_branch_stock_transfer.sql` | Adds stock transfer documents/items and the `in_transit` cylinder status for one-step / two-step inter-branch transfers within a business. Idempotent. |
 | 042 | `042_20261016_document_sequences.sql` | Adds `document_sequences` (branch, document type, day) used by `DocumentNumberService` for concurrency-safe, gap-free numbers: sales `S`, receipts `R`, purchases `P`, supplier payments `SP`, expenses `E` + `yyyymmdd-00001`. Idempotent. |
 | 043 | `043_20261016_supplier_opening_balances.sql` | Adds `supplier_opening_balances` (supplier, branch, amount) for owner decision D9-4 and moves each existing `suppliers.opening_balance` to the supplier's branch (business-wide suppliers: the business's first branch), so a shared supplier's opening is no longer counted at every branch. Idempotent. |
+| 044 | `044_20261017_filled_cylinder_and_customer_rates.sql` | Adds rate type `filled_cylinder` (price of the gas in one full cylinder of a type) to `rate_cards` and `rate_change_log`, replaces the unnamed rate-type CHECK with `chk_rate_cards_type`, and adds `customer_rates` (effective-dated special rates per customer). Idempotent; MySQL 8 and MariaDB. |
 
 ## Deployment rules
 

@@ -76,7 +76,7 @@ class Customers extends Controller
         $ledger=(new \App\Services\LedgerService())->customerLedger($id,$locationId);
         if(!$ledger) return $this->response->setStatusCode(404)->setBody('Customer not found');
         ['customer'=>$customer,'sales'=>$sales,'receipts'=>$receipts,'deposits'=>$deposits,'custody'=>$custody]=$ledger;
-        return view('customers/ledger',['title'=>'Customer Ledger — '.$customer['name'],'customer'=>$customer,'sales'=>$sales,'receipts'=>$receipts,'deposits'=>$deposits,'custody'=>$custody]);
+        return view('customers/ledger',['title'=>'Customer Ledger — '.$customer['name'],'customer'=>$customer,'sales'=>$sales,'receipts'=>$receipts,'deposits'=>$deposits,'custody'=>$custody,'specialRates'=>(new \App\Services\RateService())->customerRateHistory((int)$customer['id'])]);
     }
 
     public function save()

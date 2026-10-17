@@ -71,11 +71,19 @@ class CustomerOrderService
             ->orderBy('p.display_name')
             ->get()->getResultArray();
 
-        $gasRate = $this->rates->currentKgRate(null, (int) $context['shop_id']);
+        // Prices shown here match the quote: the customer's own rates first (requirements.md, Rates).
+        $rateService = new RateService($this->db);
+        $shopId = (int) $context['shop_id'];
+        $customerId = (int) $context['customer_id'];
+        $kgRate = $rateService->kgRate($shopId, $customerId)['rate'];
         $products = [];
         foreach ($rows as $row) {
-            $cylinderRate = $this->effectiveCylinderRate($row, (int) $context['shop_id']);
+            $type = ['id' => (int) $row['cylinder_type_id'], 'capacity_kg' => $row['capacity_kg'], 'empty_cylinder_price' => $row['empty_cylinder_price']];
+            $cylinderRate = $rateService->emptyCylinderPrice($shopId, $customerId, $type);
+            $cylinderRate = $cylinderRate > 0 ? $cylinderRate : null;
             $mode = (string) $row['sale_mode'];
+            $filled = $mode === 'sell_filled' ? $rateService->filledCylinderRate($shopId, $customerId, $type) : null;
+            $gasRate = $filled !== null ? $filled['per_kg'] : $kgRate;
             $priced = match ($mode) {
                 'sell_gas_only' => $gasRate !== null && $gasRate > 0,
                 'sell_filled' => $gasRate !== null && $gasRate > 0 && $cylinderRate !== null && $cylinderRate > 0,
@@ -100,6 +108,7 @@ class CustomerOrderService
                 'price' => [
                     'gas_rate_per_kg' => $mode === 'sell_empty' ? 0.0 : (float) ($gasRate ?? 0),
                     'cylinder_rate' => (float) ($cylinderRate ?? 0),
+                    'filled_cylinder_rate' => $filled !== null ? round((float) ($filled['rate'] ?? 0), 2) : null,
                     'price_available' => $priced,
                 ],
                 'shop_id' => (int) $context['shop_id'],
@@ -108,17 +117,6 @@ class CustomerOrderService
         }
 
         return $products;
-    }
-
-    protected function effectiveCylinderRate(array $product, int $shopId): ?float
-    {
-        $configured = $this->rates->currentCylinderRate((int) $product['cylinder_type_id'], null, $shopId);
-        if ($configured !== null && $configured > 0) {
-            return $configured;
-        }
-
-        $master = (float) ($product['empty_cylinder_price'] ?? 0);
-        return $master > 0 ? $master : null;
     }
 
     protected function normalizeItems(array $items): array
@@ -174,12 +172,14 @@ class CustomerOrderService
         return hash('sha256', json_encode($canonical, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
-    protected function quoteItems(int $businessId, int $shopId, array $items): array
+    protected function quoteItems(int $businessId, int $shopId, array $items, ?int $customerId = null): array
     {
         $quoted = [];
         $subtotal = 0.0;
         $rounding = MoneyRounding::forShop($shopId);
-        $gasRate = $this->rates->currentKgRate(null, $shopId);
+        // Customer-specific rates first, then the branch/global rates (requirements.md, Rates).
+        $rateService = new RateService($this->db);
+        $gasRate = $rateService->kgRate($shopId, $customerId)['rate'];
 
         foreach ($items as $index => $item) {
             $row = $this->db->query(
@@ -213,7 +213,7 @@ class CustomerOrderService
                 throw new RuntimeException($row['display_name'] . ' must be ordered in whole cylinders.');
             }
 
-            $cylinderRate = $this->effectiveCylinderRate($row, $shopId) ?? 0.0;
+            $cylinderRate = $rateService->emptyCylinderPrice($shopId, $customerId, ['id' => (int) $row['cylinder_type_id'], 'empty_cylinder_price' => $row['empty_cylinder_price']]);
             $gasKg = 0.0;
             $gasRateSnapshot = 0.0;
             $cylinderRateSnapshot = 0.0;
@@ -228,7 +228,9 @@ class CustomerOrderService
                 $gasRateSnapshot = round($gasRate, 4);
                 $lineTotal = $gasKg * $gasRateSnapshot;
             } elseif ($mode === 'sell_filled') {
-                if ($gasRate === null || $gasRate <= 0 || $cylinderRate <= 0) {
+                // Gas in a filled cylinder: filled cylinder rate as a per-KG equivalent (pro-rata).
+                $filledGasRate = $rateService->filledCylinderRate($shopId, $customerId, ['id' => (int) $row['cylinder_type_id'], 'capacity_kg' => $row['capacity_kg']])['per_kg'];
+                if ($filledGasRate === null || $filledGasRate <= 0 || $cylinderRate <= 0) {
                     throw new RuntimeException('An effective gas and cylinder rate is required for ' . $row['display_name'] . '.');
                 }
                 $selectedUnitIds = array_values(array_unique(array_map('intval', is_array($item['selected_cylinder_unit_ids'] ?? null) ? $item['selected_cylinder_unit_ids'] : [])));
@@ -250,7 +252,7 @@ class CustomerOrderService
                     // Before physical cylinders are selected, the customer sees a nominal-capacity estimate.
                     $gasKg = $quantity * (float) $row['capacity_kg'];
                 }
-                $gasRateSnapshot = round($gasRate, 4);
+                $gasRateSnapshot = round($filledGasRate, 4);
                 $cylinderRateSnapshot = round($cylinderRate, 4);
                 $lineTotal = ($gasKg * $gasRateSnapshot) + ($quantity * $cylinderRateSnapshot);
             } elseif ($mode === 'sell_empty') {
@@ -418,7 +420,7 @@ class CustomerOrderService
                 return $this->orderById((int) $existing['id'], $accountId) ?? $existing;
             }
 
-            $quote = $this->quoteItems($businessId, $shopId, $items);
+            $quote = $this->quoteItems($businessId, $shopId, $items, (int) $context['customer_id']);
             $deliveryFee = $this->deliveryFee($businessId, $shopId, $method);
             $total = round($quote['subtotal'] + $deliveryFee, 2);
             $orderNo = 'O' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -580,7 +582,7 @@ class CustomerOrderService
             ];
         }
 
-        $quote = $this->quoteItems((int) $order['business_id'], (int) $order['location_id'], $input);
+        $quote = $this->quoteItems((int) $order['business_id'], (int) $order['location_id'], $input, (int) $order['customer_id']);
         $fee = $this->deliveryFee((int) $order['business_id'], (int) $order['location_id'], (string) $order['fulfilment_method']);
         return [
             'items' => $quote['items'],
@@ -1031,7 +1033,7 @@ class CustomerOrderService
                 }
             }
 
-            $quotedItems = $this->quoteItems((int) $order['business_id'], $shopId, $quoteInput);
+            $quotedItems = $this->quoteItems((int) $order['business_id'], $shopId, $quoteInput, (int) $order['customer_id']);
             $deliveryFee = $this->deliveryFee(
                 (int) $order['business_id'],
                 $shopId,

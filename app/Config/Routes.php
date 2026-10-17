@@ -98,7 +98,7 @@ $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
     $routes->get('customers','Customers::index'); $routes->get('customers/template','Customers::downloadTemplate'); $routes->post('customers/import','Customers::importExcel'); $routes->get('customers/ledger/(:num)','Customers::ledger/$1'); $routes->post('customers/save','Customers::save');
     $routes->get('suppliers','Suppliers::index'); $routes->get('suppliers/ledger/(:num)','Suppliers::ledger/$1'); $routes->post('suppliers/save','Suppliers::save');
     $routes->get('cylinder-types','CylinderTypes::index'); $routes->post('cylinder-types/save','CylinderTypes::save'); $routes->post('cylinder-types/toggle','CylinderTypes::toggle'); $routes->post('cylinder-types/delete','CylinderTypes::delete');
-    $routes->get('rates','Rates::index'); $routes->post('rates/save','Rates::save');
+    $routes->get('rates','Rates::index'); $routes->post('rates/save','Rates::save'); $routes->post('rates/customer/save','Rates::customerSave'); $routes->post('rates/customer/end/(:num)','Rates::customerEnd/$1');
     $routes->get('users','Users::index'); $routes->post('users/save','Users::save'); $routes->post('users/role-permissions','Users::rolePermissions');
     $routes->get('inventory/opening','InventoryOpening::index'); $routes->get('inventory/opening/template','InventoryOpening::downloadTemplate'); $routes->post('inventory/opening/import','InventoryOpening::importExcel'); $routes->post('inventory/opening/save','InventoryOpening::save'); $routes->post('inventory/opening/delete/(:num)','InventoryOpening::delete/$1');
 });

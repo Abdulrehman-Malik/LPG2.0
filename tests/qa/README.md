@@ -46,11 +46,13 @@ The run ends with a summary line per suite. A single suite can be run on its own
 | `verify_branch_admin.sh` | Branch access on the Users screen, cash-close and ledger scope fixes, sidebar | P9-23…P9-30 |
 | `verify_business_flow.sh` | Opening stock, credit and part-paid purchases, supplier payable/payments, purchase void, Cylinder Sale, partial/full wastage, cylinder-type delete rule, both money-rounding rules (D10-2), separate vs single supplier balance (D9-4), §6 invariants | P12-02, P12-05 |
 | `verify_pages.sh` | Every menu page and the drill-down/data pages return 200 with no PHP or database exception (run after `verify_hq.sh`); catches SQL that MySQL 8 rejects but MariaDB accepts | P12-04 |
+| `verify_rates.sh` | Rates and customer pricing: filled cylinder rate, pro-rata partly filled cylinders, customer rates and fallback, ending a customer rate, cashier override flag, both business settings, Cylinder Sale and Gas Sale | P12-07 |
 | `checks/pos_check.mjs` | POS customer search, shortcuts, overpayment warning, F9 posting, 80 mm / A4 receipts | P11-11…P11-14 |
 | `checks/history_check.mjs` | Sale History filters, details, void dialog | P11-15…P11-18 |
 | `checks/cash_check.mjs` | Counter Cash figures against SQL; open, count and close | P11-19…P11-21 |
 | `checks/hier_check.mjs` | Business Hierarchy tree, adding a shop, scope | P9-33…P9-37 |
 | `checks/parties_check.mjs` | Customer and supplier balances and ledger statements against SQL (data: `fixtures/parties.sql`) | P11-22…P11-26 |
 | `checks/shell_check.mjs` | Every menu page at 1440 and 390 px: HTTP 200, no console errors, no sideways scroll, one active menu entry; theme and phone menu | P11-01…P11-06 |
+| `checks/rates_check.mjs` | Rates screen (current prices, customer rates tab) and POS defaults for Issue Cylinder and Cylinder Sale per customer, pro-rata totals, cashier edits (data: `verify_rates.sh`) | P12-07 |
 | `checks/install_check.mjs` | Installation wizard: fresh install on a new database, wrong confirmation refused, first admin login, an unfinished install can be rerun, replacement needs the admin password and REPLACE DATABASE and takes a backup, no browser errors. Run it alone against a server started with `FRESH_DATABASE_SETUP=true` and a database name that does not exist (`QA_INSTALL_URL`, `QA_INSTALL_DB`) | P12-06 |
 | `checks/a11y_check.mjs` | axe-core WCAG 2.1 A/AA audit of every menu page in light and dark mode (report only) | P11-32 |

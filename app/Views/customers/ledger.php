@@ -123,6 +123,18 @@ $statementMatches = abs($running - $due) < 0.01;
                     <?php endforeach; ?>
                 </div>
                 <a class="btn btn-outline-secondary btn-sm mt-3" href="<?= site_url('customers?edit=' . (int) $customer['id']) ?>"><i class="bi bi-pencil me-1"></i>Edit customer</a>
+                <h2 class="h6 mt-4 mb-2">Special rates</h2>
+                <?php $activeRates = array_filter($specialRates ?? [], static fn ($r) => empty($r['ended_at'])); ?>
+                <?php if (!$activeRates): ?>
+                    <p class="small text-muted mb-0">This customer pays the standard rates.<?php if (\App\Services\PermissionService::allows('RATE_MANAGE')): ?> <a href="<?= site_url('rates?tab=customers') ?>">Set a special rate</a><?php endif; ?></p>
+                <?php else: ?>
+                    <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Rate</th><th>Cylinder type</th><th class="text-end">Value</th><th>From</th></tr></thead><tbody>
+                    <?php foreach ($activeRates as $r): ?>
+                        <tr><td><?= esc(['gas_per_kg' => 'Gas per KG', 'filled_cylinder' => 'Filled cylinder (gas)', 'cylinder_package' => 'Empty cylinder price'][$r['rate_type']] ?? $r['rate_type']) ?></td><td><?= esc($r['cylinder_code'] ? $r['cylinder_code'] . ' ' . $r['cylinder_name'] : 'All cylinders') ?></td><td class="text-end">Rs. <?= number_format((float) $r['rate_value'], 2) ?></td><td><?= esc(date('d M Y', strtotime($r['effective_from']))) ?></td></tr>
+                    <?php endforeach; ?>
+                    </tbody></table></div>
+                    <?php if (\App\Services\PermissionService::allows('RATE_MANAGE')): ?><a class="small" href="<?= site_url('rates?tab=customers') ?>">Manage customer rates</a><?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
