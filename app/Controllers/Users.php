@@ -146,6 +146,10 @@ class Users extends Controller
         if(!PermissionService::roleWithinActor($data['role_id'],$actorId)){
             return redirect()->back()->withInput()->with('error','You cannot assign a role with permissions you do not have.');
         }
+        if($password!==''){
+            try { \App\Services\PasswordPolicy::assertAcceptable($password); }
+            catch(\RuntimeException $e){ return redirect()->back()->withInput()->with('error',$e->getMessage()); }
+        }
         $businessId=\App\Services\BusinessContext::businessIdForLocation($locationId);
         $access=new \App\Services\StaffAccessService();
         $manageBranches=PermissionService::allows('SHOP_ACCESS_MANAGE') && $this->request->getPost('branch_access_submitted')==='1';

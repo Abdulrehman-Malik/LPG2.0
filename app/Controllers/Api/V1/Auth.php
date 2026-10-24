@@ -3,6 +3,7 @@
 namespace App\Controllers\Api\V1;
 
 use App\Services\ApiSessionService;
+use App\Services\LoginThrottle;
 use App\Services\ConfigurationService;
 use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
@@ -26,6 +27,13 @@ class Auth extends Controller
         return $this->response->setStatusCode($status)->setJSON([
             'error' => ['code' => $code, 'message' => $message],
         ]);
+    }
+
+    /** 429 with Retry-After once LoginThrottle has locked this client (BL-004). */
+    protected function throttledResponse()
+    {
+        return $this->errorResponse(429, 'TOO_MANY_ATTEMPTS', 'Too many attempts. Please wait 15 minutes and try again.')
+            ->setHeader('Retry-After', (string) LoginThrottle::WINDOW_SECONDS);
     }
 
     protected function requestMeta(): array
@@ -79,6 +87,11 @@ class Auth extends Controller
 
     public function customerSignup()
     {
+        $ip = $this->request->getIPAddress();
+        if (LoginThrottle::isLocked('api_signup', $ip)) {
+            return $this->throttledResponse();
+        }
+        LoginThrottle::recordFailure('api_signup', $ip);
         $input = $this->payload();
         $shopId = (int) ($input['shop_id'] ?? $input['location_id'] ?? 0);
         $username = strtolower(trim((string) ($input['username'] ?? '')));
@@ -175,9 +188,15 @@ class Auth extends Controller
             ->where('ca.username', $username)
             ->get()->getRowArray();
 
+        $ip = $this->request->getIPAddress();
+        if (LoginThrottle::isLocked('api_customer', $ip, $username)) {
+            return $this->throttledResponse();
+        }
         if (!$row || !password_verify($password, (string) $row['password_hash'])) {
+            LoginThrottle::recordFailure('api_customer', $ip, $username);
             return $this->errorResponse(401, 'INVALID_CREDENTIALS', 'Username or password is incorrect.');
         }
+        LoginThrottle::clear('api_customer', $ip, $username);
         if (($row['status'] ?? '') !== 'approved' || (int) ($row['is_active'] ?? 0) !== 1) {
             return $this->errorResponse(403, 'ACCOUNT_NOT_APPROVED', 'This account is not active or has not been approved by its shop.');
         }
@@ -223,9 +242,15 @@ class Auth extends Controller
             ->groupEnd()
             ->get()->getRowArray();
 
+        $ip = $this->request->getIPAddress();
+        if (LoginThrottle::isLocked('api_staff', $ip, $username)) {
+            return $this->throttledResponse();
+        }
         if (!$row || !password_verify($password, (string) $row['password_hash'])) {
+            LoginThrottle::recordFailure('api_staff', $ip, $username);
             return $this->errorResponse(401, 'INVALID_CREDENTIALS', 'Username or password is incorrect.');
         }
+        LoginThrottle::clear('api_staff', $ip, $username);
         if ((int) ($row['is_active'] ?? 0) !== 1) {
             return $this->errorResponse(403, 'ACCOUNT_DISABLED', 'This staff account has been disabled.');
         }
@@ -287,11 +312,16 @@ class Auth extends Controller
         if ($refresh === '') {
             return $this->errorResponse(422, 'VALIDATION_FAILED', 'Refresh token is required.');
         }
+        $ip = $this->request->getIPAddress();
+        if (LoginThrottle::isLocked('api_refresh', $ip)) {
+            return $this->throttledResponse();
+        }
 
         try {
             $meta = $this->requestMeta();
             $tokens = (new ApiSessionService())->refresh($refresh, $audience, $meta['ip'], $meta['user_agent']);
             if (!$tokens) {
+                LoginThrottle::recordFailure('api_refresh', $ip);
                 return $this->errorResponse(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is expired, revoked, or has already been used. Sign in again.');
             }
 

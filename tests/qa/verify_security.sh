@@ -71,5 +71,30 @@ curl -s -o /dev/null -w '%{http_code}' -b "$AF" "$B/dashboard" | grep -q 200 && 
 [ "$(q "SELECT COUNT(*) FROM audit_logs WHERE action='PASSWORD_CHANGED' AND entity_id=$ADMIN_ID")" -ge 1 ] && ok "password change is audit-logged" || bad "audit" "no row"
 q "UPDATE users SET password_hash='$ADMIN_HASH', must_change_password=0 WHERE username='admin'"
 
+echo "--- BL-004 throttling and password length"
+qa_clear_throttle
+for i in 1 2 3 4 5; do curl -s -o /dev/null -H 'Content-Type: application/json' -d '{"username":"admin","password":"wrong-pass"}' "$B/api/v1/staff/auth/login"; done
+hdr=$(curl -s -D - -o "$T/api6.json" -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' "$B/api/v1/staff/auth/login")
+echo "$hdr" | grep -q "^HTTP/[0-9.]* 429" && grep -q TOO_MANY_ATTEMPTS "$T/api6.json" && ok "6th staff API login after 5 failures is 429, even with the right password" || bad "staff api throttle" "$(head -1 <<<"$hdr")"
+echo "$hdr" | grep -qi "^Retry-After: 900" && ok "429 carries Retry-After" || bad "retry-after" "header missing"
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"username":"qa_scoped_manager","password":"admin123"}' "$B/api/v1/staff/auth/login")
+[ "$code" = 200 ] && ok "another login name is not affected" || bad "other login" "http $code"
+for i in 1 2 3 4 5; do curl -s -o /dev/null -H 'Content-Type: application/json' -d '{"username":"qa_no_such_customer","password":"x"}' "$B/api/v1/customer/auth/login"; done
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"username":"qa_no_such_customer","password":"x"}' "$B/api/v1/customer/auth/login")
+[ "$code" = 429 ] && ok "customer API login is throttled" || bad "customer throttle" "http $code"
+for i in $(seq 1 20); do curl -s -o /dev/null -H 'Content-Type: application/json' -d "{\"refresh_token\":\"$(printf '%064d' $i)\"}" "$B/api/v1/staff/auth/refresh"; done
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"refresh_token":"abc"}' "$B/api/v1/staff/auth/refresh")
+[ "$code" = 429 ] && ok "token refresh is throttled after 20 invalid tokens from one IP" || bad "refresh throttle" "http $code"
+for i in $(seq 1 10); do curl -s -o /dev/null -H 'Content-Type: application/json' -d '{"shop_id":0}' "$B/api/v1/customer/auth/signup"; done
+code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"shop_id":0}' "$B/api/v1/customer/auth/signup")
+[ "$code" = 429 ] && ok "customer signup is limited per IP" || bad "signup throttle" "http $code"
+qa_clear_throttle
+AD="$T/admin.txt"; login "$AD" admin admin123 >/dev/null
+post "$AD" users/save --data-urlencode "role_id=$CASHIER_ROLE" --data-urlencode "full_name=QA Short Pw" --data-urlencode "username=qa_short_pw" --data-urlencode "password=short1" --data-urlencode "is_active=1" >/dev/null
+[ "$(q "SELECT COUNT(*) FROM users WHERE username='qa_short_pw'")" = 0 ] && ok "web user save rejects a password below the minimum length" || bad "web min length" "user created"
+post "$AD" users/save --data-urlencode "role_id=$CASHIER_ROLE" --data-urlencode "full_name=QA Long Pw" --data-urlencode "username=qa_long_pw" --data-urlencode "password=Secret12345" --data-urlencode "is_active=1" >/dev/null
+[ "$(q "SELECT COUNT(*) FROM users WHERE username='qa_long_pw'")" = 1 ] && ok "web user save accepts a long enough password" || bad "web min length ok" "not created"
+qa_clear_throttle
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
