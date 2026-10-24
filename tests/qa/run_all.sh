@@ -27,6 +27,7 @@ if [[ " $* " != *" --no-e2e "* && $SUITES_ONLY = 0 ]]; then
   record "playwright e2e" "$(echo "$out" | grep -E '[0-9]+ (passed|failed)' | tr '\n' ' ')"
 fi
 shell_suite verify_migrations
+shell_suite verify_tenancy_migrations
 shell_suite verify_phase8
 shell_suite verify_security
 shell_suite verify_isolation
