@@ -219,7 +219,7 @@ class Configuration extends Controller
 
             return $this->scopeRedirect($scope, $ownerId)->with('success', 'Configuration setting saved.');
         } catch (\Throwable $e) {
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
     }
 
@@ -250,7 +250,7 @@ class Configuration extends Controller
 
             return $this->scopeRedirect($scope, $ownerId)->with('success', 'Override cleared; the inherited value now applies.');
         } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
     }
 

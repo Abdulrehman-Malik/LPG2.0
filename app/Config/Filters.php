@@ -16,6 +16,7 @@ use App\Controllers\Filters\AuthFilter;
 use App\Controllers\Filters\ApiAuthFilter;
 use App\Controllers\Filters\ApiReadyFilter;
 use App\Controllers\Filters\ActiveSessionFilter;
+use App\Controllers\Filters\RequestIdFilter;
 
 class Filters extends BaseFilters
 {
@@ -42,6 +43,7 @@ class Filters extends BaseFilters
         'api-auth'      => ApiAuthFilter::class,
         'api-ready'     => ApiReadyFilter::class,
         'active-session' => ActiveSessionFilter::class,
+        'request-id'    => RequestIdFilter::class,
     ];
 
     /**
@@ -83,6 +85,7 @@ class Filters extends BaseFilters
         'after' => [
             // 'honeypot',
             'secureheaders',
+            'request-id',
         ],
     ];
 

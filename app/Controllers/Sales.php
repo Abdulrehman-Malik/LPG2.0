@@ -77,14 +77,14 @@ class Sales extends Controller
                 ->with('receipt_url',site_url('sales/receipt/'.$result['id']));
         }catch(\Throwable $e){
             log_message('error', 'POS sale posting failed: {message} at {file}:{line}', [
-                'message' => $e->getMessage(),
+                'message' => user_error_message($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
             if ($this->request->isAJAX() || str_contains(strtolower((string)$this->request->getHeaderLine('Accept')), 'application/json')) {
-                return $this->response->setStatusCode(422)->setJSON(['success'=>false,'error'=>$e->getMessage()]);
+                return $this->response->setStatusCode(422)->setJSON(['success'=>false,'error'=>user_error_message($e)]);
             }
-            return redirect()->back()->withInput()->with('error',$e->getMessage());
+            return redirect()->back()->withInput()->with('error',user_error_message($e));
         }
     }
 
@@ -159,6 +159,6 @@ class Sales extends Controller
             $reason=trim((string)$this->request->getPost('void_reason'));
             $no=(new SalesService())->void($id,(int)session()->get('user_id'),(int)session()->get('location_id'),$reason);
             return redirect()->to('/sales/history')->with('success','Sale '.$no.' voided successfully.');
-        }catch(\Throwable $e){return redirect()->back()->with('error',$e->getMessage());}
+        }catch(\Throwable $e){return redirect()->back()->with('error',user_error_message($e));}
     }
 }

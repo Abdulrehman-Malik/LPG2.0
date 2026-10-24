@@ -39,7 +39,7 @@ class CylinderTypes extends Controller
             if($id){ if(!$this->ownedType($id)) throw new \RuntimeException('Cylinder type not found.'); $this->model->update($id,$data); }
             else $this->model->insert($data+['business_id'=>$businessId]);
             return redirect()->to('/cylinder-types')->with('success',$id?'Cylinder type updated.':'Cylinder type created.');
-        } catch(\Throwable $e){ return redirect()->back()->withInput()->with('error','Cylinder type could not be saved: '.$e->getMessage()); }
+        } catch(\Throwable $e){ return redirect()->back()->withInput()->with('error','Cylinder type could not be saved: '.user_error_message($e)); }
     }
 
     public function toggle()
@@ -59,6 +59,6 @@ class CylinderTypes extends Controller
             if(!$this->ownedType($id)) throw new \RuntimeException('Cylinder type not found.');
             $this->model->deleteIfUnused($id);
             return redirect()->to('/cylinder-types')->with('success','Cylinder type deleted.');
-        } catch(\Throwable $e){ return redirect()->back()->with('error',$e->getMessage()); }
+        } catch(\Throwable $e){ return redirect()->back()->with('error',user_error_message($e)); }
     }
 }

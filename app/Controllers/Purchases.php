@@ -159,7 +159,7 @@ class Purchases extends Controller
                     number_format((float) $x['balance_payable'], 2)
             );
         } catch (\Throwable $e) {
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
     }
 
@@ -193,7 +193,7 @@ class Purchases extends Controller
             return redirect()->to('/purchases?tab=history')
                 ->with('success', 'Purchase ' . $no . ' voided successfully. Stock, cash and supplier ledger effects were reversed.');
         } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
     }
 }

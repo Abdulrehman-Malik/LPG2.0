@@ -112,5 +112,26 @@ q "UPDATE users SET is_active=1 WHERE username='admin'"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$B/database-backup/download?file=x")
 [ "$code" = 302 ] && ok "anonymous backup download is redirected to sign-in" || bad "anon backup" "http $code"
 
+echo "--- BL-006 safe errors and structured logs"
+qa_clear_throttle
+ER="$T/err.txt"; login "$ER" admin admin123 >/dev/null
+curl -s -D "$T/rid.h" -o /dev/null -b "$ER" "$B/dashboard"
+grep -qiE "^X-Request-Id: [0-9a-f]{16}" "$T/rid.h" && ok "responses carry an X-Request-Id" || bad "request id" "header missing"
+# Business-rule errors keep their message.
+post "$ER" suppliers/save --data-urlencode "name=" >/dev/null
+curl -s -b "$ER" "$B/suppliers" | grep -q "Supplier name is required" && ok "business validation message still shown" || bad "business message" "not shown"
+# A database error is hidden behind a reference that leads to the log line.
+q "RENAME TABLE suppliers TO qa_bl006_suppliers"
+post "$ER" suppliers/save --data-urlencode "name=QA Broken Supplier" --data-urlencode "code=QA-BL006" >/dev/null
+q "RENAME TABLE qa_bl006_suppliers TO suppliers"
+curl -s -b "$ER" "$B/suppliers" > "$T/sup.html"
+ref=$(grep -oE "quote reference [A-Za-z0-9_-]+" "$T/sup.html" | head -1 | awk '{print $3}')
+[ -n "$ref" ] && ok "database error shows a generic message with reference $ref" || bad "generic message" "no reference on page"
+grep -qiE "doesn.t exist|SQLSTATE|qa_bl006" "$T/sup.html" && bad "sql leak" "database text on page" || ok "no SQL error text reaches the page"
+LOG="$QA_ROOT/writable/logs/log-$(date +%Y-%m-%d).log"
+line=$(grep -F "\"request_id\":\"$ref\"" "$LOG" | grep -F "[$ref]" | tail -1)
+echo "$line" | grep -q "suppliers" && ok "log line with that reference holds the database error" || bad "log detail" "not found for $ref"
+echo "$line" | "$QA_PHP" -r '$j=json_decode(stream_get_contents(STDIN),true); exit(is_array($j)&&isset($j["level"],$j["time"],$j["user_id"],$j["path"])?0:1);' && ok "log line is JSON with level, time, user and path" || bad "json log" "$line"
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

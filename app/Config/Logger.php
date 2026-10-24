@@ -3,7 +3,7 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-use CodeIgniter\Log\Handlers\FileHandler;
+use App\Libraries\JsonFileHandler;
 use CodeIgniter\Log\Handlers\HandlerInterface;
 
 class Logger extends BaseConfig
@@ -82,7 +82,8 @@ class Logger extends BaseConfig
          * File Handler
          * --------------------------------------------------------------------
          */
-        FileHandler::class => [
+        // One JSON object per line with request ID, user and branch (BL-006).
+        JsonFileHandler::class => [
             // The log levels that this handler will handle.
             'handles' => [
                 'critical',

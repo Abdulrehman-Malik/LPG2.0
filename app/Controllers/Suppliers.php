@@ -106,7 +106,7 @@ class Suppliers extends Controller
             // D9-4: the opening payable is recorded at this branch.
             (new SupplierBalanceService())->setBranchOpening($id,$locationId,$opening,(int)session()->get('user_id'));
         } catch (\Throwable $e) {
-            return redirect()->back()->withInput()->with('error','Supplier could not be saved: '.$e->getMessage());
+            return redirect()->back()->withInput()->with('error','Supplier could not be saved: '.user_error_message($e));
         }
         return redirect()->to('/suppliers')->with('success',empty($created)?'Supplier updated.':'Supplier created.');
     }

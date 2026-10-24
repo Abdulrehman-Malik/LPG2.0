@@ -148,7 +148,7 @@ class Users extends Controller
         }
         if($password!==''){
             try { \App\Services\PasswordPolicy::assertAcceptable($password); }
-            catch(\RuntimeException $e){ return redirect()->back()->withInput()->with('error',$e->getMessage()); }
+            catch(\RuntimeException $e){ return redirect()->back()->withInput()->with('error',user_error_message($e)); }
         }
         $businessId=\App\Services\BusinessContext::businessIdForLocation($locationId);
         $access=new \App\Services\StaffAccessService();
@@ -157,7 +157,7 @@ class Users extends Controller
         if($manageBranches){
             $defaultBranchId=(int)$this->request->getPost('default_branch_id') ?: null;
             try { $branchIds=$access->validate($actorId,$businessId,array_map('intval',(array)$this->request->getPost('branch_ids')),$defaultBranchId); }
-            catch(\Throwable $e){ return redirect()->back()->withInput()->with('error',$e->getMessage()); }
+            catch(\Throwable $e){ return redirect()->back()->withInput()->with('error',user_error_message($e)); }
         }
 
         try {

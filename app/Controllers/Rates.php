@@ -58,7 +58,7 @@ class Rates extends Controller
         try{
             (new RateService())->setCustomerRate($locationId,(int)$this->request->getPost('customer_id'),$type,$typeId,(float)$this->request->getPost('rate_value'),$effective,trim((string)$this->request->getPost('notes')),(int)session()->get('user_id'));
         }catch(\Throwable $e){
-            return redirect()->to('/rates?tab=customers')->withInput()->with('error',$e->getMessage());
+            return redirect()->to('/rates?tab=customers')->withInput()->with('error',user_error_message($e));
         }
         return redirect()->to('/rates?tab=customers')->with('success','Customer rate saved.');
     }
@@ -69,7 +69,7 @@ class Rates extends Controller
         try{
             (new RateService())->endCustomerRate((int)(session()->get('location_id') ?? 0),$id,(int)session()->get('user_id'));
         }catch(\Throwable $e){
-            return redirect()->to('/rates?tab=customers')->with('error',$e->getMessage());
+            return redirect()->to('/rates?tab=customers')->with('error',user_error_message($e));
         }
         return redirect()->to('/rates?tab=customers')->with('success','Customer rate ended. The customer now gets the standard rate.');
     }

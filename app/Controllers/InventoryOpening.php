@@ -347,7 +347,7 @@ class InventoryOpening extends Controller
                 ->with('success', $oldValues === null ? 'Opening inventory created successfully.' : 'Opening inventory updated successfully.');
         } catch (\Throwable $e) {
             $db->transRollback();
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
     }
 
@@ -372,7 +372,7 @@ class InventoryOpening extends Controller
                 ->setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
                 ->setBody($contents);
         } catch (\Throwable $e) {
-            return $this->response->setStatusCode(500)->setBody('Could not generate the Excel template: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setBody('Could not generate the Excel template: ' . user_error_message($e));
         } finally {
             if (is_file($target)) {
                 @unlink($target);
@@ -645,7 +645,7 @@ class InventoryOpening extends Controller
             }
             return redirect()->to(site_url('inventory/opening'))->with('success', $message);
         } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         } finally {
             if (is_file($tempPath)) {
                 @unlink($tempPath);
@@ -740,7 +740,7 @@ class InventoryOpening extends Controller
                 ->with('success', 'Opening inventory deleted successfully.');
         } catch (\Throwable $e) {
             $db->transRollback();
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
     }
 }

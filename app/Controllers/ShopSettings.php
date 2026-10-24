@@ -226,7 +226,7 @@ class ShopSettings extends Controller
             return redirect()->to('/shop-settings')->with('success', 'Shop settings saved successfully.');
         } catch (\Throwable $e) {
             $db->transRollback();
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
     }
 }

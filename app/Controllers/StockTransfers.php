@@ -62,7 +62,7 @@ class StockTransfers extends Controller
                 : 'Transfer ' . $transfer['transfer_no'] . ' dispatched: ' . count($transfer['items']) . ' cylinder(s) in transit to ' . $transfer['to_name'] . '. The receiving branch must confirm receipt.';
             return redirect()->to(site_url('inventory/transfers/' . $transfer['id']))->with('success', $message);
         } catch (\Throwable $e) {
-            return redirect()->back()->withInput()->with('error', $e->getMessage());
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
     }
 
@@ -88,7 +88,7 @@ class StockTransfers extends Controller
             $transfer = (new StockTransferService())->receive($id, $this->locationId(), $this->userId());
             return redirect()->to(site_url('inventory/transfers/' . $id))->with('success', 'Transfer ' . $transfer['transfer_no'] . ' received. The cylinders are now in this branch\'s stock.');
         } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
     }
 
@@ -99,7 +99,7 @@ class StockTransfers extends Controller
             $transfer = (new StockTransferService())->cancel($id, $this->locationId(), $this->userId(), (string) $this->request->getPost('cancel_reason'));
             return redirect()->to(site_url('inventory/transfers/' . $id))->with('success', 'Transfer ' . $transfer['transfer_no'] . ' cancelled. The cylinders are back in this branch\'s stock.');
         } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
     }
 }

@@ -78,7 +78,7 @@ class OrderManagement extends Controller
                 // Details remain available even when stock is not currently fulfillable.
                 log_message('notice', 'Order fulfillment options unavailable for order {orderId}: {message}', [
                     'orderId' => $orderId,
-                    'message' => $e->getMessage(),
+                    'message' => user_error_message($e),
                 ]);
             }
         }
@@ -126,7 +126,7 @@ class OrderManagement extends Controller
         } catch (\Throwable $e) {
             return redirect()->to(site_url('customer-orders/' . $orderId))
                 ->withInput()
-                ->with('error', $e->getMessage());
+                ->with('error', user_error_message($e));
         }
     }
 
@@ -192,7 +192,7 @@ class OrderManagement extends Controller
         } catch (\Throwable $e) {
             return redirect()->to(site_url('customer-orders/' . $orderId))
                 ->withInput()
-                ->with('error', $e->getMessage());
+                ->with('error', user_error_message($e));
         }
     }
 }

@@ -27,7 +27,7 @@ class InventoryControls extends Controller
    $svc=new InventoryControlService(); $loc=(int)session()->get('location_id'); $type=$this->request->getPost('cylinder_type_id'); $typeId=($type===null||$type==='')?null:(int)$type;
    $svc->savePolicy($loc,$typeId,(bool)$this->request->getPost('stock_validation_enabled'),(string)$this->request->getPost('wastage_mode'),(float)$this->request->getPost('wastage_percent'),(float)$this->request->getPost('wastage_fixed_kg'),(int)session()->get('user_id'));
    return redirect()->back()->with('success','Inventory control settings saved.');
-  }catch(\Throwable $e){return redirect()->back()->withInput()->with('error',$e->getMessage());}
+  }catch(\Throwable $e){return redirect()->back()->withInput()->with('error',user_error_message($e));}
  }
  public function wastage(){
   if(!\App\Services\PermissionService::allows('GAS_WASTAGE_MANAGE')) return $this->response->setStatusCode(403)->setBody('Forbidden');
@@ -42,6 +42,6 @@ class InventoryControls extends Controller
  public function recordWastage(){
   if(!\App\Services\PermissionService::allows('GAS_WASTAGE_MANAGE')) return $this->response->setStatusCode(403)->setBody('Forbidden');
   try{$unitId=(int)$this->request->getPost('cylinder_unit_id');(new InventoryControlService())->recordWastage((int)session()->get('location_id'),$unitId,(float)$this->request->getPost('gas_weight_kg'),trim((string)$this->request->getPost('reason')),(int)session()->get('user_id'));$unit=Database::connect()->table('cylinder_units')->select('status,gas_weight_kg')->where('id',$unitId)->get()->getRowArray();$msg=($unit['status']??'')==='empty'?'Wastage recorded. The cylinder is now empty.':'Wastage recorded. '.rtrim(rtrim(number_format((float)($unit['gas_weight_kg']??0),3,'.',''),'0'),'.').' kg remains in the cylinder.';return redirect()->to('/inventory/wastage')->with('success',$msg);}
-  catch(\Throwable $e){return redirect()->back()->withInput()->with('error',$e->getMessage());}
+  catch(\Throwable $e){return redirect()->back()->withInput()->with('error',user_error_message($e));}
  }
 }

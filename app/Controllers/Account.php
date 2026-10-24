@@ -48,7 +48,7 @@ class Account extends Controller
         try {
             PasswordPolicy::assertAcceptable($new, (string) $user['password_hash']);
         } catch (\RuntimeException $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', user_error_message($e));
         }
 
         $db->table('users')->where('id', $userId)->update([

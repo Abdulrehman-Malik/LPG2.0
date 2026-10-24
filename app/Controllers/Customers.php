@@ -24,7 +24,7 @@ class Customers extends Controller
         if($r=$this->guard()) return $r;
         $path=WRITEPATH.'uploads/customer_template.xlsx';
         try { (new ExcelInventoryService())->createCustomerTemplate($path); return $this->response->download($path,null)->setFileName('customer_template.xlsx'); }
-        catch(\Throwable $e){ return $this->response->setStatusCode(500)->setBody('Unable to generate customer template: '.esc($e->getMessage())); }
+        catch(\Throwable $e){ return $this->response->setStatusCode(500)->setBody('Unable to generate customer template: '.esc(user_error_message($e))); }
     }
 
     public function importExcel()
@@ -51,7 +51,7 @@ class Customers extends Controller
             }
             if(!$db->transStatus()) throw new \RuntimeException('Customer Excel import failed.'); $db->transCommit();
             return redirect()->to('/customers')->with('success',$created.' customer(s) imported successfully.');
-        } catch(\Throwable $e) { if($db->transStatus()!==false) $db->transRollback(); return redirect()->back()->with('error','Customer Excel import failed: '.$e->getMessage()); }
+        } catch(\Throwable $e) { if($db->transStatus()!==false) $db->transRollback(); return redirect()->back()->with('error','Customer Excel import failed: '.user_error_message($e)); }
     }
 
     public function index()
