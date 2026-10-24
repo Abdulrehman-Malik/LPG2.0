@@ -41,6 +41,19 @@ final class TenantContext
         self::$businessId = null;
     }
 
+    /**
+     * Trusted entry points without a request (CLI commands, queued jobs) that are given an explicit
+     * branch: use it when no context exists yet. A web/API context set by the filters is kept.
+     */
+    public static function ensureBranch(int $branchId): void
+    {
+        if (self::$source === 'none' && $branchId > 0) {
+            self::$branchId = $branchId;
+            self::$businessId = null;
+            self::$source = 'service';
+        }
+    }
+
     public static function clear(): void
     {
         self::$userId = self::$branchId = self::$businessId = null;

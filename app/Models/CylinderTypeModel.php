@@ -2,7 +2,7 @@
 namespace App\Models;
 use CodeIgniter\Model;
 use RuntimeException;
-class CylinderTypeModel extends Model
+class CylinderTypeModel extends TenantModel
 {
     protected $table='cylinder_types'; protected $primaryKey='id'; protected $returnType='array';
     protected $useTimestamps=true; protected $createdField='created_at'; protected $updatedField='updated_at';

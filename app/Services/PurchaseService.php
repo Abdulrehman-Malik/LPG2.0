@@ -6,6 +6,7 @@ class PurchaseService{
  protected $db; protected $inv; protected $cash; protected $cylinders;
  public function __construct(){ $this->db=Database::connect(); $this->inv=new InventoryService(); $this->cash=new CashService(); $this->cylinders=new CylinderUnitService(); }
  public function post(array $p,int $userId,int $locationId):array{
+  \App\Libraries\TenantContext::ensureBranch($locationId);
  $at=(new TransactionDatePolicy())->resolve(isset($p['transaction_at'])?(string)$p['transaction_at']:null,$locationId);
   $supplierId=(int)($p['supplier_id']??0); $lines=$p['lines']??[]; $payments=$p['payments']??[];
   if(!$supplierId||!$lines) throw new RuntimeException('Supplier and purchase lines are required.');
@@ -121,6 +122,7 @@ class PurchaseService{
 
  public function void(int $purchaseId,int $userId,int $locationId,string $reason): string
  {
+  \App\Libraries\TenantContext::ensureBranch($locationId);
   if(!$this->canVoidPurchase($userId,$locationId)){
    throw new RuntimeException('You are not authorized to void purchases. Purchase Void must be enabled in Shop Settings and your user must be assigned to this function.');
   }

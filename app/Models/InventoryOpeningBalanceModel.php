@@ -4,7 +4,7 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class InventoryOpeningBalanceModel extends Model
+class InventoryOpeningBalanceModel extends TenantModel
 {
     protected $table='inventory_opening_balances';
     protected $primaryKey='id';

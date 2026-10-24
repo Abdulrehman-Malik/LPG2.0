@@ -242,6 +242,15 @@ for spec in cash_sessions:register_id:cash_registers sale_items:sale_id:sales sa
   CMIS=$((CMIS + $(q "SELECT COUNT(*) FROM \`$t\` x JOIN \`$p\` y ON y.id=x.\`$c\` WHERE x.business_id<>y.business_id")))
 done
 [ "$CMIS" = 0 ] && ok "every child row written by the app carries its parent's business" || bad "child stamping" "$CMIS rows"
+echo "--- BL-011 tenant-scoped models"
+cp "$QA_ROOT/tests/qa/commands/QaTenantModel.php" "$QA_ROOT/app/Commands/QaTenantModel.php"
+TM=$(qa_spark qa:tenant-model "$MAIN" "$CUSTB" "$TYPEB" 2>&1)
+rm -f "$QA_ROOT/app/Commands/QaTenantModel.php"
+for expect in no-context:refused find-other:null where-other:0 type-other:null foreign-insert:refused platform-scope:FOUND; do
+  echo "$TM" | grep -q "^$expect" && ok "model check $expect" || bad "model check $expect" "$(echo "$TM" | grep "^${expect%%:*}" | head -1)"
+done
+[ "$(q "SELECT name FROM customers WHERE id=$CUSTB")" = "$MARK Customer" ] && ok "model update/delete with another tenant's id changed nothing" || bad "model write" "tenant B customer changed or deleted"
+
 echo "COVERAGE: $COVERED GET + $MCOVERED POST of $TOTAL routes (rest: sign-in, installation, migration and backup routes, tested in verify_security / verify_phase8)"
 
 echo; echo "RESULT: $PASS passed, $FAIL failed"

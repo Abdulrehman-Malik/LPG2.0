@@ -92,6 +92,7 @@ class SalesService
      */
     public function postForCustomerOrder(array $payload,int $userId,int $locationId,int $orderId,float $deliveryFee): array
     {
+        \App\Libraries\TenantContext::ensureBranch($locationId);
         if ($orderId <= 0 || $deliveryFee < 0) {
             throw new RuntimeException('Invalid customer-order fulfillment context.');
         }
@@ -197,6 +198,7 @@ class SalesService
 
     public function post(array $payload,int $userId,int $locationId): array
     {
+        \App\Libraries\TenantContext::ensureBranch($locationId);
         // Balance, credit-limit and settings lookups must use the posting shop, not the
         // browser session: API fulfilment has no session and staff may switch shops.
         $this->currentLocationId=$locationId;
@@ -822,6 +824,7 @@ class SalesService
 
     public function void(int $saleId,int $userId,int $locationId,string $reason): string
     {
+        \App\Libraries\TenantContext::ensureBranch($locationId);
         $this->currentLocationId=$locationId;
         $reason=trim($reason);
         if($reason==='') throw new RuntimeException('Void reason is required.');

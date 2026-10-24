@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Services\BusinessContext;
 use CodeIgniter\Model;
 
-class SupplierModel extends Model
+class SupplierModel extends TenantModel
 {
     protected $table='suppliers';
     protected $primaryKey='id';

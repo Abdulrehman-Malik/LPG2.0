@@ -52,9 +52,21 @@ class ApiAuthFilter implements FilterInterface
             ]);
         }
 
-        // Tenant scope of the API request (BL-008): the staff user; the branch is set once the
-        // endpoint has checked the requested shop. Customer tokens act for their own customer.
-        \App\Libraries\TenantContext::setApi($audience === 'staff' ? (int) ($principal['user_id'] ?? 0) : null);
+        // Tenant scope of the API request (BL-008/BL-011). Staff: the requested shop (X-Shop-Id or
+        // shop_id) when the user may access it, else the user's default shop; endpoints still run
+        // their own shop and permission checks. Customer: the branch of the token's customer.
+        if ($audience === 'staff') {
+            $userId = (int) ($principal['user_id'] ?? 0);
+            $scope = new \App\Services\ShopScopeService();
+            $requested = (int) ($request->getHeaderLine('X-Shop-Id') ?: ($request->getGet('shop_id') ?? 0));
+            $shopId = $requested > 0 && $scope->canAccessShop($requested, $userId) ? $requested : (int) ($scope->defaultShopIdForUser($userId) ?? 0);
+            \App\Libraries\TenantContext::setApi($userId, $shopId);
+        } else {
+            $row = \Config\Database::connect()->table('customer_app_accounts ca')->select('c.location_id')
+                ->join('customers c', 'c.id=ca.customer_id')->where('ca.id', (int) ($principal['customer_app_account_id'] ?? 0))
+                ->get()->getRowArray();
+            \App\Libraries\TenantContext::setApi(null, (int) ($row['location_id'] ?? 0));
+        }
         return null;
     }
 
