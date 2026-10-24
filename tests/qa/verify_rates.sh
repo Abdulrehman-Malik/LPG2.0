@@ -33,7 +33,7 @@ C6=$(q "SELECT id FROM cylinder_types WHERE code='C6' AND business_id=(SELECT bu
 TODAY=$(date +%Y-%m-%d)
 post cash/open -d opening_cash=1000 >/dev/null
 post inventory/opening/save -d "inventory_date=$TODAY" -d "cylinder_type_id=$C6" -d quantity=8 -d actual_gas_weight_kg=6 -d "comments=QA rates" >/dev/null
-q "INSERT INTO customers(location_id,code,name,opening_balance,credit_limit,allow_credit_sale,is_active) VALUES ($LOC,'QR-STD','Rates Standard',0,0,0,1),($LOC,'QR-FILL','Rates Special Cylinder',0,0,0,1),($LOC,'QR-KG','Rates Special KG',0,0,0,1); SELECT 1" >/dev/null
+q "SET @b=(SELECT business_id FROM locations WHERE id=$LOC); INSERT INTO customers(location_id,business_id,code,name,opening_balance,credit_limit,allow_credit_sale,is_active) VALUES ($LOC,@b,'QR-STD','Rates Standard',0,0,0,1),($LOC,@b,'QR-FILL','Rates Special Cylinder',0,0,0,1),($LOC,@b,'QR-KG','Rates Special KG',0,0,0,1); SELECT 1" >/dev/null
 STD=$(q "SELECT id FROM customers WHERE code='QR-STD'"); SPF=$(q "SELECT id FROM customers WHERE code='QR-FILL'"); SPK=$(q "SELECT id FROM customers WHERE code='QR-KG'")
 
 echo "--- Rates screen"

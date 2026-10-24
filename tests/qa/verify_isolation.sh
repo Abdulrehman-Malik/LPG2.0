@@ -228,6 +228,13 @@ if [ "$AFTER" = "$BEFORE" ]; then ok "none of tenant B's rows changed"; else
   diff <(echo "$BEFORE") <(echo "$AFTER") | grep '^>' | sed 's/^> //' | while read -r l; do echo "FAIL  tenant B rows changed :: $l"; done
   FAIL=$((FAIL+1)); fi
 X=$(crossrefs); [ "$X" = 0 ] && ok "no tenant A row references tenant B after the crawl" || bad "cross-tenant references" "$X rows"
+# BL-009: every row written through the app (both tenants, all screens above) carries the
+# business of its branch.
+MIS=0
+for t in customers sales purchases customer_receipts supplier_payments expenses cash_registers cylinder_units inventory_movements inventory_opening_balances cylinder_custody customer_security_deposits document_sequences shop_settings inventory_policies inventory_wastage_logs shop_purchase_void_users supplier_opening_balances shop_setting_overrides rate_cards rate_change_log audit_logs; do
+  MIS=$((MIS + $(q "SELECT COUNT(*) FROM \`$t\` x JOIN locations l ON l.id=x.location_id WHERE x.business_id IS NULL OR x.business_id<>l.business_id")))
+done
+[ "$MIS" = 0 ] && ok "every row written by the app carries its branch's business" || bad "tenant stamping" "$MIS rows without the right business_id"
 echo "COVERAGE: $COVERED GET + $MCOVERED POST of $TOTAL routes (rest: sign-in, installation, migration and backup routes, tested in verify_security / verify_phase8)"
 
 echo; echo "RESULT: $PASS passed, $FAIL failed"

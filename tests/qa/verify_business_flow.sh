@@ -58,7 +58,7 @@ eqn "payable after Rs. 1,000 payment" "$(payable $SUP)" 1500
 curl -s -b "$A" "$B/suppliers" | grep -q "QA Flow Supplier" && ok "supplier listed" || bad "supplier list" "missing"
 
 echo "--- Purchase void"
-q "UPDATE shop_settings SET purchase_void_enabled=1 WHERE location_id=$LOC; INSERT IGNORE INTO shop_purchase_void_users(location_id,user_id) SELECT $LOC,id FROM users WHERE username='admin'; SELECT 1" >/dev/null
+q "UPDATE shop_settings SET purchase_void_enabled=1 WHERE location_id=$LOC; INSERT IGNORE INTO shop_purchase_void_users(location_id,business_id,user_id) SELECT $LOC,(SELECT business_id FROM locations WHERE id=$LOC),id FROM users WHERE username='admin'; SELECT 1" >/dev/null
 F2=$(filled)
 post "purchases/void/$P2" -d "void_reason=QA flow void" >/dev/null
 [ "$(q "SELECT status FROM purchases WHERE id=$P2")" = "voided" ] && ok "part-paid purchase voided" || bad "purchase void" "$(flash purchases)"

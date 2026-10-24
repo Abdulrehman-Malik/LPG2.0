@@ -209,6 +209,11 @@ class Database extends Config
         $this->default['password'] = $readEnv('database.default.password', $this->default['password']);
         $this->default['database'] = $readEnv('database.default.database', $this->default['database']);
         $this->default['DBDriver'] = $readEnv('database.default.DBDriver', $this->default['DBDriver']);
+        // The application's MySQLi driver stamps the tenant on new rows (BL-009); an env file that
+        // says "MySQLi" gets it too, so tenant stamping cannot be switched off by configuration.
+        if (strcasecmp((string) $this->default['DBDriver'], 'MySQLi') === 0) {
+            $this->default['DBDriver'] = 'App\Database\MySQLi';
+        }
         $this->default['port'] = (int) $readEnv('database.default.port', $this->default['port']);
 
         // Ensure that we always set the database group to 'tests' if

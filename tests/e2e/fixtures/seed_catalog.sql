@@ -1,6 +1,6 @@
 -- Disposable CI fixtures for the mobile API Playwright scenarios (catalog, rates, isolation business, scoped manager).
-INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
-SELECT l.id,'gas_per_kg',NULL,100.0000,'2026-01-01 00:00:00',NULL,u.id
+INSERT INTO rate_cards(location_id,business_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+SELECT l.id,l.business_id,'gas_per_kg',NULL,100.0000,'2026-01-01 00:00:00',NULL,u.id
 FROM locations l JOIN users u ON u.username='admin'
 WHERE l.code='MAIN'
   AND NOT EXISTS (
@@ -11,8 +11,8 @@ WHERE l.code='MAIN'
       AND (rc.effective_to IS NULL OR rc.effective_to > NOW())
   );
 
-INSERT INTO rate_cards(location_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
-SELECT l.id,'cylinder_package',ct.id,250.0000,'2026-01-01 00:00:00',NULL,u.id
+INSERT INTO rate_cards(location_id,business_id,rate_type,cylinder_type_id,rate_value,effective_from,effective_to,created_by)
+SELECT l.id,l.business_id,'cylinder_package',ct.id,250.0000,'2026-01-01 00:00:00',NULL,u.id
 FROM locations l
 JOIN cylinder_types ct ON ct.code='C6'
 JOIN users u ON u.username='admin'

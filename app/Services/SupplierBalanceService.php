@@ -83,9 +83,10 @@ final class SupplierBalanceService
             return; // nothing recorded and nothing to record
         }
         $this->db->query(
-            'INSERT INTO supplier_opening_balances(supplier_id,location_id,amount,updated_by) VALUES(?,?,?,?)
+            'INSERT INTO supplier_opening_balances(supplier_id,location_id,business_id,amount,updated_by)
+             SELECT ?,l.id,l.business_id,?,? FROM locations l WHERE l.id=?
              ON DUPLICATE KEY UPDATE amount=VALUES(amount),updated_by=VALUES(updated_by)',
-            [$supplierId, $locationId, $amount, $userId ?: null]
+            [$supplierId, $amount, $userId ?: null, $locationId]
         );
         $total = $this->db->table('supplier_opening_balances')->selectSum('amount', 'amount')->where('supplier_id', $supplierId)->get()->getRowArray();
         $this->db->table('suppliers')->where('id', $supplierId)->update(['opening_balance' => (float) ($total['amount'] ?? 0)]);
