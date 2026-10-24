@@ -96,5 +96,21 @@ post "$AD" users/save --data-urlencode "role_id=$CASHIER_ROLE" --data-urlencode 
 [ "$(q "SELECT COUNT(*) FROM users WHERE username='qa_long_pw'")" = 1 ] && ok "web user save accepts a long enough password" || bad "web min length ok" "not created"
 qa_clear_throttle
 
+echo "--- BL-005 transport and headers"
+h=$(curl -s -D - -o /dev/null "$B/login")
+for hd in "X-Frame-Options: SAMEORIGIN" "X-Content-Type-Options: nosniff" "Referrer-Policy: same-origin"; do
+  echo "$h" | grep -qi "^$hd" && ok "response carries $hd" || bad "header" "$hd missing"
+done
+sec=$(cd "$QA_ROOT" && env 'cookie.secure=true' "$QA_PHP" spark config:check Cookie 2>&1 | grep -A1 '"secure"' | tail -1)
+echo "$sec" | grep -q "bool(true)" && ok "cookie.secure=true in env turns on Secure cookies" || bad "cookie.secure env" "$sec"
+BK="$T/backup.txt"; login "$BK" admin admin123 >/dev/null
+curl -s -o /dev/null -w '%{http_code}' -b "$BK" "$B/database-backup" | grep -q 200 && ok "active System Administrator opens Database Backup" || bad "backup open" "not 200"
+q "UPDATE users SET is_active=0 WHERE username='admin'"
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$BK" "$B/database-backup")
+q "UPDATE users SET is_active=1 WHERE username='admin'"
+[ "$code" = 302 ] && ok "a disabled System Administrator's existing session cannot reach Database Backup" || bad "disabled backup" "http $code"
+code=$(curl -s -o /dev/null -w '%{http_code}' "$B/database-backup/download?file=x")
+[ "$code" = 302 ] && ok "anonymous backup download is redirected to sign-in" || bad "anon backup" "http $code"
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

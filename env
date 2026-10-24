@@ -27,6 +27,8 @@ app.baseURL = 'http://localhost/LPG2.0/public/'
 
 # Optional: force all requests to HTTPS. Enable only when HTTPS/proxy configuration is correct.
 # app.forceGlobalSecureRequests = false
+# Staging/production over HTTPS: send the session and CSRF cookies only over HTTPS.
+# cookie.secure = true
 # Optional: enable Content Security Policy headers after checking the app's required assets.
 # app.CSPEnabled = false
 

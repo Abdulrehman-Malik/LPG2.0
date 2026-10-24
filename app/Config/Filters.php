@@ -15,6 +15,7 @@ use CodeIgniter\Filters\SecureHeaders;
 use App\Controllers\Filters\AuthFilter;
 use App\Controllers\Filters\ApiAuthFilter;
 use App\Controllers\Filters\ApiReadyFilter;
+use App\Controllers\Filters\ActiveSessionFilter;
 
 class Filters extends BaseFilters
 {
@@ -40,6 +41,7 @@ class Filters extends BaseFilters
         'auth'          => AuthFilter::class,
         'api-auth'      => ApiAuthFilter::class,
         'api-ready'     => ApiReadyFilter::class,
+        'active-session' => ActiveSessionFilter::class,
     ];
 
     /**
@@ -80,7 +82,7 @@ class Filters extends BaseFilters
         ],
         'after' => [
             // 'honeypot',
-            // 'secureheaders',
+            'secureheaders',
         ],
     ];
 
@@ -108,5 +110,9 @@ class Filters extends BaseFilters
      *
      * @var array<string, array<string, list<string>>>
      */
-    public array $filters = [];
+    public array $filters = [
+        // Backup must stay usable while migrations are pending, so it is outside the `auth`
+        // group; it still requires a signed-in, active account (BL-005).
+        'active-session' => ['before' => ['database-backup', 'database-backup/*']],
+    ];
 }
