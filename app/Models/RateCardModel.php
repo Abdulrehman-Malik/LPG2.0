@@ -4,7 +4,7 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class RateCardModel extends Model
+class RateCardModel extends TenantModel
 {
     protected $table='rate_cards';
     protected $primaryKey='id';

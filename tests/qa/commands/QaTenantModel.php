@@ -45,5 +45,11 @@ class QaTenantModel extends BaseCommand
             CLI::write('foreign-insert:refused');
         }
         CLI::write('platform-scope:' . ((new CustomerModel())->withoutTenantScope()->find($customerB) === null ? 'null' : 'FOUND'));
+        // BL-012: per-KG rate of a tenant-A branch that has no rate of its own.
+        $branchA2 = (int) ($params[3] ?? 0);
+        if ($branchA2 > 0) {
+            $rate = (new \App\Models\GasRateModel())->currentKgRate(null, $branchA2);
+            CLI::write('rate-a2:' . ($rate === null ? 'none' : (string) $rate));
+        }
     }
 }

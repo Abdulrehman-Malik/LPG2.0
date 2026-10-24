@@ -19,27 +19,25 @@ class GasRateModel extends RateCardModel
                 $builder->where('cylinder_type_id', $cylinderTypeId);
             }
 
-            if ($locationFilter === 'global') {
-                $builder->where('location_id', null);
-            } elseif ($locationFilter !== null) {
+            if (is_array($locationFilter)) {
+                // Business-level rate of the branch's own business (BL-012).
+                $builder->where('location_id', null)->where('business_id', $locationFilter['business_id']);
+            } else {
                 $builder->where('location_id', (int) $locationFilter);
             }
 
             return $builder->orderBy('effective_from', 'DESC')->orderBy('id', 'DESC')->get(1)->getRowArray();
         };
 
-        if ($locationId !== null && $locationId > 0) {
-            $row = $queryForLocation($locationId);
-            if ($row) {
-                return $row;
-            }
-
-            // Global rates are the only fallback; never consume another shop's rate.
-            return $queryForLocation('global');
+        // A rate is always looked up for one branch: its own rate, else its business's rate.
+        // Never another branch's, never another business's (BL-012).
+        $locationId = $locationId !== null && $locationId > 0 ? $locationId : \App\Libraries\TenantContext::requireBranchId();
+        $row = $queryForLocation($locationId);
+        if ($row) {
+            return $row;
         }
 
-        // Keep the legacy no-location call behavior for any not-yet-migrated callers.
-        return $queryForLocation(null);
+        return $queryForLocation(['business_id' => \App\Services\BusinessContext::businessIdForLocation($locationId)]);
     }
 
     public function currentCylinderRate(int $id, ?string $asOf = null, ?int $locationId = null): ?float

@@ -76,6 +76,10 @@ w "INSERT INTO users(location_id,is_system_admin,role_id,full_name,username,emai
 USERB=$(q "SELECT id FROM users WHERE username='isob_owner'")
 w "INSERT INTO user_business_access(user_id,business_id,access_level,is_default) VALUES($USERB,$BIZB,'head_office',1)"
 w "INSERT INTO user_shop_access(user_id,location_id,is_default) VALUES($USERB,$B1,1)"
+# BL-012: a Head Office user of B without a home branch, and a business-level rate of B.
+w "INSERT INTO users(location_id,is_system_admin,role_id,full_name,username,email,password_hash,is_active) VALUES(NULL,0,$ROLE_ADMIN,'$MARK HO User','isob_ho','isob_ho@x.local','$HASH',1)"
+w "INSERT INTO user_business_access(user_id,business_id,access_level,is_default) VALUES((SELECT id FROM users WHERE username='isob_ho'),$BIZB,'head_office',1)"
+w "INSERT INTO rate_cards(location_id,business_id,rate_type,cylinder_type_id,rate_value,effective_from) VALUES(NULL,$BIZB,'gas_per_kg',NULL,999,NOW()-INTERVAL 1 DAY)"
 
 for v in BIZB B1 B2 TYPEB CATB CUSTB SUPB OPENB SESSB SALEB SALEB2 PURB UNITB TRB PRODB ACCB SIGNB ORDB CRATEB USERB; do
   [ -n "${!v}" ] || bad "fixture $v" "not created"
@@ -138,8 +142,8 @@ crossrefs(){
     "SELECT COUNT(*) FROM cylinder_units WHERE location_id IN ($AL) AND cylinder_type_id IN (SELECT id FROM cylinder_types WHERE business_id=$BIZB)" \
     "SELECT COUNT(*) FROM inventory_movements WHERE location_id IN ($AL) AND cylinder_type_id IN (SELECT id FROM cylinder_types WHERE business_id=$BIZB)" \
     "SELECT COUNT(*) FROM stock_transfers WHERE business_id<>$BIZB AND (from_location_id IN ($B1,$B2) OR to_location_id IN ($B1,$B2))" \
-    "SELECT COUNT(*) FROM user_shop_access WHERE user_id<>$USERB AND user_id<>(SELECT id FROM users WHERE username='admin') AND location_id IN ($B1,$B2)" \
-    "SELECT COUNT(*) FROM user_business_access WHERE user_id<>$USERB AND user_id<>(SELECT id FROM users WHERE username='admin') AND business_id=$BIZB" \
+    "SELECT COUNT(*) FROM user_shop_access WHERE user_id NOT IN (SELECT id FROM users WHERE username='admin' OR username LIKE 'isob%') AND location_id IN ($B1,$B2)" \
+    "SELECT COUNT(*) FROM user_business_access WHERE user_id NOT IN (SELECT id FROM users WHERE username='admin' OR username LIKE 'isob%') AND business_id=$BIZB" \
     "SELECT COUNT(*) FROM customer_rates WHERE customer_id IN ($B_CUSTS) AND created_by=$USERA" \
     "SELECT COUNT(*) FROM business_catalog_products WHERE business_id<>$BIZB AND cylinder_type_id IN (SELECT id FROM cylinder_types WHERE business_id=$BIZB)" \
     "SELECT COUNT(*) FROM shop_product_availability WHERE (business_id<>$BIZB AND location_id IN ($B1,$B2)) OR (business_id=$BIZB AND location_id NOT IN ($B1,$B2))" \
@@ -244,9 +248,11 @@ done
 [ "$CMIS" = 0 ] && ok "every child row written by the app carries its parent's business" || bad "child stamping" "$CMIS rows"
 echo "--- BL-011 tenant-scoped models"
 cp "$QA_ROOT/tests/qa/commands/QaTenantModel.php" "$QA_ROOT/app/Commands/QaTenantModel.php"
-TM=$(qa_spark qa:tenant-model "$MAIN" "$CUSTB" "$TYPEB" 2>&1)
+# BL-012: a branch of tenant A with no rates of its own must not fall back to tenant B's rate.
+w "INSERT INTO locations(business_id,code,name) VALUES($BIZA,'QA-ISO-A2','QA Iso A Two')"; A2=$(q "SELECT id FROM locations WHERE code='QA-ISO-A2'")
+TM=$(qa_spark qa:tenant-model "$MAIN" "$CUSTB" "$TYPEB" "$A2" 2>&1)
 rm -f "$QA_ROOT/app/Commands/QaTenantModel.php"
-for expect in no-context:refused find-other:null where-other:0 type-other:null foreign-insert:refused platform-scope:FOUND; do
+for expect in no-context:refused find-other:null where-other:0 type-other:null foreign-insert:refused platform-scope:FOUND rate-a2:none; do
   echo "$TM" | grep -q "^$expect" && ok "model check $expect" || bad "model check $expect" "$(echo "$TM" | grep "^${expect%%:*}" | head -1)"
 done
 [ "$(q "SELECT name FROM customers WHERE id=$CUSTB")" = "$MARK Customer" ] && ok "model update/delete with another tenant's id changed nothing" || bad "model write" "tenant B customer changed or deleted"

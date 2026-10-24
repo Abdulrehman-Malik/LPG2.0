@@ -24,13 +24,8 @@ class ShopSettings extends Controller
         $locationId = (int) session()->get('location_id');
         $settings = (new ShopSettingsModel())->forLocation($locationId);
         $location = $db->table('locations')->where('id', $locationId)->get()->getRowArray() ?: [];
-        $assignableUsers = $db->table('users')
+        $assignableUsers = $this->assignableUsers($db, $locationId)
             ->select('id, full_name, username')
-            ->where('is_active', 1)
-            ->groupStart()
-                ->where('location_id', $locationId)
-                ->orWhere('location_id IS NULL', null, false)
-            ->groupEnd()
             ->orderBy('full_name', 'ASC')
             ->get()->getResultArray();
         $assignedPurchaseVoidUsers = array_map('intval', array_column(
@@ -175,13 +170,8 @@ class ShopSettings extends Controller
             }
 
             $assignableIds = array_map('intval', array_column(
-                $db->table('users')
+                $this->assignableUsers($db, $locationId)
                     ->select('id')
-                    ->where('is_active', 1)
-                    ->groupStart()
-                        ->where('location_id', $locationId)
-                        ->orWhere('location_id IS NULL', null, false)
-                    ->groupEnd()
                     ->get()->getResultArray(),
                 'id'
             ));
@@ -228,5 +218,21 @@ class ShopSettings extends Controller
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', user_error_message($e));
         }
+    }
+    /**
+     * Users who may be named purchase-void approvers of this shop: active users who work in it
+     * (based here, assigned to it, or to its business). Users of other businesses and platform
+     * users without an assignment are never listed (BL-012: they used to be, through location NULL).
+     */
+    private function assignableUsers($db, int $locationId)
+    {
+        $businessId = \App\Services\BusinessContext::businessIdForLocation($locationId);
+        return $db->table('users u')
+            ->where('u.is_active', 1)
+            ->groupStart()
+                ->where('u.location_id', $locationId)
+                ->orWhere("EXISTS (SELECT 1 FROM user_shop_access usa WHERE usa.user_id=u.id AND usa.location_id=" . (int) $locationId . ")", null, false)
+                ->orWhere("EXISTS (SELECT 1 FROM user_business_access uba WHERE uba.user_id=u.id AND uba.business_id=" . (int) $businessId . ")", null, false)
+            ->groupEnd();
     }
 }

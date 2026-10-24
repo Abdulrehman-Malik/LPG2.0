@@ -45,7 +45,7 @@ SELECT MD5(GROUP_CONCAT(x ORDER BY x SEPARATOR '|')) FROM (
  UNION ALL SELECT CONCAT_WS(':','K',TABLE_NAME,CONSTRAINT_NAME,CONSTRAINT_TYPE) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME NOT IN ('migrations','lpg_migration_history')
 ) t"; }
 BRANCH_TABLES="customers sales purchases customer_receipts supplier_payments expenses cash_registers cylinder_units inventory_movements inventory_opening_balances cylinder_custody customer_security_deposits document_sequences shop_settings inventory_policies inventory_wastage_logs shop_purchase_void_users supplier_opening_balances shop_setting_overrides rate_cards rate_change_log audit_logs"
-NULLABLE_TABLES=" rate_cards rate_change_log audit_logs "
+NULLABLE_TABLES=" rate_change_log audit_logs "  # rate_cards: NOT NULL since BL-012
 # Rows whose tenant disagrees with their branch (or is missing), summed over every branch-owned table.
 mismatches(){ local t n=0; for t in $BRANCH_TABLES; do n=$((n + $(q "SELECT COUNT(*) FROM \`$t\` x LEFT JOIN locations l ON l.id=x.location_id WHERE (x.location_id IS NOT NULL AND (x.business_id IS NULL OR x.business_id<>l.business_id))"))); done; echo $n; }
 
@@ -57,7 +57,7 @@ for t in $BRANCH_TABLES; do
   if [[ "$NULLABLE_TABLES" == *" $t "* ]]; then [ "$nn" = YES ] || wrongnull+=" $t"; else [ "$nn" = NO ] || wrongnull+=" $t"; fi
 done
 [ -z "$missing" ] && ok "all 22 branch-owned tables have business_id" || bad "business_id column" "missing:$missing"
-[ -z "$wrongnull" ] && ok "business_id is NOT NULL except on rate_cards, rate_change_log, audit_logs" || bad "nullability" "$wrongnull"
+[ -z "$wrongnull" ] && ok "business_id is NOT NULL except on rate_change_log and audit_logs" || bad "nullability" "$wrongnull"
 [ "$(mismatches)" = 0 ] && ok "every existing row carries its branch's business" || bad "backfill" "$(mismatches) mismatching rows"
 [ "$(q "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND CONSTRAINT_TYPE='FOREIGN KEY' AND CONSTRAINT_NAME LIKE 'fk\_%\_branch_business'")" = 22 ] && ok "22 composite (location_id, business_id) foreign keys" || bad "composite fks" "$(q "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND CONSTRAINT_NAME LIKE 'fk\_%\_branch_business'")"
 # A second business to try cross-tenant writes against.
@@ -104,6 +104,26 @@ qa_spark migrations:run >/dev/null 2>&1
 [ "$(schema)" = "$FULL10" ] && ok "re-applying BL-010 gives the identical schema" || bad "reapply 010" "schema differs"
 rollback_to BusinessIdOnChildTables; [ "$(schema)" = "$BEFORE10" ] && ok "second rollback gives the identical pre-BL-010 schema" || bad "rollback twice 010" "schema differs"
 qa_spark migrations:run >/dev/null 2>&1
+
+echo "--- BL-012 no platform-wide data inside a tenant"
+[ "$(q "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='rate_cards' AND COLUMN_NAME='business_id'")" = NO ] && ok "rate_cards.business_id is NOT NULL" || bad "rate business" "nullable"
+FULL12=$(schema)
+rollback_to RateCardsBusinessLevel && ok "BL-012 rolled back" || bad "rollback 012" "still applied"
+# Legacy state: a global per-KG rate (no branch, no business) and a second business.
+w "INSERT INTO businesses(code,name) VALUES('QA-T4','QA Tenant Four')"; BIZ4=$(q "SELECT id FROM businesses WHERE code='QA-T4'")
+w "INSERT INTO rate_cards(location_id,business_id,rate_type,cylinder_type_id,rate_value,effective_from) VALUES(NULL,NULL,'gas_per_kg',NULL,555,'2026-01-01 00:00:00')"
+GLOBAL=$(q "SELECT id FROM rate_cards WHERE rate_value=555 AND location_id IS NULL")
+qa_spark migrations:run >/dev/null 2>&1
+DEF=$(q "SELECT id FROM businesses WHERE code='DEFAULT'")
+[ "$(q "SELECT business_id FROM rate_cards WHERE id=$GLOBAL")" = "$DEF" ] && ok "the global rate now belongs to the DEFAULT business" || bad "global owner" "$(q "SELECT IFNULL(business_id,'NULL') FROM rate_cards WHERE id=$GLOBAL")"
+[ "$(q "SELECT COUNT(*) FROM rate_cards WHERE location_id IS NULL AND rate_value=555 AND business_id=$BIZ4")" = 1 ] && ok "the second business got its own copy (its prices do not change)" || bad "copy" "no copy for business $BIZ4"
+w "INSERT INTO locations(business_id,code,name) VALUES($BIZ4,'MAIN','Tenant Four Main')" && [ "$(q "SELECT COUNT(*) FROM locations WHERE code='MAIN'")" = 2 ] && ok "two businesses can each have a branch coded MAIN" || bad "code per business" "duplicate code refused"
+w "DELETE FROM locations WHERE business_id=$BIZ4"
+rollback_to RateCardsBusinessLevel
+[ "$(q "SELECT IFNULL(business_id,'NULL') FROM rate_cards WHERE id=$GLOBAL")" = NULL ] && [ "$(q "SELECT COUNT(*) FROM rate_cards WHERE rate_value=555")" = 1 ] && ok "rollback restores the global rate and removes the copies" || bad "rollback 012 data" "copies or owner remain"
+w "DELETE FROM rate_cards WHERE id=$GLOBAL"; w "DELETE FROM businesses WHERE id=$BIZ4"
+qa_spark migrations:run >/dev/null 2>&1
+[ "$(schema)" = "$FULL12" ] && ok "re-applying BL-012 gives the identical schema" || bad "reapply 012" "schema differs"
 
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 echo; echo "RESULT: $PASS passed, $FAIL failed"
