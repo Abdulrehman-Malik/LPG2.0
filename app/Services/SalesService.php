@@ -951,6 +951,9 @@ class SalesService
             }
 
             $this->db->table('sales')->where('id',$saleId)->update(['status'=>'voided','voided_by'=>$userId,'voided_at'=>date('Y-m-d H:i:s'),'void_reason'=>$reason]);
+            AuditService::log('VOID','sale',$saleId,
+                ['status'=>'posted','sale_no'=>$sale['sale_no'],'transaction_type'=>$sale['transaction_type'],'customer_id'=>$sale['customer_id'],'total_amount'=>(float)$sale['total_amount']],
+                ['status'=>'voided','void_reason'=>$reason],$userId,$locationId);
             if(!$this->db->transStatus()) throw new RuntimeException('Sale void failed.');
             $this->db->transCommit();
             $this->releaseInventoryLocks();

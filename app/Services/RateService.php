@@ -182,7 +182,12 @@ final class RateService
             'rate_value' => round($value, 4), 'effective_from' => $effectiveFrom, 'notes' => $notes ?: null,
             'created_by' => $userId ?: null,
         ]);
-        return (int) $this->db->insertID();
+        $id = (int) $this->db->insertID();
+        AuditService::log('CUSTOMER_RATE_SET', 'customer_rate', $id, null, [
+            'customer_id' => $customerId, 'rate_type' => $type, 'cylinder_type_id' => $cylinderTypeId,
+            'rate_value' => round($value, 4), 'effective_from' => $effectiveFrom,
+        ], $userId, $locationId);
+        return $id;
     }
 
     public function endCustomerRate(int $locationId, int $rateId, int $userId): void
@@ -191,5 +196,6 @@ final class RateService
             ->where(['r.id' => $rateId, 'c.location_id' => $locationId])->where('r.ended_at', null)->get()->getRowArray();
         if (!$row) throw new RuntimeException('Customer rate not found or already ended.');
         $this->db->table('customer_rates')->where('id', $rateId)->update(['ended_at' => date('Y-m-d H:i:s'), 'ended_by' => $userId ?: null]);
+        AuditService::log('CUSTOMER_RATE_ENDED', 'customer_rate', $rateId, ['ended_at' => null], ['ended_at' => date('Y-m-d H:i:s')], $userId, $locationId);
     }
 }

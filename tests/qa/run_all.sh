@@ -31,6 +31,7 @@ shell_suite verify_tenancy_migrations
 shell_suite verify_phase8
 shell_suite verify_security
 shell_suite verify_isolation
+shell_suite verify_audit
 shell_suite verify_phase9
 shell_suite verify_transfers
 shell_suite verify_hq

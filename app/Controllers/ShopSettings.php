@@ -197,17 +197,8 @@ class ShopSettings extends Controller
                 (int) session()->get('user_id')
             );
 
-            $db->table('audit_logs')->insert([
-                'user_id'=>(int)session()->get('user_id'),
-                'location_id'=>$locationId,
-                'action'=>'settings_update',
-                'entity_type'=>'shop_settings',
-                'entity_id'=>(int)($settings['id'] ?? 0),
-                'old_values'=>json_encode($settings, JSON_UNESCAPED_UNICODE),
-                'new_values'=>json_encode($data, JSON_UNESCAPED_UNICODE),
-                'ip_address'=>$this->request->getIPAddress(),
-                'user_agent'=>substr((string)$this->request->getUserAgent(),0,500)
-            ]);
+            unset($settings['smtp_password'], $data['smtp_password']);
+            \App\Services\AuditService::log('SETTINGS_UPDATE', 'shop_settings', (int) ($settings['id'] ?? 0), $settings, $data, (int) session()->get('user_id'), $locationId);
             if (!$db->transStatus()) {
                 throw new \RuntimeException('Shop settings could not be saved.');
             }

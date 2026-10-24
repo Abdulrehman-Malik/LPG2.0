@@ -16,6 +16,7 @@ class CashService {
    $id=(int)$this->db->insertID();
    if($openingCash>0) $this->db->table('cash_transactions')->insert(['cash_session_id'=>$id,'transaction_type'=>'opening_float','direction'=>'in','amount'=>$openingCash,'created_by'=>$userId,'notes'=>'Opening float']);
    if(!$this->db->transStatus()) throw new RuntimeException('Cash session could not be opened.');
+   AuditService::log('CASH_SESSION_OPENED','cash_session',$id,null,['register_id'=>(int)$register['id'],'opening_cash'=>$openingCash],$userId,$locationId);
    $this->db->transCommit(); return $id;
   } catch(\Throwable $e){$this->db->transRollback();throw $e;}
  }
@@ -63,6 +64,7 @@ class CashService {
    $summary=$this->summary($sessionId);
    $this->db->table('cash_sessions')->where('id',$sessionId)->update(['closed_by'=>$userId,'closed_at'=>date('Y-m-d H:i:s'),'counted_cash'=>$countedCash,'status'=>'closed','notes'=>trim($notes)?:$summary['session']['notes']]);
    if(!$this->db->transStatus()) throw new RuntimeException('Cash session could not be closed.');
+   AuditService::log('CASH_SESSION_CLOSED','cash_session',$sessionId,['status'=>'open','expected'=>$summary['expected']],['status'=>'closed','counted'=>$countedCash,'difference'=>$countedCash-$summary['expected']],$userId,$locationId);
    $this->db->transCommit(); return ['expected'=>$summary['expected'],'counted'=>$countedCash,'difference'=>$countedCash-$summary['expected']];
   } catch(\Throwable $e){$this->db->transRollback();throw $e;}
  }

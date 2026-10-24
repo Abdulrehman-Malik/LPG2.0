@@ -102,6 +102,10 @@ class Rates extends Controller
             'reason'=>$reason
         ]);
         $db->transComplete();
+        \App\Services\AuditService::log('RATE_CHANGED','rate_card',(int)$rateId,
+            $current?['rate_value'=>(float)$current['rate_value'],'effective_from'=>$current['effective_from']]:null,
+            ['rate_type'=>$type,'cylinder_type_id'=>$typeId,'rate_value'=>$value,'effective_from'=>$effective,'reason'=>$reason],
+            (int)session()->get('user_id'),$locationId);
         return redirect()->to('/rates')->with('success','Rate saved and history recorded.');
     }
 }

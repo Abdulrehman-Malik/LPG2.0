@@ -35,6 +35,17 @@ $tone = static function (string $action): string {
         <p class="page-subtitle">The latest <?= count($rows) ?> recorded actions in this branch: who did what and when. Select a row's details to see the full before/after values.</p>
     </div>
 </div>
+<form method="get" action="<?= site_url('audit') ?>" class="card mb-3"><div class="card-body row g-2 align-items-end">
+    <div class="col-sm-6 col-lg-3"><label class="form-label" for="auditAction">Action</label>
+        <select class="form-select" id="auditAction" name="action"><option value="">All actions</option>
+        <?php foreach ($actions as $a): ?><option value="<?= esc($a) ?>" <?= $filters['action'] === $a ? 'selected' : '' ?>><?= esc(ucwords(strtolower(str_replace('_', ' ', (string) $a)))) ?></option><?php endforeach; ?></select></div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label" for="auditEntity">Record</label>
+        <select class="form-select" id="auditEntity" name="entity_type"><option value="">All records</option>
+        <?php foreach ($entityTypes as $e): ?><option value="<?= esc($e) ?>" <?= $filters['entity_type'] === $e ? 'selected' : '' ?>><?= esc(ucwords(str_replace('_', ' ', (string) $e))) ?></option><?php endforeach; ?></select></div>
+    <div class="col-6 col-lg-2"><label class="form-label" for="auditFrom">From</label><input class="form-control" type="date" id="auditFrom" name="from" value="<?= esc($filters['from']) ?>"></div>
+    <div class="col-6 col-lg-2"><label class="form-label" for="auditTo">To</label><input class="form-control" type="date" id="auditTo" name="to" value="<?= esc($filters['to']) ?>"></div>
+    <div class="col-lg-2 d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Filter</button><a class="btn btn-outline-secondary" href="<?= site_url('audit') ?>">Clear</a></div>
+</div></form>
 <div class="card">
     <?php if (!$rows): ?>
         <div class="empty-state"><i class="bi bi-shield-check"></i><div class="empty-state-title">No audit entries yet</div></div>

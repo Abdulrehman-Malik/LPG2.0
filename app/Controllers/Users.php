@@ -161,15 +161,18 @@ class Users extends Controller
         }
 
         try {
+            $auditFields = static fn (array $row): array => array_intersect_key($row, array_flip(['location_id','role_id','full_name','username','email','is_active']));
             if($id){
                 if($password!=='') $data['password_hash']=password_hash($password,PASSWORD_DEFAULT);
                 $this->users->update($id,$data);
                 $targetUserId = $id;
+                \App\Services\AuditService::log('UPDATE','user',$id,$auditFields($existingUser),$auditFields($data)+['password_changed'=>$password!==''],$actorId,$locationId);
             } else {
                 if($password==='') return redirect()->back()->withInput()->with('error','Password is required for a new user.');
                 $data['password_hash']=password_hash($password,PASSWORD_DEFAULT);
                 $this->users->insert($data);
                 $targetUserId = (int) $this->users->getInsertID();
+                \App\Services\AuditService::log('CREATE','user',$targetUserId,null,$auditFields($data),$actorId,$locationId);
             }
 
             $db = Database::connect();
@@ -213,6 +216,8 @@ class Users extends Controller
         )));
 
         $db=Database::connect();
+        $codes = static fn (): array => array_column($db->table('role_permissions rp')->select('p.code')->join('permissions p','p.id=rp.permission_id')->where('rp.role_id',$roleId)->orderBy('p.code')->get()->getResultArray(),'code');
+        $before = $codes();
         $db->transStart();
         $db->table('role_permissions')->where('role_id',$roleId)->delete();
         foreach($permissionIds as $permissionId) {
@@ -224,6 +229,7 @@ class Users extends Controller
         $db->transComplete();
 
         if(!$db->transStatus()) return redirect()->to('/users')->with('error','Role permissions could not be updated.');
+        \App\Services\AuditService::log('ROLE_PERMISSIONS_UPDATED','role',$roleId,['permissions'=>$before],['permissions'=>$codes()],(int)session()->get('user_id'),(int)session()->get('location_id') ?: null);
 
         return redirect()->to('/users')->with('success','Role permissions updated.');
     }
