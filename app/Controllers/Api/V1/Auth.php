@@ -215,7 +215,7 @@ class Auth extends Controller
         }
 
         $row = Database::connect()->table('users u')
-            ->select('u.id,u.username,u.email,u.full_name,u.password_hash,u.is_active,u.location_id,r.code AS role_code,r.name AS role_name')
+            ->select('u.id,u.username,u.email,u.full_name,u.password_hash,u.is_active,u.must_change_password,u.location_id,r.code AS role_code,r.name AS role_name')
             ->join('roles r', 'r.id=u.role_id', 'inner')
             ->groupStart()
                 ->where('u.username', $username)
@@ -228,6 +228,9 @@ class Auth extends Controller
         }
         if ((int) ($row['is_active'] ?? 0) !== 1) {
             return $this->errorResponse(403, 'ACCOUNT_DISABLED', 'This staff account has been disabled.');
+        }
+        if ((int) ($row['must_change_password'] ?? 0) === 1) {
+            return $this->errorResponse(403, 'PASSWORD_CHANGE_REQUIRED', 'This account still uses a default password. Sign in to the back office and change it first.');
         }
 
         try {

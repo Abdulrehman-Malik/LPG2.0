@@ -59,6 +59,8 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
 
 $routes->group('', ['filter'=>'auth'], static function(RouteCollection $routes){
     $routes->get('dashboard','Dashboard::index');
+    $routes->get('account/password','Account::password');
+    $routes->post('account/password','Account::savePassword');
     $routes->get('business-management','BusinessManagement::index');
     $routes->get('business-hierarchy','BusinessHierarchy::index');
     $routes->post('business-management/business/save','BusinessManagement::saveBusiness');

@@ -80,3 +80,6 @@ INSERT INTO user_shop_access(user_id,location_id,is_default)
 SELECT u.id,l.id,1 FROM users u JOIN locations l ON l.code='MAIN'
 WHERE u.username='qa_scoped_manager'
 ON DUPLICATE KEY UPDATE is_default=1;
+
+-- BL-003: the QA accounts count as having changed the shipped default password already.
+UPDATE users SET must_change_password=0 WHERE username IN ('admin','qa_scoped_manager');

@@ -49,5 +49,27 @@ post "$AD" users/save --data-urlencode "id=$(q "SELECT id FROM users WHERE usern
 [ "$(q "SELECT role_id FROM users WHERE username='qa_new_cashier'")" = "$ADMIN_ROLE" ] && ok "System Administrator can grant ADMIN" || bad "sysadmin grant" "role unchanged"
 q "DELETE rp FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=$MANAGER_ROLE AND p.code='USER_MANAGE'"
 
+echo "--- BL-003 default passwords"
+[ "$(q "SELECT must_change_password FROM users WHERE username='pak'")" = 1 ] && ok "migration flags the seeded 'pak' account (default password)" || bad "pak flag" "not flagged"
+ADMIN_HASH=$(q "SELECT password_hash FROM users WHERE username='admin'")
+q "UPDATE users SET must_change_password=1 WHERE username='admin'"
+qa_clear_throttle
+AF="$T/forced.txt"; url=$(login "$AF" admin admin123)
+echo "$url" | grep -q "account/password" && ok "flagged account lands on Change Password after sign-in" || bad "forced redirect" "$url"
+curl -s -o /dev/null -w '%{redirect_url}' -b "$AF" "$B/dashboard" | grep -q "account/password" && ok "every other page redirects to Change Password" || bad "page gate" "dashboard reachable"
+api=$(curl -s -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' "$B/api/v1/staff/auth/login")
+echo "$api" | grep -q PASSWORD_CHANGE_REQUIRED && ok "staff API login refused until the password is changed" || bad "api refusal" "$api"
+post "$AF" account/password --data-urlencode current_password=admin123 --data-urlencode new_password=admin123 --data-urlencode confirm_password=admin123 >/dev/null
+[ "$(q "SELECT must_change_password FROM users WHERE username='admin'")" = 1 ] && ok "a known default password is refused as the new password" || bad "default refused" "accepted"
+post "$AF" account/password --data-urlencode current_password=admin123 --data-urlencode new_password=short1 --data-urlencode confirm_password=short1 >/dev/null
+[ "$(q "SELECT must_change_password FROM users WHERE username='admin'")" = 1 ] && ok "a password below the minimum length is refused" || bad "length refused" "accepted"
+post "$AF" account/password --data-urlencode current_password=wrong-current --data-urlencode new_password=QaChanged-Pass-2026 --data-urlencode confirm_password=QaChanged-Pass-2026 >/dev/null
+[ "$(q "SELECT must_change_password FROM users WHERE username='admin'")" = 1 ] && ok "a wrong current password is refused" || bad "current check" "accepted"
+post "$AF" account/password --data-urlencode current_password=admin123 --data-urlencode new_password=QaChanged-Pass-2026 --data-urlencode confirm_password=QaChanged-Pass-2026 >/dev/null
+[ "$(q "SELECT must_change_password FROM users WHERE username='admin'")" = 0 ] && ok "a valid new password clears the flag" || bad "change" "flag still set"
+curl -s -o /dev/null -w '%{http_code}' -b "$AF" "$B/dashboard" | grep -q 200 && ok "dashboard reachable after the change" || bad "after change" "dashboard blocked"
+[ "$(q "SELECT COUNT(*) FROM audit_logs WHERE action='PASSWORD_CHANGED' AND entity_id=$ADMIN_ID")" -ge 1 ] && ok "password change is audit-logged" || bad "audit" "no row"
+q "UPDATE users SET password_hash='$ADMIN_HASH', must_change_password=0 WHERE username='admin'"
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

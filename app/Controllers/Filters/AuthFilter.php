@@ -39,12 +39,17 @@ class AuthFilter implements FilterInterface
 
         $userId = (int) (session()->get('user_id') ?? 0);
         $activeUser = \Config\Database::connect()->table('users')
-            ->select('id')
+            ->select('id,must_change_password')
             ->where(['id' => $userId, 'is_active' => 1])
             ->get()->getRowArray();
         if (!$activeUser) {
             // An administrator disabled this account after sign-in: end the session now.
             return $this->signOut('error', 'This account has been disabled. Contact an administrator.');
+        }
+
+        // An account still on a shipped default password may only change it (BL-003).
+        if ((int) ($activeUser['must_change_password'] ?? 0) === 1 && !url_is('account/password')) {
+            return redirect()->to(site_url('account/password'));
         }
 
         $scope = new ShopScopeService();
