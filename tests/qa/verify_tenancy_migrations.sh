@@ -84,6 +84,27 @@ qa_spark migrations:run >/dev/null 2>&1
 rollback_to BusinessIdOnBranchTables; [ "$(schema)" = "$BEFORE" ] && ok "second rollback gives the identical pre-BL-009 schema" || bad "rollback twice" "schema differs"
 qa_spark migrations:run >/dev/null 2>&1
 
+echo "--- BL-010 business_id on child tables"
+CHILDREN="cash_sessions:register_id:cash_registers sale_items:sale_id:sales sale_payments:sale_id:sales purchase_items:purchase_id:purchases purchase_payments:purchase_id:purchases stock_transfer_items:transfer_id:stock_transfers customer_rates:customer_id:customers customer_app_accounts:customer_id:customers cash_transactions:cash_session_id:cash_sessions"
+bad_cols=""; for spec in $CHILDREN; do t=${spec%%:*}; [ "$(q "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$t' AND COLUMN_NAME='business_id'")" = NO ] || bad_cols+=" $t"; done
+[ -z "$bad_cols" ] && ok "9 child tables have business_id NOT NULL" || bad "child columns" "$bad_cols"
+childmis(){ local spec t c p n=0; for spec in $CHILDREN; do IFS=: read -r t c p <<<"$spec"; n=$((n + $(q "SELECT COUNT(*) FROM \`$t\` x JOIN \`$p\` y ON y.id=x.\`$c\` WHERE x.business_id<>y.business_id"))); done; echo $n; }
+[ "$(childmis)" = 0 ] && ok "every child row carries its parent's business" || bad "child backfill" "$(childmis)"
+[ "$(q "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND CONSTRAINT_TYPE='FOREIGN KEY' AND CONSTRAINT_NAME LIKE 'fk\_%\_parent_business'")" = 9 ] && ok "9 composite (parent, business_id) foreign keys" || bad "child fks" "count differs"
+w "INSERT INTO businesses(code,name) VALUES('QA-T3','QA Tenant Three')"; BIZ3=$(q "SELECT id FROM businesses WHERE code='QA-T3'")
+REG=$(q "SELECT id FROM cash_registers WHERE location_id=$MAIN LIMIT 1")
+err=$($M -e "INSERT INTO cash_sessions(register_id,business_id,opened_by,opening_cash,status) VALUES($REG,$BIZ3,1,0,'closed')" 2>&1)
+echo "$err" | grep -q "foreign key constraint fails" && ok "a child row naming another business than its parent is rejected" || bad "child cross insert" "$err"
+w "DELETE FROM businesses WHERE id=$BIZ3"
+FULL10=$(schema)
+rollback_to BusinessIdOnChildTables && ok "BL-010 rolled back" || bad "rollback 010" "still applied"
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='business_id' AND TABLE_NAME IN ('sale_items','cash_transactions','customer_rates')")" = 0 ] && ok "rollback removes business_id from child tables" || bad "rollback child cols" "still present"
+BEFORE10=$(schema)
+qa_spark migrations:run >/dev/null 2>&1
+[ "$(schema)" = "$FULL10" ] && ok "re-applying BL-010 gives the identical schema" || bad "reapply 010" "schema differs"
+rollback_to BusinessIdOnChildTables; [ "$(schema)" = "$BEFORE10" ] && ok "second rollback gives the identical pre-BL-010 schema" || bad "rollback twice 010" "schema differs"
+qa_spark migrations:run >/dev/null 2>&1
+
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

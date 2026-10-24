@@ -62,13 +62,13 @@ use "$(q "SELECT id FROM locations WHERE code='MAIN'")"
 w "INSERT INTO business_catalog_products(business_id,cylinder_type_id,sale_mode,display_name,quantity_unit,is_active) VALUES($BIZB,$TYPEB,'sell_gas_only','$MARK Gas','kg',1)"
 PRODB=$(q "SELECT id FROM business_catalog_products WHERE business_id=$BIZB LIMIT 1")
 w "INSERT INTO shop_product_availability(business_id,location_id,business_catalog_product_id,is_active) VALUES($BIZB,$B1,$PRODB,1)"
-w "INSERT INTO customer_app_accounts(customer_id,username,password_hash,status) VALUES($CUSTB,'isob_app_user','$(q "SELECT password_hash FROM users WHERE username='admin'")','approved')"
+w "INSERT INTO customer_app_accounts(customer_id,business_id,username,password_hash,status) VALUES($CUSTB,$BIZB,'isob_app_user','$(q "SELECT password_hash FROM users WHERE username='admin'")','approved')"
 ACCB=$(q "SELECT id FROM customer_app_accounts WHERE username='isob_app_user'")
 w "INSERT INTO customer_signup_requests(business_id,requested_location_id,username,customer_name,status) VALUES($BIZB,$B1,'isob_signup','$MARK Signup','pending_approval')"
 SIGNB=$(q "SELECT id FROM customer_signup_requests WHERE username='isob_signup'")
 w "INSERT INTO customer_orders(business_id,location_id,customer_id,customer_app_account_id,order_no,idempotency_key,status,fulfilment_method,customer_name_snapshot,subtotal,total_amount) VALUES($BIZB,$B1,$CUSTB,$ACCB,'ISOB-ORD-1','isob-key-1','pending','collection','$MARK Customer',500,500)"
 ORDB=$(q "SELECT id FROM customer_orders WHERE order_no='ISOB-ORD-1'")
-w "INSERT INTO customer_rates(customer_id,rate_type,cylinder_type_id,rate_value,effective_from,notes) VALUES($CUSTB,'gas_per_kg',NULL,240,NOW(),'$MARK rate')"
+w "INSERT INTO customer_rates(customer_id,business_id,rate_type,cylinder_type_id,rate_value,effective_from,notes) VALUES($CUSTB,$BIZB,'gas_per_kg',NULL,240,NOW(),'$MARK rate')"
 CRATEB=$(q "SELECT id FROM customer_rates WHERE customer_id=$CUSTB LIMIT 1")
 ROLE_ADMIN=$(q "SELECT id FROM roles WHERE code='ADMIN'")
 HASH=$(q "SELECT password_hash FROM users WHERE username='admin'")
@@ -235,6 +235,13 @@ for t in customers sales purchases customer_receipts supplier_payments expenses 
   MIS=$((MIS + $(q "SELECT COUNT(*) FROM \`$t\` x JOIN locations l ON l.id=x.location_id WHERE x.business_id IS NULL OR x.business_id<>l.business_id")))
 done
 [ "$MIS" = 0 ] && ok "every row written by the app carries its branch's business" || bad "tenant stamping" "$MIS rows without the right business_id"
+# BL-010: and every child row written through the app carries its parent's business.
+CMIS=0
+for spec in cash_sessions:register_id:cash_registers sale_items:sale_id:sales sale_payments:sale_id:sales purchase_items:purchase_id:purchases purchase_payments:purchase_id:purchases stock_transfer_items:transfer_id:stock_transfers customer_rates:customer_id:customers customer_app_accounts:customer_id:customers cash_transactions:cash_session_id:cash_sessions; do
+  IFS=: read -r t c p <<<"$spec"
+  CMIS=$((CMIS + $(q "SELECT COUNT(*) FROM \`$t\` x JOIN \`$p\` y ON y.id=x.\`$c\` WHERE x.business_id<>y.business_id")))
+done
+[ "$CMIS" = 0 ] && ok "every child row written by the app carries its parent's business" || bad "child stamping" "$CMIS rows"
 echo "COVERAGE: $COVERED GET + $MCOVERED POST of $TOTAL routes (rest: sign-in, installation, migration and backup routes, tested in verify_security / verify_phase8)"
 
 echo; echo "RESULT: $PASS passed, $FAIL failed"

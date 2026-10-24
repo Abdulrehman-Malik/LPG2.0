@@ -119,8 +119,8 @@ WHERE cu.unit_code='QA-ORDER-EMPTY-C6-001'
   AND NOT EXISTS (SELECT 1 FROM inventory_movements im
     WHERE im.source_type='qa_order_empty_seed' AND im.source_id=cu.id AND im.inventory_type='empty_cylinder');
 
-INSERT INTO cash_sessions(register_id,opened_by,opening_cash,status,notes)
-SELECT cr.id,u.id,0,'open','Disposable Playwright POS regression session'
+INSERT INTO cash_sessions(register_id,business_id,opened_by,opening_cash,status,notes)
+SELECT cr.id,cr.business_id,u.id,0,'open','Disposable Playwright POS regression session'
 FROM cash_registers cr
 JOIN locations l ON l.id=cr.location_id
 JOIN users u ON u.username='admin'
