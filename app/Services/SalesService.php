@@ -36,7 +36,8 @@ class SalesService
 
     public function __construct()
     {
-        $this->currentLocationId=(int)session()->get('location_id');
+        // post()/void() set the posting branch explicitly; this is only the request's default.
+        $this->currentLocationId=\App\Libraries\TenantContext::branchId() ?? 0;
         $this->db=Database::connect();
         $this->types=new CylinderTypeModel();
         $this->customers=new CustomerModel();

@@ -52,6 +52,9 @@ class ApiAuthFilter implements FilterInterface
             ]);
         }
 
+        // Tenant scope of the API request (BL-008): the staff user; the branch is set once the
+        // endpoint has checked the requested shop. Customer tokens act for their own customer.
+        \App\Libraries\TenantContext::setApi($audience === 'staff' ? (int) ($principal['user_id'] ?? 0) : null);
         return null;
     }
 

@@ -26,6 +26,6 @@ class SupplierModel extends Model
 
     public function activeDirectory(?int $locationId=null): array
     {
-        return $this->visibleTo($locationId ?? (int) session()->get('location_id'),true);
+        return $this->visibleTo($locationId ?? \App\Libraries\TenantContext::requireBranchId(),true);
     }
 }

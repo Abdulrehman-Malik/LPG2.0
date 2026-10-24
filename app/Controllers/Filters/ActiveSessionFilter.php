@@ -24,6 +24,7 @@ class ActiveSessionFilter implements FilterInterface
             return redirect()->to(site_url('login'))->with('error', 'Please sign in to continue.');
         }
 
+        \App\Libraries\TenantContext::setWeb($userId, (int) (session()->get('location_id') ?? 0));
         return null;
     }
 

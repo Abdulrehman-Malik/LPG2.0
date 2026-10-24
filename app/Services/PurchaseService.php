@@ -84,7 +84,7 @@ class PurchaseService{
  /** Supplier payable at this branch under the business balance rule (SupplierBalanceService, D9-4). */
  public function supplierBalance(int $supplierId, ?int $locationId=null): float
  {
-  $locationId=$locationId ?? (int)(session()->get('location_id') ?? 0);
+  $locationId=$locationId ?? \App\Libraries\TenantContext::requireBranchId();
   return (new SupplierBalanceService($this->db))->balanceById($supplierId,$locationId);
  }
 

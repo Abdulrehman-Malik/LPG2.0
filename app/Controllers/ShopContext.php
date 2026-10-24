@@ -23,6 +23,7 @@ class ShopContext extends Controller
         }
 
         session()->set('location_id', $locationId);
+        \App\Libraries\TenantContext::setBranch($locationId);
         AuditService::log(
             'SHOP_CONTEXT_SWITCH',
             'location',

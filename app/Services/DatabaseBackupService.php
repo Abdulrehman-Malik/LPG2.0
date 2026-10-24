@@ -540,7 +540,7 @@ class DatabaseBackupService
 
     private function emailSettings(): array
     {
-        $locationId = (int) session()->get('location_id');
+        $locationId = (int) (\App\Libraries\TenantContext::branchId() ?? 0);
         if ($locationId <= 0) {
             throw new \RuntimeException('No shop/location is selected for email configuration.');
         }

@@ -259,8 +259,7 @@ class ShopScopeService
      */
     public function canAccessCurrentShop(?int $userId = null): bool
     {
-        $locationId = (int) (session()->get('location_id') ?? 0);
-        return $this->canAccessShop($locationId, $userId);
+        return $this->canAccessShop((int) (\App\Libraries\TenantContext::branchId() ?? 0), $userId);
     }
 
     public function businessIdForShop(int $locationId, ?int $userId = null): ?int

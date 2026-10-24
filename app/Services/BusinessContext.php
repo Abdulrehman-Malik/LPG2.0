@@ -35,7 +35,7 @@ class BusinessContext
     /** Business of the branch currently selected in the browser session. */
     public static function currentBusinessId(): int
     {
-        return self::businessIdForLocation((int) (session()->get('location_id') ?? 0));
+        return self::businessIdForLocation(\App\Libraries\TenantContext::requireBranchId());
     }
 
     /**

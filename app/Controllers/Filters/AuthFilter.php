@@ -53,7 +53,7 @@ class AuthFilter implements FilterInterface
         }
 
         $scope = new ShopScopeService();
-        if (!$scope->canAccessCurrentShop($userId)) {
+        if (!$scope->canAccessShop((int) (session()->get('location_id') ?? 0), $userId)) {
             // Repair a stale current-shop context only by selecting a shop this
             // identity is still authorized to access. Never trust a request ID.
             $defaultShopId = $scope->defaultShopIdForUser($userId);
@@ -63,6 +63,9 @@ class AuthFilter implements FilterInterface
 
             session()->set('location_id', $defaultShopId);
         }
+
+        // The request's tenant scope: this user, in the branch just verified (BL-008).
+        \App\Libraries\TenantContext::setWeb($userId, (int) session()->get('location_id'));
     }
 
     public function after(RequestInterface $request,ResponseInterface $response,$arguments=null){}

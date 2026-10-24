@@ -17,7 +17,7 @@ class CustomerModel extends Model
 
     public function withLedgerTotals(int $customerId, ?int $locationId=null): ?array
     {
-        $locationId=$locationId ?? (int)(session()->get('location_id') ?? 0);
+        $locationId=$locationId ?? \App\Libraries\TenantContext::requireBranchId();
         if ($locationId <= 0) {
             return null;
         }
@@ -39,10 +39,7 @@ class CustomerModel extends Model
     }
     public function activeDirectory(): array
     {
-        $locationId = (int) (session()->get('location_id') ?? 0);
-        if ($locationId <= 0) {
-            return [];
-        }
+        $locationId = \App\Libraries\TenantContext::requireBranchId();
 
         return $this->where(['location_id' => $locationId, 'is_active' => 1])
             ->orderBy('name')
