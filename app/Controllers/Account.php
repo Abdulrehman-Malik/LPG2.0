@@ -59,6 +59,6 @@ class Account extends Controller
         AuditService::log('PASSWORD_CHANGED', 'user', $userId, null, ['self_service' => true], $userId, (int) (session()->get('location_id') ?? 0) ?: null);
         session()->regenerate(true);
 
-        return redirect()->to(site_url('dashboard'))->with('success', 'Your password has been changed.');
+        return redirect()->to(site_url(\App\Libraries\Navigation::homeUrl(\App\Services\PermissionService::current())))->with('success', 'Your password has been changed.');
     }
 }

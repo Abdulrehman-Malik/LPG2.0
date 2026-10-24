@@ -67,6 +67,26 @@ final class Navigation
      * @param array<string,mixed> $permissions permission code => anything (PermissionService::current())
      * @return array{dashboard: array|null, groups: array, active: string, trail: list<string>}
      */
+    /**
+     * Where a user lands after sign-in: the Dashboard when permitted, otherwise the first menu
+     * page they may open (e.g. My Deliveries for a driver), otherwise their account page.
+     *
+     * @param array<string,mixed> $permissions permission code => anything
+     */
+    public static function homeUrl(array $permissions): string
+    {
+        $nav = self::build($permissions, '');
+        if ($nav['dashboard'] !== null) {
+            return self::DASHBOARD['url'];
+        }
+        foreach ($nav['groups'] as $group) {
+            if (!empty($group['items'][0]['url'])) {
+                return $group['items'][0]['url'];
+            }
+        }
+        return 'account/password';
+    }
+
     public static function build(array $permissions, string $currentPath): array
     {
         $can = static fn (string $code): bool => isset($permissions[$code]);

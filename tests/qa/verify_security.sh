@@ -112,6 +112,31 @@ q "UPDATE users SET is_active=1 WHERE username='admin'"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$B/database-backup/download?file=x")
 [ "$code" = 302 ] && ok "anonymous backup download is redirected to sign-in" || bad "anon backup" "http $code"
 
+echo "--- BL-014 standard roles"
+for r in DRIVER ACCOUNTANT; do [ -n "$(q "SELECT id FROM roles WHERE code='$r'")" ] && ok "role $r exists" || bad "role $r" "missing"; done
+[ "$(q "SELECT name FROM roles WHERE code='ADMIN'")" = Owner ] && ok "ADMIN is labelled Owner" || bad "owner label" "$(q "SELECT name FROM roles WHERE code='ADMIN'")"
+HASH=$(q "SELECT password_hash FROM users WHERE username='admin'")
+for spec in DRIVER:qa_driver ACCOUNTANT:qa_accountant; do
+  r=${spec%%:*}; u=${spec##*:}
+  $M -e "INSERT IGNORE INTO users(location_id,is_system_admin,role_id,full_name,username,email,password_hash,is_active) VALUES($MAIN,0,(SELECT id FROM roles WHERE code='$r'),'QA $r','$u','$u@x.local','$HASH',1)" 2>/dev/null
+done
+qa_clear_throttle
+DR="$T/driver.txt"; url=$(login "$DR" qa_driver admin123)
+echo "$url" | grep -q "dashboard" && bad "driver landing" "driver sent to dashboard" || ok "driver does not land on the dashboard ($(basename "$url"))"
+for p in sales purchases reports dashboard customers inventory; do
+  c=$(curl -s -o /dev/null -w '%{http_code}' -b "$DR" "$B/$p"); [ "$c" = 403 ] && ok "driver gets 403 on /$p" || bad "driver /$p" "http $c"
+done
+AC="$T/accountant.txt"; login "$AC" qa_accountant admin123 >/dev/null
+for p in dashboard reports customers suppliers supplier-payments expenses cash audit sales/history; do
+  c=$(curl -s -o /dev/null -w '%{http_code}' -b "$AC" "$B/$p"); [ "$c" = 200 ] && ok "accountant opens /$p" || bad "accountant /$p" "http $c"
+done
+for p in sales inventory inventory/opening rates users purchases; do
+  c=$(curl -s -o /dev/null -w '%{http_code}' -b "$AC" "$B/$p")
+  # Purchases screen needs PURCHASE_MANAGE (accountants pay suppliers but do not book stock-in) - see docs/roles.md.
+  if [ "$p" = purchases ]; then [ "$c" = 200 ] && ok "accountant opens /purchases (supplier side)" || bad "accountant /purchases" "http $c"; continue; fi
+  [ "$c" = 403 ] && ok "accountant gets 403 on /$p" || bad "accountant /$p" "http $c"
+done
+
 echo "--- BL-006 safe errors and structured logs"
 qa_clear_throttle
 ER="$T/err.txt"; login "$ER" admin admin123 >/dev/null

@@ -23,7 +23,7 @@ class Auth extends Controller
 
     public function showLogin()
     {
-        if(session()->get('isLoggedIn')) return redirect()->to(site_url('dashboard'));
+        if(session()->get('isLoggedIn')) return redirect()->to(site_url(\App\Libraries\Navigation::homeUrl(\App\Services\PermissionService::current())));
 
         if ((new InstallationSetupService())->shouldRedirectToSetup()) {
             return redirect()->to(site_url('installation'));
@@ -114,7 +114,7 @@ class Auth extends Controller
             'isLoggedIn'=>true,
         ]);
         $this->userModel->touchLastLogin((int)$user['id']);
-        return redirect()->to(site_url('dashboard'))->with('success','Welcome back, '.$user['full_name'].'.');
+        return redirect()->to(site_url(\App\Libraries\Navigation::homeUrl(\App\Services\PermissionService::current())))->with('success','Welcome back, '.$user['full_name'].'.');
     }
 
     public function logout(): RedirectResponse

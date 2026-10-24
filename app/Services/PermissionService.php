@@ -67,6 +67,9 @@ class PermissionService
             'ORDER_VIEW' => 'View customer orders',
             'ORDER_MANAGE' => 'Manage customer orders',
             'CUSTOMER_ACCOUNT_MANAGE' => 'Manage customer app accounts',
+            'DELIVERY_MANAGE' => 'Assign deliveries, manage vehicles and settle drivers',
+            'DELIVERY_VIEW_OWN' => 'View own assigned deliveries',
+            'DELIVERY_RECORD' => 'Record deliveries and collections',
         ];
 
         // Only permission codes that do not exist yet are created and granted to the
