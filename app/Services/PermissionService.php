@@ -202,6 +202,37 @@ class PermissionService
         return in_array($permission, self::allForUser($userId), true);
     }
 
+    /**
+     * A user manager may only hand out (or act on holders of) roles whose permissions are all
+     * permissions the manager holds; a System Administrator may grant any role.
+     */
+    public static function roleWithinActor(int $roleId, int $actorId): bool
+    {
+        if ($roleId <= 0 || $actorId <= 0) {
+            return false;
+        }
+
+        $db = Database::connect();
+        $actor = $db->table('users')->select('is_system_admin')->where(['id' => $actorId, 'is_active' => 1])->get()->getRowArray();
+        if (!$actor) {
+            return false;
+        }
+        if (!$db->table('roles')->where('id', $roleId)->countAllResults()) {
+            return false;
+        }
+        if ((int) ($actor['is_system_admin'] ?? 0) === 1) {
+            return true;
+        }
+
+        $roleCodes = array_map('strval', array_column(
+            $db->table('role_permissions rp')->select('p.code')->join('permissions p', 'p.id=rp.permission_id')
+                ->where('rp.role_id', $roleId)->get()->getResultArray(),
+            'code'
+        ));
+
+        return array_diff($roleCodes, self::allForUser($actorId)) === [];
+    }
+
     public static function current(): array
     {
         return array_fill_keys(self::all(), true);

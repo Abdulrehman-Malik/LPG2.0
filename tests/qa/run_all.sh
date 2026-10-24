@@ -28,6 +28,7 @@ if [[ " $* " != *" --no-e2e "* && $SUITES_ONLY = 0 ]]; then
 fi
 shell_suite verify_migrations
 shell_suite verify_phase8
+shell_suite verify_security
 shell_suite verify_phase9
 shell_suite verify_transfers
 shell_suite verify_hq

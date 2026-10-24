@@ -62,7 +62,10 @@ class Users extends Controller
                  ORDER BY u.full_name',
                 [$locationId, $locationId]
             )->getResultArray(),
-            'roles'=>$this->roles->orderBy('name')->findAll(),
+            'roles'=>array_values(array_filter(
+                $this->roles->orderBy('name')->findAll(),
+                static fn(array $role): bool => PermissionService::roleWithinActor((int)$role['id'],(int)session()->get('user_id'))
+            )),
             'permissions'=>$this->permissions->orderBy('code')->findAll(),
             'rolePermissions'=>$map,
             'currentPermissions'=>$currentPermissions,
@@ -126,6 +129,23 @@ class Users extends Controller
 
         // Branch access (Phase 9.3.2) is edited here only by users allowed to manage staff access.
         $actorId=(int)session()->get('user_id');
+
+        // No privilege escalation: a manager can neither hand out nor act on a role with more
+        // permissions than their own, cannot touch System Administrators, and cannot change
+        // their own role.
+        $actorIsSystemAdmin=(new \App\Services\ShopScopeService())->isSystemAdministrator($actorId);
+        if($existingUser && (int)($existingUser['is_system_admin'] ?? 0)===1 && !$actorIsSystemAdmin){
+            return $this->response->setStatusCode(403)->setBody('Only a System Administrator can change a System Administrator account.');
+        }
+        if($existingUser && !PermissionService::roleWithinActor((int)$existingUser['role_id'],$actorId)){
+            return $this->response->setStatusCode(403)->setBody('You cannot change a user whose role has more permissions than yours.');
+        }
+        if($id===$actorId && $existingUser && (int)$existingUser['role_id']!==$data['role_id']){
+            return redirect()->back()->withInput()->with('error','You cannot change your own role.');
+        }
+        if(!PermissionService::roleWithinActor($data['role_id'],$actorId)){
+            return redirect()->back()->withInput()->with('error','You cannot assign a role with permissions you do not have.');
+        }
         $businessId=\App\Services\BusinessContext::businessIdForLocation($locationId);
         $access=new \App\Services\StaffAccessService();
         $manageBranches=PermissionService::allows('SHOP_ACCESS_MANAGE') && $this->request->getPost('branch_access_submitted')==='1';
