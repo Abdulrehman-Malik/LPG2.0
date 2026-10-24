@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use CodeIgniter\Database\MigrationRunner;
 use Config\Database;
+use Config\Services;
 use RuntimeException;
 
 class MigrationRunnerService
@@ -161,6 +163,47 @@ class MigrationRunnerService
             : null;
     }
 
+    /**
+     * CodeIgniter migration runner limited to this application's reversible migrations
+     * (app/Database/Migrations). New schema changes are written there with up() and down();
+     * the SQL files in database/migrations are the frozen, forward-only history before that.
+     */
+    protected function frameworkRunner(): MigrationRunner
+    {
+        $runner = Services::migrations(null, $this->db, false);
+        $runner->setNamespace('App');
+        $runner->setSilent(false);
+        return $runner;
+    }
+
+    /**
+     * Reversible migrations in name order, each flagged applied or pending. They are run
+     * after every SQL migration, one per batch, so `php spark migrate:rollback` undoes exactly
+     * the latest one.
+     *
+     * @return list<array{file:string,path:string,checksum:string,applied:bool}>
+     */
+    protected function frameworkMigrations(): array
+    {
+        $runner = $this->frameworkRunner();
+        $applied = [];
+        foreach ($runner->getHistory('') as $history) {
+            $applied[$runner->getObjectUid($history)] = true;
+        }
+
+        $migrations = [];
+        foreach ($runner->findMigrations() as $uid => $migration) {
+            $migrations[] = [
+                'file' => basename((string) $migration->path),
+                'path' => (string) $migration->path,
+                'checksum' => $this->normalizedChecksum((string) $migration->path),
+                'applied' => isset($applied[$uid]),
+            ];
+        }
+
+        return $migrations;
+    }
+
     public function status(): array
     {
         $this->ensureHistoryTable();
@@ -238,17 +281,105 @@ class MigrationRunnerService
             }
         }
 
+        $frameworkMigrations = $this->frameworkMigrations();
+        foreach ($frameworkMigrations as $migration) {
+            $history = $latest[$migration['file']] ?? null;
+
+            if ($migration['applied']) {
+                if ($history && $history['status'] === 'success' && (string) $history['checksum'] !== $migration['checksum']) {
+                    $ready = false;
+                    $blockedMessage = 'Migration file '.$migration['file'].' was changed after it was applied. Create a new migration instead.';
+                    $results[] = ['seq' => 0, 'file' => $migration['file'], 'status' => 'changed', 'message' => $blockedMessage,
+                        'finished_at' => $history['finished_at'], 'duration_ms' => $history['duration_ms'], 'executed_statements' => 0];
+                    continue;
+                }
+                $results[] = ['seq' => 0, 'file' => $migration['file'], 'status' => 'success', 'message' => 'Applied successfully.',
+                    'finished_at' => $history['finished_at'] ?? null, 'duration_ms' => $history['duration_ms'] ?? null, 'executed_statements' => 0];
+                continue;
+            }
+
+            $ready = false;
+            // A success row with no CodeIgniter history means the migration was rolled back.
+            $status = ($history['status'] ?? '') === 'failed' ? 'failed' : 'pending';
+            $results[] = [
+                'seq' => 0,
+                'file' => $migration['file'],
+                'status' => $status,
+                'message' => $status === 'failed' ? (string) ($history['error_message'] ?? 'Migration failed.') : 'Pending.',
+                'finished_at' => $history['finished_at'] ?? null,
+                'duration_ms' => $history['duration_ms'] ?? null,
+                'executed_statements' => 0,
+            ];
+            if ($status === 'failed' && $blockedMessage === null) {
+                $blockedMessage = 'Migration '.$migration['file'].' failed. Fix the database error, then execute migrations again.';
+            }
+        }
+
         if ($blockedMessage !== null) {
             $ready = false;
         }
 
+        $total = count($migrations) + count($frameworkMigrations);
+        $open = array_values(array_filter($results, static fn(array $r): bool => !in_array($r['status'], ['success','skipped'], true)));
+
         return [
             'ready' => $ready,
             'blocked_message' => $blockedMessage,
-            'migrations' => array_values(array_filter($results, static fn(array $r): bool => !in_array($r['status'], ['success','skipped'], true))),
-            'total' => count($migrations),
-            'completed' => count($migrations) - count(array_filter($results, static fn(array $r): bool => !in_array($r['status'], ['success','skipped'], true))),
+            'migrations' => $open,
+            'total' => $total,
+            'completed' => $total - count($open),
         ];
+    }
+
+    /**
+     * Applies pending reversible migrations one at a time (each in its own batch), recording
+     * every attempt in lpg_migration_history like the SQL migrations. Stops at the first failure.
+     *
+     * @return list<array<string,mixed>> executed rows in the same shape as SQL migrations
+     */
+    protected function runPendingFrameworkMigrations(): array
+    {
+        $executed = [];
+        foreach ($this->frameworkMigrations() as $migration) {
+            if ($migration['applied']) {
+                continue;
+            }
+
+            $started = microtime(true);
+            $this->db->table($this->historyTable)->insert([
+                'migration_seq' => 0,
+                'migration_file' => $migration['file'],
+                'checksum' => $migration['checksum'],
+                'status' => 'running',
+                'started_at' => date('Y-m-d H:i:s'),
+            ]);
+            $attemptId = (int) $this->db->insertID();
+
+            try {
+                $this->frameworkRunner()->force($migration['path'], 'App');
+                $status = 'success';
+                $message = 'Applied successfully.';
+            } catch (\Throwable $e) {
+                $status = 'failed';
+                $message = trim($e->getMessage()) ?: 'Migration failed.';
+            }
+
+            $duration = max(0, (int) round((microtime(true) - $started) * 1000));
+            $this->db->table($this->historyTable)->where('id', $attemptId)->update([
+                'status' => $status,
+                'finished_at' => date('Y-m-d H:i:s'),
+                'duration_ms' => $duration,
+                'error_message' => $status === 'failed' ? $message : null,
+            ]);
+            $executed[] = ['seq' => 0, 'file' => $migration['file'], 'status' => $status, 'message' => $message,
+                'executed_statements' => 0, 'duration_ms' => $duration];
+
+            if ($status === 'failed') {
+                break;
+            }
+        }
+
+        return $executed;
     }
 
     public function runPending(): array
@@ -382,6 +513,16 @@ class MigrationRunnerService
                 if ($row['status'] === 'failed') {
                     $failed = $row;
                     break;
+                }
+            }
+
+            // Reversible migrations build on the SQL history, so they run only after it succeeded.
+            if ($failed === null) {
+                foreach ($this->runPendingFrameworkMigrations() as $row) {
+                    $executed[] = $row;
+                    if ($row['status'] === 'failed') {
+                        $failed = $row;
+                    }
                 }
             }
 

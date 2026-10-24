@@ -1,5 +1,11 @@
 # Perfect LPG — Database Migration Deployment Order
 
+> **From BL-001 (October 2026) this folder is frozen.** Every new schema change is a reversible CodeIgniter migration in `app/Database/Migrations` (`php spark make:migration Name`). It must implement both `up()` and `down()`, and `down()` must restore the exact previous schema.
+> - The login-page migration gate and `php spark migrations:run` apply the SQL files below first, then pending reversible migrations, one per batch, recording each attempt in `lpg_migration_history`. A pending or failed one blocks sign-in like a SQL migration does.
+> - `php spark migrate:rollback` undoes the latest reversible migration.
+> - `tests/qa/verify_migrations.sh` proves up → down → up on the disposable QA database. New migrations should be checked the same way: schema fingerprint before == after rollback.
+> - Do not edit an applied migration; add a new one.
+
 All manual SQL migrations in this directory use the format:
 
 ```

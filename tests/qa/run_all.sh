@@ -26,6 +26,7 @@ if [[ " $* " != *" --no-e2e "* && $SUITES_ONLY = 0 ]]; then
   out=$(cd "$QA_ROOT/tests/e2e" && LPG_QA_BASE_URL="$B" npx playwright test lpg-runtime.spec.mjs --workers=1 --reporter=list 2>&1); echo "$out" > "$QA_TMP/playwright.txt"; echo "$out" | grep -E "^\s+(✘|x) "
   record "playwright e2e" "$(echo "$out" | grep -E '[0-9]+ (passed|failed)' | tr '\n' ' ')"
 fi
+shell_suite verify_migrations
 shell_suite verify_phase8
 shell_suite verify_phase9
 shell_suite verify_transfers

@@ -136,7 +136,7 @@
                                         ][$status] ?? 'secondary';
                                         ?>
                                         <tr>
-                                            <td><?= (int)$m['seq'] ?></td>
+                                            <td><?= (int)$m['seq'] > 0 ? (int)$m['seq'] : '—' ?></td>
                                             <td class="small"><?= esc($m['file']) ?></td>
                                             <td><span class="badge text-bg-<?= $badge ?>"><?= esc(strtoupper($status)) ?></span></td>
                                             <td class="small"><?= esc($m['message'] ?? '') ?></td>
