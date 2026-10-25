@@ -2,67 +2,10 @@
 use App\Libraries\AppTheme;
 use App\Libraries\Navigation;
 
-$location = $location ?? [];
-$availableShops = [];
-try {
-    $layoutDb = \Config\Database::connect();
-    if (!$location && session()->get('location_id')) {
-        $location = $layoutDb->table('locations l')
-            ->select('l.*, b.name AS business_name')
-            ->join('businesses b', 'b.id=l.business_id', 'left')
-            ->where('l.id', (int) session()->get('location_id'))
-            ->get()->getRowArray() ?: [];
-    }
-    $allowedShopIds = (new \App\Services\ShopScopeService())->accessibleShopIds();
-    if ($allowedShopIds) {
-        $availableShops = $layoutDb->table('locations l')
-            ->select('l.id, l.name, l.business_id, b.name AS business_name')
-            ->join('businesses b', 'b.id=l.business_id', 'left')
-            ->whereIn('l.id', $allowedShopIds)
-            ->orderBy('b.name')
-            ->orderBy('l.name')
-            ->get()->getResultArray();
-    }
-} catch (Throwable $e) {
-    $location = $location ?: [];
-    $availableShops = [];
-}
-$branchName = trim((string) ($location['name'] ?? ''));
-$branchName = $branchName !== '' ? $branchName : 'Perfect LPG';
-$businessName = trim((string) ($location['business_name'] ?? ''));
-if ($businessName === '' && !empty($location['business_id'])) {
-    // Some pages pass their own location row without the business name.
-    try {
-        $businessName = (string) (\Config\Database::connect()->table('businesses')->select('name')->where('id', (int) $location['business_id'])->get()->getRow('name') ?? '');
-    } catch (Throwable $e) {
-        $businessName = '';
-    }
-}
-$appSettings = (new \App\Models\ShopSettingsModel())->forLocation((int) session()->get('location_id'));
-$nav = Navigation::build(\App\Services\PermissionService::current(), uri_string());
+// Shell data (branch, switchable branches, settings, menu, migration notice) — BL-018.
+extract(\App\Libraries\LayoutData::build($location ?? [], $title ?? null), EXTR_OVERWRITE);
 $isActive = static fn (string $url): string => $url === $nav['active'] ? 'active' : '';
-$pageTitle = $title ?? 'Dashboard';
-$userName = (string) (session()->get('full_name') ?? 'User');
-$initials = '';
-foreach (array_slice(preg_split('/\s+/', trim($userName), -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 2) as $word) {
-    $initials .= mb_strtoupper(mb_substr($word, 0, 1));
-}
-$initials = $initials !== '' ? $initials : 'U';
 $asset = static fn (string $path): string => base_url('assets/' . $path) . '?v=' . (is_file(FCPATH . 'assets/' . $path) ? filemtime(FCPATH . 'assets/' . $path) : '1');
-
-$pendingMigrationNotice = null;
-try {
-    $migrationStatus = (new \App\Services\MigrationRunnerService())->status();
-    if (!$migrationStatus['ready']) {
-        $pendingFiles = array_map(static fn (array $row): string => (string) ($row['file'] ?? 'migration'), $migrationStatus['migrations'] ?? []);
-        $pendingMigrationNotice = 'Database migrations are pending. Please log off and execute the pending migrations from the login page.';
-        if ($pendingFiles) {
-            $pendingMigrationNotice .= ' Pending: ' . implode(', ', $pendingFiles) . '.';
-        }
-    }
-} catch (\Throwable $e) {
-    $pendingMigrationNotice = 'Database migration status could not be verified. Please log off and check the migration status from the login page.';
-}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="<?= AppTheme::themeMode($appSettings) ?>" data-default-theme="<?= AppTheme::themeMode($appSettings) ?>">
