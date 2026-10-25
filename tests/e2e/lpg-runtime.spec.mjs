@@ -1357,3 +1357,103 @@ test('E2E-032 Staff customer API matches the web Customers screens', async ({ pa
   expect(ledger.sales.length).toBe(webSales);
   expect(ledger.receipts.length).toBe(webReceipts);
 });
+
+function parseMultipart(body) {
+  const fields = {};
+  for (const m of body.matchAll(/name="([^"]+)"\r\n\r\n([\s\S]*?)\r\n--/g)) {
+    if (m[1].endsWith('[]')) (fields[m[1].slice(0, -2)] ||= []).push(m[2]); else fields[m[1]] = m[2];
+  }
+  return fields;
+}
+
+test('E2E-033 Staff sales API posts exactly like the POS screen', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+  const key = (name) => ({ ...headers, 'Idempotency-Key': 'qa-sale-' + name + '-' + Date.now() });
+
+  // Fill a 1 KG gas sale on the POS screen and capture what it would post, without posting.
+  await login(page);
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  await page.locator('#transactionType').selectOption('gas_sale');
+  await page.locator('#customer_id').selectOption({ label: 'QA-E2E-CUST — QA E2E Customer' });
+  const line = page.locator('#lines tbody tr').first();
+  await selectOptionByTextPrefix(line.locator('.cyl'), 'C6 — 6 kg');
+  await expect(line.locator('.sourceCyl')).toBeEnabled();
+  await selectOptionByTextPrefix(line.locator('.sourceCyl'), 'QA-E2E-C6-001');
+  await line.locator('.entryValue').fill('1');
+  const uiTotal = Number(await page.locator('#saleTotal').innerText());
+  await page.locator('.payment .amount').first().fill(String(uiTotal));
+  let captured;
+  await page.route('**/sales/save', async route => {
+    captured = parseMultipart(route.request().postData() || '');
+    await route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'QA capture only' }) });
+  });
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => captured !== undefined).toBe(true);
+  await page.unroute('**/sales/save');
+  const payload = {
+    transaction_type: captured.transaction_type, customer_id: Number(captured.customer_id), transaction_at: captured.transaction_at,
+    discount_amount: captured.discount_amount, notes: captured.notes,
+    lines: JSON.parse(captured.lines_json), payments: JSON.parse(captured.payments_json)
+  };
+
+  expect((await request.post('/api/v1/staff/sales', { headers, data: payload })).status()).toBe(422); // key required
+  const k = key('gas');
+  const posted = await request.post('/api/v1/staff/sales', { headers: k, data: payload });
+  const postedBody = await posted.json();
+  expect(posted.status(), JSON.stringify(postedBody)).toBe(201);
+  const apiSale = postedBody.data.sale;
+  expect(Number(apiSale.sale.total_amount)).toBeCloseTo(uiTotal, 2);
+  const replay = await request.post('/api/v1/staff/sales', { headers: k, data: payload });
+  expect(replay.headers()['idempotent-replay']).toBe('true');
+  expect((await replay.json()).data.sale_no).toBe(postedBody.data.sale_no);
+
+  // The same input posted by the POS screen itself creates the same rows.
+  let resolvePost;
+  const posCaptured = new Promise(resolve => { resolvePost = resolve; });
+  await page.route('**/sales/save', async route => {
+    const response = await route.fetch();
+    const body = await response.text();
+    resolvePost(JSON.parse(body));
+    await route.fulfill({ response, body });
+  });
+  await page.locator('#saveBtn').click();
+  const posResult = await posCaptured;
+  await page.unroute('**/sales/save');
+  expect(posResult.success, JSON.stringify(posResult)).toBe(true);
+  const posSale = (await (await request.get('/api/v1/staff/sales/' + posResult.id, { headers })).json()).data;
+  const pick = (d) => ({
+    sale: ['transaction_type', 'customer_id', 'total_amount', 'receipt_amount', 'credit_amount', 'discount_amount', 'status'].map(f => String(d.sale[f])),
+    items: d.items.map(i => [i.line_type, i.cylinder_type_id, i.quantity, i.gas_weight_kg, i.applied_rate, i.line_total].map(String)),
+    payments: d.payments.map(p => [p.payment_mode, p.payment_type, p.amount].map(String)),
+    movements: d.movements.map(m => [m.inventory_type, m.direction, m.cylinder_type_id, m.cylinder_unit_id, m.quantity].map(String))
+  });
+  expect(pick(apiSale)).toEqual(pick(posSale));
+
+  // Business rules are the POS rules: zero quantity, walk-in credit and the credit limit.
+  const zero = structuredClone(payload); zero.lines[0].quantity = '0';
+  expect((await request.post('/api/v1/staff/sales', { headers: key('zero'), data: zero })).status()).toBe(422);
+  const walkIn = { ...structuredClone(payload), customer_id: null, payments: [{ payment_type: 'sale', payment_mode: 'credit', amount: uiTotal }] };
+  const walkInRes = await request.post('/api/v1/staff/sales', { headers: key('walkin'), data: walkIn });
+  expect(walkInRes.status()).toBe(422);
+  expect((await walkInRes.json()).error.code).toBe('SALE_REJECTED');
+  const creditCustomer = (await (await request.get('/api/v1/staff/customers?q=QA-E2E-CREDIT', { headers })).json()).data.customers[0];
+  const salesBefore = (await (await request.get('/api/v1/staff/sales?customer=QA-E2E-CREDIT', { headers })).json()).meta.total;
+  const overLimit = structuredClone(payload);
+  overLimit.customer_id = Number(creditCustomer.id); overLimit.lines[0].quantity = '3';
+  overLimit.payments = [{ payment_type: 'sale', payment_mode: 'credit', amount: uiTotal * 3 }];
+  const overRes = await request.post('/api/v1/staff/sales', { headers: key('limit'), data: overLimit });
+  expect(overRes.status()).toBe(422);
+  expect((await overRes.json()).error.message).toMatch(/credit limit/i);
+  expect((await (await request.get('/api/v1/staff/sales?customer=QA-E2E-CREDIT', { headers })).json()).meta.total).toBe(salesBefore);
+
+  // Void through the API reverses the sale (the latest one: an earlier sale whose cylinder was
+  // used again afterwards cannot be voided).
+  const voided = await request.post('/api/v1/staff/sales/' + posResult.id + '/void', { headers, data: { reason: 'QA API void test' } });
+  expect(voided.status(), await voided.text()).toBe(200);
+  const afterVoid = (await (await request.get('/api/v1/staff/sales/' + posResult.id, { headers })).json()).data;
+  expect(afterVoid.sale.status).toBe('voided');
+  const receipt = (await (await request.get('/api/v1/staff/sales/' + postedBody.data.id + '/receipt', { headers })).json()).data;
+  expect(Object.keys(receipt.shopSettings).sort()).toEqual(['receipt_footer', 'receipt_title', 'show_address_on_receipt']);
+});

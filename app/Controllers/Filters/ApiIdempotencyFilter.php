@@ -4,15 +4,17 @@ namespace App\Controllers\Filters;
 
 use App\Libraries\RequestContext;
 use CodeIgniter\Filters\FilterInterface;
+use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
 
 /**
  * Idempotency-Key for every authenticated API POST (BL-019). Runs after api-auth. The first
- * request under a key is recorded in api_idempotency_keys and its response stored; a repeat
- * with the same route and body gets the stored response (header Idempotent-Replay: true), a
- * different request under the same key gets 409. Without the header nothing changes.
+ * request under a key is recorded in api_idempotency_keys and a successful (2xx/3xx) response
+ * stored; a repeat with the same route and body gets the stored response (header
+ * Idempotent-Replay: true), a different request under the same key gets 409. An error response
+ * releases the key. Without the header nothing changes.
  *
  * Skipped: auth/* (tokens must never be replayed) and POST customer/orders, which keeps its own
  * order-level idempotency (CustomerOrderService::create).
@@ -42,7 +44,8 @@ class ApiIdempotencyFilter implements FilterInterface
 
         $db = Database::connect();
         $route = 'POST ' . uri_string();
-        $fingerprint = hash('sha256', $route . "\n" . (string) $request->getBody() . "\n" . json_encode($request->getPost()));
+        $form = $request instanceof IncomingRequest ? $request->getPost() : [];
+        $fingerprint = hash('sha256', $route . "\n" . (string) $request->getBody() . "\n" . json_encode($form));
         $where = ['principal_type' => $principal['audience'], 'principal_id' => $principal['id'], 'idempotency_key' => $key];
         $table = static fn () => $db->table('api_idempotency_keys');
 
@@ -86,8 +89,9 @@ class ApiIdempotencyFilter implements FilterInterface
         $where = self::$claim['where'];
         self::$claim = null;
         $table = Database::connect()->table('api_idempotency_keys')->where($where);
-        if ($response->getStatusCode() >= 500) {
-            // A server failure is not a result; the client may retry under the same key.
+        if ($response->getStatusCode() >= 400) {
+            // Postings are atomic, so a rejected or failed request wrote nothing: release the key
+            // so the client can correct the problem (e.g. open the cash session) and retry with it.
             $table->delete();
         } else {
             $table->update(['status' => 'completed', 'response_status' => $response->getStatusCode(), 'response_body' => (string) $response->getBody()]);

@@ -107,13 +107,9 @@ class Sales extends Controller
     public function receipt(int $id)
     {
         if($r=$this->guard()) return $r;
-        $db=\Config\Database::connect();
-        $sale=$db->table('sales s')->select('s.*,c.code customer_code,c.name customer_name,c.phone customer_phone')->join('customers c','c.id=s.customer_id','left')->where('s.id',$id)->where('s.location_id',(int)session()->get('location_id'))->get()->getRowArray();
-        if(!$sale) return $this->response->setStatusCode(404)->setBody('Sale not found');
-        $items=$db->table('sale_items')->where('sale_id',$id)->orderBy('line_no')->get()->getResultArray();
-        $payments=$db->table('sale_payments')->where('sale_id',$id)->orderBy('id')->get()->getResultArray();
-        $shopSettings=(new \App\Models\ShopSettingsModel())->forLocation((int)session()->get('location_id')); $location=$db->table('locations')->where('id',(int)session()->get('location_id'))->get()->getRowArray() ?: [];
-        return view('sales/receipt',['sale'=>$sale,'items'=>$items,'payments'=>$payments,'shopSettings'=>$shopSettings,'location'=>$location]);
+        $data=(new \App\Services\SaleQueryService())->receiptData($id,\App\Libraries\TenantContext::requireBranchId());
+        if(!$data) return $this->response->setStatusCode(404)->setBody('Sale not found');
+        return view('sales/receipt',$data);
     }
 
     public function historyPage()
@@ -128,29 +124,17 @@ class Sales extends Controller
     public function historyData()
     {
         if($r=$this->guard('POS_HISTORY')) return $r;
-        $db=\Config\Database::connect();
-        $from=trim((string)$this->request->getGet('from')) ?: date('Y-m-d');
-        $to=trim((string)$this->request->getGet('to')) ?: $from;
-        if(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$from)) $from=date('Y-m-d');
-        if(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$to)) $to=$from;
-        if($from>$to) [$from,$to]=[$to,$from];
-        $b=$db->table('sales s')->select('s.*,c.code customer_code,c.name customer_name,u.full_name created_by_name,vu.full_name voided_by_name')->join('customers c','c.id=s.customer_id','left')->join('users u','u.id=s.created_by','left')->join('users vu','vu.id=s.voided_by','left')->where('s.location_id',(int)session()->get('location_id'))->where('s.transaction_at >=',$from.' 00:00:00')->where('s.transaction_at <=',$to.' 23:59:59')->orderBy('s.transaction_at','DESC')->orderBy('s.id','DESC');
-        $status=trim((string)$this->request->getGet('status')); if(in_array($status,['posted','voided'],true)) $b->where('s.status',$status);
-        $customer=trim((string)$this->request->getGet('customer')); if($customer!=='') $b->groupStart()->like('c.name',$customer)->orLike('c.code',$customer)->groupEnd();
-        $type=trim((string)$this->request->getGet('transaction_type')); if($type!=='') $b->where('s.transaction_type',$type);
-        $saleNo=trim((string)$this->request->getGet('sale_no')); if($saleNo!=='') $b->like('s.sale_no',$saleNo);
-        return $this->response->setJSON(['from'=>$from,'to'=>$to,'sales'=>$b->get()->getResultArray()]);
+        $filters=$this->request->getGet(['from','to','status','customer','transaction_type','sale_no']);
+        [$from,$to]=\App\Services\SaleQueryService::range($filters['from']??null,$filters['to']??null);
+        $sales=(new \App\Services\SaleQueryService())->historyBuilder(\App\Libraries\TenantContext::requireBranchId(),$filters)->get()->getResultArray();
+        return $this->response->setJSON(['from'=>$from,'to'=>$to,'sales'=>$sales]);
     }
     public function details(int $id)
     {
         if($r=$this->guard('POS_HISTORY')) return $r;
-        $db=\Config\Database::connect(); $locationId=(int)session()->get('location_id');
-        $sale=$db->table('sales s')->select('s.*,c.code customer_code,c.name customer_name,c.phone customer_phone,u.full_name created_by_name,vu.full_name voided_by_name')->join('customers c','c.id=s.customer_id','left')->join('users u','u.id=s.created_by','left')->join('users vu','vu.id=s.voided_by','left')->where(['s.id'=>$id,'s.location_id'=>$locationId])->get()->getRowArray();
-        if(!$sale) return $this->response->setStatusCode(404)->setJSON(['error'=>'Sale not found.']);
-        $items=$db->table('sale_items si')->select('si.*,ct.code cylinder_code,ct.name cylinder_name,ct.capacity_kg,cu.unit_code customer_unit_code')->join('cylinder_types ct','ct.id=si.cylinder_type_id','left')->join('cylinder_units cu','cu.id=si.customer_cylinder_unit_id','left')->where('si.sale_id',$id)->orderBy('si.line_no')->get()->getResultArray();
-        $movements=$db->table('inventory_movements im')->select('im.*,cu.unit_code,ct.code cylinder_code,ct.name cylinder_name')->join('cylinder_units cu','cu.id=im.cylinder_unit_id','left')->join('cylinder_types ct','ct.id=im.cylinder_type_id','left')->where('im.source_id',$id)->whereIn('im.source_type',['sale','sale_void','security_deposit','cylinder_return'])->orderBy('im.id')->get()->getResultArray();
-        $payments=$db->table('sale_payments')->where('sale_id',$id)->orderBy('id')->get()->getResultArray();
-        return $this->response->setJSON(['sale'=>$sale,'items'=>$items,'payments'=>$payments,'movements'=>$movements,'can_void'=>PermissionService::allows('POS_VOID')]);
+        $details=(new \App\Services\SaleQueryService())->details($id,\App\Libraries\TenantContext::requireBranchId());
+        if(!$details) return $this->response->setStatusCode(404)->setJSON(['error'=>'Sale not found.']);
+        return $this->response->setJSON($details+['can_void'=>PermissionService::allows('POS_VOID')]);
     }
     public function void(int $id)
     {

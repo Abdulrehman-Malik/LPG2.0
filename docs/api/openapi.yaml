@@ -12,7 +12,9 @@ info:
     - Lists accept `page` (from 1) and `per_page` (1–100, default 50).
     - Any authenticated POST may send `Idempotency-Key` (8–100 of `A-Z a-z 0-9 . _ : -`). A retry
       with the same key and body returns the stored response with `Idempotent-Replay: true`;
-      another body under the same key is 409 `IDEMPOTENCY_KEY_REUSED`. Not applied to `auth/*`.
+      another body under the same key is 409 `IDEMPOTENCY_KEY_REUSED`. Only successful responses
+      are stored: after an error (nothing was posted) the same key may be retried. Not applied
+      to `auth/*`.
       `POST /customer/orders` requires a key and keeps it on the order itself.
     - Staff requests act in the shop given by `X-Shop-Id` (or `shop_id`), else the user's
       default shop; the user must have access to that shop.
@@ -476,6 +478,85 @@ paths:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
 
+  # ---- Staff: POS sales (BL-022) -----------------------------------------------
+  /staff/sales:
+    get:
+      tags: [Staff]
+      summary: Sale History of the shop (POS_HISTORY); filters as the web screen
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: from, in: query, description: Y-m-d (default today), schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: status, in: query, schema: { type: string, enum: [posted, voided] } }
+        - { name: customer, in: query, description: Customer name or code contains, schema: { type: string } }
+        - { name: transaction_type, in: query, schema: { $ref: '#/components/schemas/TransactionType' } }
+        - { name: sale_no, in: query, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Post a POS transaction (POS_SALE) through the same SalesService as the POS screen
+      description: |
+        `Idempotency-Key` is required; a retry with the same key and body returns the original
+        sale. All POS rules apply: stock, credit limit, walk-in cash only, deposits, rates,
+        rounding and back-dating.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction_type, lines, payments]
+              properties:
+                transaction_type: { $ref: '#/components/schemas/TransactionType' }
+                customer_id: { type: integer, description: Omit for walk-in (cash only) }
+                transaction_at: { type: string, description: Back-dating per the business rule }
+                discount_amount: { type: number }
+                security_deposit_amount: { type: number }
+                security_deposit_refund_amount: { type: number }
+                custody_unit_ids: { type: array, items: { type: integer } }
+                return_unit_ids: { type: array, items: { type: integer } }
+                lines:
+                  type: array
+                  description: Same line objects the POS screen posts (cylinder_type_id, quantity, rate, …)
+                  items: { type: object }
+                payments:
+                  type: array
+                  items: { $ref: '#/components/schemas/Payment' }
+                notes: { type: string }
+                stock_override_confirmed: { type: boolean }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { description: 'SALE_REJECTED, TRANSACTION_TYPE_DISABLED or IDEMPOTENCY_KEY_REQUIRED', $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/sales/{saleId}:
+    get:
+      tags: [Staff]
+      summary: Sale with lines, payments and inventory movements
+      parameters: [{ $ref: '#/components/parameters/saleId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/sales/{saleId}/receipt:
+    get:
+      tags: [Staff]
+      summary: Data the receipt prints (sale, lines, payments, shop header)
+      parameters: [{ $ref: '#/components/parameters/saleId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/sales/{saleId}/void:
+    post:
+      tags: [Staff]
+      summary: Void a posted sale (POS_VOID); stock, cash and OS are reversed
+      parameters: [{ $ref: '#/components/parameters/saleId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:
@@ -644,6 +725,7 @@ components:
     requestId: { name: requestId, in: path, required: true, schema: { type: integer } }
     accountId: { name: accountId, in: path, required: true, schema: { type: integer } }
     customerId: { name: customerId, in: path, required: true, schema: { type: integer } }
+    saleId: { name: saleId, in: path, required: true, schema: { type: integer } }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -654,6 +736,9 @@ components:
       in: header
       schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,100}$' }
   schemas:
+    TransactionType:
+      type: string
+      enum: [gas_sale, cylinder_sale, security_deposit, cylinder_return]
     Error:
       type: object
       required: [error]
