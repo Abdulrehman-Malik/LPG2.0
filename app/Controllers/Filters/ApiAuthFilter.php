@@ -52,6 +52,8 @@ class ApiAuthFilter implements FilterInterface
             ]);
         }
 
+        \App\Libraries\RequestContext::setApiPrincipal($audience, (int) ($audience === 'staff' ? ($principal['user_id'] ?? 0) : ($principal['customer_app_account_id'] ?? 0)));
+
         // Tenant scope of the API request (BL-008/BL-011). Staff: the requested shop (X-Shop-Id or
         // shop_id) when the user may access it, else the user's default shop; endpoints still run
         // their own shop and permission checks. Customer: the branch of the token's customer.

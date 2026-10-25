@@ -73,10 +73,11 @@ class Catalog extends Controller
             ->orderBy('p.sort_order')->orderBy('p.display_name')
             ->get()->getResultArray();
 
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
         return $this->response->setJSON(['data' => [
             'business' => ['id' => (int) $context['business']['id'], 'name' => $context['business']['name']],
-            'products' => $rows,
-        ]]);
+            'products' => $page,
+        ], 'meta' => $meta]);
     }
 
     public function saveBusinessProduct(int $businessId)
@@ -207,7 +208,8 @@ class Catalog extends Controller
             [$shopId, $businessId]
         )->getResultArray();
 
-        return $this->response->setJSON(['data' => ['shop_id' => $shopId, 'business_id' => $businessId, 'products' => $rows]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+        return $this->response->setJSON(['data' => ['shop_id' => $shopId, 'business_id' => $businessId, 'products' => $page], 'meta' => $meta]);
     }
 
     public function setShopProductAvailability(int $shopId, int $productId)

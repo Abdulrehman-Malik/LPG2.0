@@ -94,7 +94,8 @@ class Orders extends Controller
         try {
             $status = trim((string) $this->request->getGet('status'));
             $rows = (new CustomerOrderService())->listForCustomer($accountId, $status !== '' ? $status : null);
-            return $this->response->setJSON(['data' => ['orders' => $rows]]);
+            [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+            return $this->response->setJSON(['data' => ['orders' => $page], 'meta' => $meta]);
         } catch (\Throwable $e) {
             return $this->serviceError($e);
         }

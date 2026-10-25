@@ -81,7 +81,8 @@ class CustomerAccounts extends Controller
             ->orderBy('created_at', 'ASC')
             ->get()->getResultArray();
 
-        return $this->response->setJSON(['data' => ['shop_id' => $guard['shop_id'], 'requests' => $rows]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+        return $this->response->setJSON(['data' => ['shop_id' => $guard['shop_id'], 'requests' => $page], 'meta' => $meta]);
     }
 
     public function approveSignup(int $requestId)

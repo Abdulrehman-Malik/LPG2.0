@@ -17,6 +17,7 @@ use App\Controllers\Filters\ApiAuthFilter;
 use App\Controllers\Filters\ApiReadyFilter;
 use App\Controllers\Filters\ActiveSessionFilter;
 use App\Controllers\Filters\RequestIdFilter;
+use App\Controllers\Filters\ApiIdempotencyFilter;
 
 class Filters extends BaseFilters
 {
@@ -44,6 +45,7 @@ class Filters extends BaseFilters
         'api-ready'     => ApiReadyFilter::class,
         'active-session' => ActiveSessionFilter::class,
         'request-id'    => RequestIdFilter::class,
+        'api-idempotency' => ApiIdempotencyFilter::class,
     ];
 
     /**

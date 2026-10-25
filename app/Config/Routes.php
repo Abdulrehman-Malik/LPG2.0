@@ -11,7 +11,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
     $routes->post('staff/auth/login','Api\\V1\\Auth::staffLogin');
     $routes->post('staff/auth/refresh','Api\\V1\\Auth::staffRefresh');
 
-    $routes->group('customer', ['filter'=>'api-auth:customer'], static function(RouteCollection $routes){
+    $routes->group('customer', ['filter'=>['api-auth:customer','api-idempotency']], static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::customerLogout');
         $routes->post('auth/change-password','Api\\V1\\Auth::customerChangePassword');
         $routes->get('me','Api\\V1\\Customer\\Me::show');
@@ -22,7 +22,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->post('orders/(:num)/cancel','Api\\V1\\Customer\\Orders::cancel/$1');
         $routes->post('orders/(:num)/reconfirm-price','Api\\V1\\Customer\\Orders::reconfirmPrice/$1');
     });
-    $routes->group('staff', ['filter'=>'api-auth:staff'], static function(RouteCollection $routes){
+    $routes->group('staff', ['filter'=>['api-auth:staff','api-idempotency']], static function(RouteCollection $routes){
         $routes->post('auth/logout','Api\\V1\\Auth::staffLogout');
         $routes->post('auth/change-password','Api\\V1\\Auth::staffChangePassword');
         $routes->get('me','Api\\V1\\Staff\\Me::show');

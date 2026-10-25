@@ -1267,3 +1267,50 @@ test('E2E-030 Concurrent POS fulfillment requests post one sale and consume stoc
   await expect(sourceRow).toBeVisible();
   await expect(sourceRow).toContainText((sourceWeightBefore - 1).toFixed(2) + ' KG');
 });
+
+test('E2E-031 API lists paginate and POST creates honour Idempotency-Key', async ({ request }) => {
+  const login = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  expect(login.status()).toBe(200);
+  const staff = (await login.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+
+  // Pagination envelope: per_page is capped at 100 and meta is always present.
+  const firstPage = await request.get('/api/v1/staff/businesses?per_page=1', { headers });
+  expect(firstPage.status()).toBe(200);
+  const firstBody = await firstPage.json();
+  expect(firstBody.meta).toMatchObject({ page: 1, per_page: 1 });
+  expect(firstBody.data.businesses.length).toBeLessThanOrEqual(1);
+  expect(firstBody.meta.has_more).toBe(firstBody.meta.total > 1);
+  const capped = await (await request.get('/api/v1/staff/shops?per_page=500', { headers })).json();
+  expect(capped.meta.per_page).toBe(100);
+  const pastEnd = await (await request.get('/api/v1/staff/shops?page=999', { headers })).json();
+  expect(pastEnd.data.shops).toEqual([]);
+  expect(pastEnd.meta.has_more).toBe(false);
+
+  const businessId = Number(firstBody.data.businesses[0].id);
+  const shopsBefore = (await (await request.get('/api/v1/staff/businesses/' + businessId + '/shops', { headers })).json()).meta.total;
+  const unique = Date.now().toString(36).toUpperCase();
+  const key = 'qa-shop-' + unique;
+  const body = { code: 'IK' + unique.slice(-8), name: 'QA Idempotent Shop ' + unique, city: 'Lahore' };
+  const url = '/api/v1/staff/businesses/' + businessId + '/shops';
+
+  const first = await request.post(url, { headers: { ...headers, 'Idempotency-Key': key }, data: body });
+  expect(first.status()).toBe(201);
+  const firstJson = await first.json();
+  const retry = await request.post(url, { headers: { ...headers, 'Idempotency-Key': key }, data: body });
+  expect(retry.status()).toBe(201);
+  expect(retry.headers()['idempotent-replay']).toBe('true');
+  expect(await retry.json()).toEqual(firstJson);
+  const shopsAfter = (await (await request.get(url, { headers })).json()).meta.total;
+  expect(shopsAfter).toBe(shopsBefore + 1);
+
+  const reused = await request.post(url, { headers: { ...headers, 'Idempotency-Key': key }, data: { ...body, name: body.name + ' changed' } });
+  expect(reused.status()).toBe(409);
+  const reusedError = (await reused.json()).error;
+  expect(reusedError.code).toBe('IDEMPOTENCY_KEY_REUSED');
+  expect(reusedError.request_id).toBe(reused.headers()['x-request-id']);
+
+  const badKey = await request.post(url, { headers: { ...headers, 'Idempotency-Key': 'bad key' }, data: body });
+  expect(badKey.status()).toBe(422);
+  expect((await badKey.json()).error.code).toBe('INVALID_IDEMPOTENCY_KEY');
+});

@@ -72,10 +72,11 @@ class Orders extends Controller
 
         try {
             $status = trim((string) $this->request->getGet('status'));
+            [$page, $meta] = \App\Libraries\ApiPage::rows((new CustomerOrderService())->listForShop($guard['user_id'], $guard['shop_id'], $status !== '' ? $status : null), $this->request);
             return $this->response->setJSON(['data' => [
                 'shop_id' => $guard['shop_id'],
-                'orders' => (new CustomerOrderService())->listForShop($guard['user_id'], $guard['shop_id'], $status !== '' ? $status : null),
-            ]]);
+                'orders' => $page,
+            ], 'meta' => $meta]);
         } catch (\Throwable $e) {
             log_message('error', 'Staff order list failed: {message}', ['message' => $e->getMessage()]);
             return $this->apiError(503, 'ORDER_SERVICE_UNAVAILABLE', 'The order list is temporarily unavailable.');

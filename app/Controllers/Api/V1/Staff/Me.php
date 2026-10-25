@@ -67,7 +67,8 @@ class Me extends Controller
             return $this->response->setStatusCode(401)->setJSON(['error' => ['code' => 'INVALID_OR_EXPIRED_TOKEN', 'message' => 'The staff session is invalid or expired.']]);
         }
 
-        return $this->response->setJSON(['data' => ['shops' => $this->shopRows((new ShopScopeService())->accessibleShopIds((int) $principal['user_id']))]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($this->shopRows((new ShopScopeService())->accessibleShopIds((int) $principal['user_id'])), $this->request);
+        return $this->response->setJSON(['data' => ['shops' => $page], 'meta' => $meta]);
     }
 
     protected function shopRows(array $shopIds): array

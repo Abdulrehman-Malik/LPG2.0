@@ -11,6 +11,9 @@ final class RequestContext
 {
     private static ?string $id = null;
 
+    /** @var array{audience:string,id:int}|null authenticated API principal (BL-019) */
+    private static ?array $apiPrincipal = null;
+
     public static function id(): string
     {
         if (self::$id === null) {
@@ -19,6 +22,17 @@ final class RequestContext
         }
 
         return self::$id;
+    }
+
+    public static function setApiPrincipal(string $audience, int $id): void
+    {
+        self::$apiPrincipal = $id > 0 ? ['audience' => $audience, 'id' => $id] : null;
+    }
+
+    /** @return array{audience:string,id:int}|null */
+    public static function apiPrincipal(): ?array
+    {
+        return self::$apiPrincipal;
     }
 
     /** Signed-in user and branch without starting a session (the logger runs everywhere). */

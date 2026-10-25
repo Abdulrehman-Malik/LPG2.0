@@ -83,7 +83,7 @@ class Businesses extends Controller
         }
         $businessIds = array_values(array_unique(array_filter($businessIds, static fn (int $id): bool => $id > 0)));
         if (!$businessIds) {
-            return $this->response->setJSON(['data' => ['businesses' => []]]);
+            return $this->response->setJSON(['data' => ['businesses' => []], 'meta' => \App\Libraries\ApiPage::rows([], $this->request)[1]]);
         }
 
         $rows = Database::connect()->table('businesses')
@@ -92,7 +92,8 @@ class Businesses extends Controller
             ->orderBy('name')
             ->get()->getResultArray();
 
-        return $this->response->setJSON(['data' => ['businesses' => $rows]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+        return $this->response->setJSON(['data' => ['businesses' => $page], 'meta' => $meta]);
     }
 
     public function createBusiness()
@@ -183,7 +184,8 @@ class Businesses extends Controller
             ->orderBy('name')
             ->get()->getResultArray();
 
-        return $this->response->setJSON(['data' => ['business' => $business, 'shops' => $rows]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+        return $this->response->setJSON(['data' => ['business' => $business, 'shops' => $page], 'meta' => $meta]);
     }
 
     public function createShop(int $businessId)
@@ -295,7 +297,8 @@ class Businesses extends Controller
              ORDER BY full_name,user_id";
         $rows = Database::connect()->query($sql, [$businessId, $businessId])->getResultArray();
 
-        return $this->response->setJSON(['data' => ['business_id' => $businessId, 'assignments' => $rows]]);
+        [$page, $meta] = \App\Libraries\ApiPage::rows($rows, $this->request);
+        return $this->response->setJSON(['data' => ['business_id' => $businessId, 'assignments' => $page], 'meta' => $meta]);
     }
 
     public function setStaffAccess(int $businessId)

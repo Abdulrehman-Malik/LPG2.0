@@ -41,7 +41,7 @@ class Products extends Controller
             $configuration = new ConfigurationService();
             $businessId = (int) $context['business_id'];
             $shopId = (int) $context['shop_id'];
-            $products = $orders->catalogForCustomer($accountId);
+            [$products, $meta] = \App\Libraries\ApiPage::rows($orders->catalogForCustomer($accountId), $this->request);
 
             return $this->response->setJSON(['data' => [
                 'shop' => ['id' => $shopId, 'name' => $context['shop_name']],
@@ -52,7 +52,7 @@ class Products extends Controller
                     'delivery_fee' => round((float) $configuration->resolve('delivery_fee', $businessId, $shopId)['value'], 2),
                 ],
                 'products' => $products,
-            ]]);
+            ], 'meta' => $meta]);
         } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), 'currently unavailable')) {
                 return $this->response->setStatusCode(403)->setJSON([
