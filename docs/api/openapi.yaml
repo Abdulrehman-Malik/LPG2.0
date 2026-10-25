@@ -16,6 +16,8 @@ info:
       are stored: after an error (nothing was posted) the same key may be retried. Not applied
       to `auth/*`.
       `POST /customer/orders` requires a key and keeps it on the order itself.
+    - Without the header, a valid body `uuid` (client-named record, BL-028) is the key (BL-029):
+      the same uuid and body replays the original, another body under the uuid is 409.
     - Staff requests act in the shop given by `X-Shop-Id` (or `shop_id`), else the user's
       default shop; the user must have access to that shop.
 
@@ -498,10 +500,10 @@ paths:
       tags: [Staff]
       summary: Post a POS transaction (POS_SALE) through the same SalesService as the POS screen
       description: |
-        `Idempotency-Key` is required; a retry with the same key and body returns the original
-        sale. All POS rules apply: stock, credit limit, walk-in cash only, deposits, rates,
+        An `Idempotency-Key` header or a client `uuid` is required; a retry with the same key
+        (or uuid) and body returns the original sale, another body under it is 409. All POS rules apply: stock, credit limit, walk-in cash only, deposits, rates,
         rounding and back-dating.
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
       requestBody:
         content:
           application/json:

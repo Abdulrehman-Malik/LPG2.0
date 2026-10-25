@@ -53,11 +53,12 @@ class Sales extends ApiController
             return $scope;
         }
         [$userId, $shopId] = $scope;
-        // A retried sale must never post twice: the key is required here (ApiIdempotencyFilter replays).
-        if (trim($this->request->getHeaderLine('Idempotency-Key')) === '') {
-            return $this->fail(422, 'IDEMPOTENCY_KEY_REQUIRED', 'Send an Idempotency-Key header with every sale.');
-        }
+        // A retried sale must never post twice: an Idempotency-Key header or a client uuid (which
+        // ApiIdempotencyFilter uses as the key, BL-029) is required.
         $p = $this->payload();
+        if (trim($this->request->getHeaderLine('Idempotency-Key')) === '' && empty($p['uuid'])) {
+            return $this->fail(422, 'IDEMPOTENCY_KEY_REQUIRED', 'Send an Idempotency-Key header or a uuid with every sale.');
+        }
         $type = trim((string) ($p['transaction_type'] ?? ''));
         $settings = (new ShopSettingsModel())->forLocation($shopId);
         if (!(new ShopSettingsModel())->isTransactionTypeVisible($settings, $type)) {

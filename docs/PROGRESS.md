@@ -32,3 +32,4 @@
 | 2026-10-25 | BL-026 API receipts and expenses | Done | bl-026-api-money | E2E-035 | |
 | 2026-10-25 | BL-027 API dashboard and reports | Done | bl-027-api-reports | verify_hq 42/42 | DashboardService::range shared with the web dashboard |
 | 2026-10-25 | BL-028 client-generated UUIDs | Done | bl-028-client-uuids | verify_migrations 31/31; E2E-033/035 | uuid nullable, unique; app builder stamps v4 (MySQL rejects UUID() defaults/triggers with binlog) |
+| 2026-10-25 | BL-029 idempotent creates by UUID | Done | bl-029-idempotent-uuid | E2E-036 (10 concurrent POSTs: 1 sale, 1 stock deduction); Playwright 32/32 | body uuid is the idempotency key when no header |

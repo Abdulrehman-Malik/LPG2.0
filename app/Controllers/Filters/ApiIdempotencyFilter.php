@@ -3,6 +3,7 @@
 namespace App\Controllers\Filters;
 
 use App\Libraries\RequestContext;
+use App\Libraries\Uuid;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
@@ -30,9 +31,17 @@ class ApiIdempotencyFilter implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         self::$claim = null;
-        $key = trim($request->getHeaderLine('Idempotency-Key'));
-        if ($key === '' || strtoupper($request->getMethod()) !== 'POST' || self::skipped(uri_string())) {
+        if (strtoupper($request->getMethod()) !== 'POST' || self::skipped(uri_string())) {
             return null;
+        }
+        $key = trim($request->getHeaderLine('Idempotency-Key'));
+        if ($key === '') {
+            // BL-029: a client-named record (body uuid) is its own idempotency key.
+            $uuid = self::bodyUuid($request);
+            if ($uuid === null) {
+                return null;
+            }
+            $key = 'uuid:' . $uuid;
         }
         $principal = RequestContext::apiPrincipal();
         if (!$principal) {
@@ -97,6 +106,21 @@ class ApiIdempotencyFilter implements FilterInterface
             $table->update(['status' => 'completed', 'response_status' => $response->getStatusCode(), 'response_body' => (string) $response->getBody()]);
         }
         return null;
+    }
+
+    /** The valid uuid field of a JSON or form body, lower-cased; null when absent or invalid. */
+    private static function bodyUuid(RequestInterface $request): ?string
+    {
+        if (!$request instanceof IncomingRequest) {
+            return null;
+        }
+        try {
+            $json = $request->getJSON(true);
+        } catch (\Throwable $e) {
+            $json = null;
+        }
+        $value = is_array($json) ? ($json['uuid'] ?? null) : $request->getPost('uuid');
+        return is_string($value) && Uuid::isValid($value) ? strtolower($value) : null;
     }
 
     private static function skipped(string $uri): bool

@@ -1548,3 +1548,69 @@ test('E2E-035 Staff receipts and expenses API move OS and cash like the web scre
   await page.goto('/cash', { waitUntil: 'networkidle' });
   expect(Number(await page.locator('#countedCash').getAttribute('data-expected'))).toBeCloseTo(cash.expected + 60, 2);
 });
+
+/** Fills a gas sale of `kg` on the POS screen and returns the payload it would post (nothing is posted). */
+async function capturePosGasSale(page, kg) {
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  await page.locator('#transactionType').selectOption('gas_sale');
+  await page.locator('#customer_id').selectOption({ label: 'QA-E2E-CUST — QA E2E Customer' });
+  const line = page.locator('#lines tbody tr').first();
+  await selectOptionByTextPrefix(line.locator('.cyl'), 'C6 — 6 kg');
+  await expect(line.locator('.sourceCyl')).toBeEnabled();
+  await selectOptionByTextPrefix(line.locator('.sourceCyl'), 'QA-E2E-C6-001');
+  await line.locator('.entryValue').fill(String(kg));
+  // Pay what the POS expects: the sale plus any previous OS (an advance lowers it).
+  const total = Number(await page.locator('#saleTotal').innerText());
+  const previousOs = Number(await page.locator('#previousOs').innerText() || 0);
+  await page.locator('.payment .amount').first().fill(Math.max(0, total + previousOs).toFixed(2));
+  let captured;
+  await page.route('**/sales/save', async route => {
+    captured = parseMultipart(route.request().postData() || '');
+    await route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ success: false, error: 'QA capture only' }) });
+  });
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => captured !== undefined).toBe(true);
+  await page.unroute('**/sales/save');
+  return {
+    transaction_type: captured.transaction_type, customer_id: Number(captured.customer_id), transaction_at: captured.transaction_at,
+    discount_amount: captured.discount_amount, notes: captured.notes,
+    lines: JSON.parse(captured.lines_json), payments: JSON.parse(captured.payments_json)
+  };
+}
+
+test('E2E-036 Ten concurrent sale POSTs with one client UUID post one sale and deduct stock once', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+  const unitGas = async () => {
+    const units = (await (await request.get('/api/v1/staff/inventory/units?per_page=100', { headers })).json()).data.units;
+    const unit = units.find(u => u.unit_code === 'QA-E2E-C6-001');
+    return unit ? Number(unit.gas_weight_kg) : 0;
+  };
+  await login(page);
+  const payload = { ...(await capturePosGasSale(page, 1)), uuid: crypto.randomUUID() };
+  const gasBefore = await unitGas();
+  expect(gasBefore).toBeGreaterThanOrEqual(1);
+
+  // No Idempotency-Key header: the client uuid is the key (BL-029).
+  const responses = await Promise.all(Array.from({ length: 10 }, () => request.post('/api/v1/staff/sales', { headers, data: payload })));
+  const statuses = responses.map(r => r.status());
+  expect(statuses.filter(s => s === 201).length, 'statuses ' + statuses.join(',')).toBeGreaterThanOrEqual(1);
+  expect(statuses.every(s => s === 201 || s === 409), 'statuses ' + statuses.join(',')).toBe(true);
+  const saleNos = new Set();
+  for (const r of responses) if (r.status() === 201) saleNos.add((await r.json()).data.sale_no);
+  expect(saleNos.size).toBe(1);
+  const byUuid = (await (await request.get('/api/v1/staff/sales/' + payload.uuid, { headers })).json()).data;
+  expect(byUuid.sale.sale_no).toBe([...saleNos][0]);
+  expect(await unitGas()).toBeCloseTo(gasBefore - 1, 3);
+
+  // A later retry replays; another payload under the same uuid is refused.
+  const retry = await request.post('/api/v1/staff/sales', { headers, data: payload });
+  expect(retry.status()).toBe(201);
+  expect(retry.headers()['idempotent-replay']).toBe('true');
+  const changed = structuredClone(payload); changed.notes = 'different payload';
+  const conflict = await request.post('/api/v1/staff/sales', { headers, data: changed });
+  expect(conflict.status()).toBe(409);
+  expect((await conflict.json()).error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+  expect(await unitGas()).toBeCloseTo(gasBefore - 1, 3);
+});
