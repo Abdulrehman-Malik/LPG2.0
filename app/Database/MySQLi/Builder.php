@@ -32,6 +32,21 @@ class Builder extends BaseBuilder
         return parent::insert(null, $escape);
     }
 
+    /** BL-030: every update of a master row raises its sync version. */
+    public function update($set = null, $where = null, ?int $limit = null): bool
+    {
+        if ($set !== null) {
+            $this->set($set);
+        }
+        $table = $this->baseTable();
+        if ($this->QBSet !== [] && $this->columnReady('version', $table, TenantTables::MASTER_TABLES)
+            && !array_key_exists($this->db->protectIdentifiers('version', false), $this->QBSet)) {
+            $this->set('version', 'version + 1', false);
+        }
+
+        return parent::update(null, $where, $limit);
+    }
+
     public function insertBatch($set = null, ?bool $escape = null, int $batchSize = 100)
     {
         if (is_array($set) && $set !== []) {
@@ -82,27 +97,34 @@ class Builder extends BaseBuilder
         return true;
     }
 
-    /** @var array<string,bool> table => has the BL-028 uuid column */
-    private static array $hasUuidColumn = [];
+    /** @var array<string,bool> "table.column" => column exists (BL-028 uuid, BL-030 version) */
+    private static array $hasColumn = [];
 
     private function uuidColumnReady(string $table): bool
     {
-        if (!in_array($table, TenantTables::UUID_TABLES, true)) {
+        return $this->columnReady('uuid', $table, TenantTables::UUID_TABLES);
+    }
+
+    /** True when $table is in $tables and its migration has added $column. */
+    private function columnReady(string $column, string $table, array $tables): bool
+    {
+        if (!in_array($table, $tables, true)) {
             return false;
         }
-        if (!array_key_exists($table, self::$hasUuidColumn)) {
-            self::$hasUuidColumn[$table] = (int) $this->db->query(
-                "SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'uuid'",
-                [$this->db->DBPrefix . $table]
+        $key = $table . '.' . $column;
+        if (!array_key_exists($key, self::$hasColumn)) {
+            self::$hasColumn[$key] = (int) $this->db->query(
+                'SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                [$this->db->DBPrefix . $table, $column]
             )->getRow('n') > 0;
         }
-        return self::$hasUuidColumn[$table];
+        return self::$hasColumn[$key];
     }
 
     /** Forget cached schema facts (after migrations change the tenant columns). */
     public static function resetTenantCache(): void
     {
-        self::$hasUuidColumn = [];
+        self::$hasColumn = [];
         self::$hasTenantColumn = [];
         self::$businessCache = [];
     }

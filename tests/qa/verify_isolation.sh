@@ -186,7 +186,7 @@ fillpath(){ # replace each ([0-9]+) with the entity id; second placeholder of sh
   echo "$r"
 }
 QS="business_id=$BIZB&location_id=$B1&shop_id=$B1&branch_ids[]=$B1&branch_ids[]=$B2&customer_id=$CUSTB&supplier_id=$SUPB&cylinder_type_id=$TYPEB&type_id=$TYPEB&id=$SALEB&sale_id=$SALEB&order_id=$ORDB&edit=$USERB&from=2000-01-01&to=2099-12-31&tab=customers&status=&q=ISOB"
-qa_spark routes 2>/dev/null | awk -F'|' '/^\| (GET|POST|PUT) /{gsub(/ /,"",$2); gsub(/ /,"",$3); print $2" "$3}' > "$T/routes.txt"
+qa_spark routes 2>/dev/null | awk -F'|' '/^\| (GET|POST|PUT|DELETE) /{gsub(/ /,"",$2); gsub(/ /,"",$3); print $2" "$3}' > "$T/routes.txt"
 TOTAL=$(wc -l < "$T/routes.txt"); ok "route table read: $TOTAL routes"
 skip(){ case "$1" in /|login|logout|installation*|migrations/run|database-backup*|account/password|shop-context/select|api/v1/staff/auth/*|api/v1/customer/auth/*) return 0;; esac; return 1; }
 
@@ -210,7 +210,7 @@ BODY=(-d "id=$CUSTB" -d "customer_id=$CUSTB" -d "supplier_id=$SUPB" -d "cylinder
 JSON="{\"id\":$CUSTB,\"customer_id\":$CUSTB,\"business_id\":$BIZB,\"shop_id\":$B1,\"location_id\":$B1,\"user_id\":$USERB,\"status\":\"cancelled\",\"reason\":\"QA hijack\",\"is_active\":false,\"name\":\"QA Hijack\",\"code\":\"QA-HIJACK\",\"scope\":\"business\",\"owner_id\":$BIZB,\"setting_key\":\"stock_transfer_enabled\",\"value\":false,\"shop_ids\":[$B1],\"cylinder_type_id\":$TYPEB}"
 MCOVERED=0
 while read -r method route; do
-  [ "$method" = POST ] || [ "$method" = PUT ] || continue
+  [ "$method" = POST ] || [ "$method" = PUT ] || [ "$method" = DELETE ] || continue
   if skip "$route"; then continue; fi
   MCOVERED=$((MCOVERED+1))
   path=$(fillpath "$route")

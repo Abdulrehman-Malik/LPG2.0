@@ -16,6 +16,15 @@ final class TenantTables
         'customer_orders', 'cash_transactions', 'stock_transfers', 'cylinder_custody',
     ];
 
+    /**
+     * Master data with BL-030 sync columns (updated_at, deleted_at, version; migration
+     * SyncColumnsOnMasters). The DB builder raises `version` on every update. See docs/sync-policy.md.
+     */
+    public const MASTER_TABLES = [
+        'customers', 'suppliers', 'cylinder_types', 'expense_categories', 'rate_cards', 'customer_rates',
+        'business_catalog_products',
+    ];
+
     public const BRANCH_OWNED = [
         'customers' => false, 'sales' => false, 'purchases' => false, 'customer_receipts' => false,
         'supplier_payments' => false, 'expenses' => false, 'cash_registers' => false, 'cylinder_units' => false,

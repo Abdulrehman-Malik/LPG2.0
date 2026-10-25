@@ -52,6 +52,25 @@ class CustomerService
      *
      * @return array{id:int,created:bool}
      */
+    /**
+     * Soft delete (BL-030): the row stays for history, ledgers and sync, but is deactivated and
+     * hidden from lists and finds; app sessions are revoked as on deactivation.
+     */
+    public function delete(int $id, int $userId, int $locationId): void
+    {
+        $existing = $this->model->findForLocation($id, $locationId);
+        if (!$existing) {
+            throw new RuntimeException('Customer not found.');
+        }
+        $this->model->update($id, ['is_active' => 0]);
+        $this->model->delete($id);
+        $apiSessions = new ApiSessionService();
+        foreach ($this->model->db->table('customer_app_accounts')->select('id')->where('customer_id', $id)->get()->getResultArray() as $accountRow) {
+            $apiSessions->revokeAllForCustomer((int) $accountRow['id']);
+        }
+        AuditService::log('DELETE', 'customer', $id, self::auditable($existing), null, $userId, $locationId);
+    }
+
     public function save(int $id, array $input, int $userId, int $locationId): array
     {
         $existing = null;

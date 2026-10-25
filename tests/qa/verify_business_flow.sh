@@ -114,7 +114,8 @@ post cylinder-types/delete -d "id=$C6" >/dev/null
 post cylinder-types/save -d code=QTMP -d "name=QA temp" -d capacity_kg=9 -d empty_cylinder_price=100 -d sort_order=99 -d is_active=1 >/dev/null
 TMP=$(q "SELECT id FROM cylinder_types WHERE code='QTMP'")
 post cylinder-types/delete -d "id=$TMP" >/dev/null
-[ -z "$(q "SELECT id FROM cylinder_types WHERE code='QTMP'")" ] && ok "unused type can be deleted" || bad "delete unused" "still present"
+# BL-030: delete is a soft delete — the row stays (deleted_at set, inactive) and lists skip it.
+[ "$(q "SELECT CONCAT(deleted_at IS NOT NULL,'|',is_active) FROM cylinder_types WHERE code='QTMP'")" = "1|0" ] && ! curl -s -b "$A" "$B/cylinder-types" | grep -q "QTMP" && ok "unused type can be deleted (soft delete, hidden from the list)" || bad "delete unused" "$(q "SELECT CONCAT(COALESCE(deleted_at,'NULL'),'|',is_active) FROM cylinder_types WHERE code='QTMP'")"
 
 echo "--- Money rounding (D10-2)"
 # Two lines whose amounts differ by rule: 0.5 KG x 10.006 = 5.003 per line.

@@ -134,6 +134,9 @@ jobs:
           CI_ENVIRONMENT: testing
         run: node tests/qa/checks/openapi_check.mjs
 
+      - name: Sync policy classifies every table; ledgers only change at allowed sites
+        run: node tests/qa/checks/ledger_check.mjs
+
       - name: Install Chromium for Playwright
         run: cd tests/e2e && npx playwright install --with-deps chromium
 

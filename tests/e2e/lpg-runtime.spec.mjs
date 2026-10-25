@@ -1334,6 +1334,7 @@ test('E2E-032 Staff customer API matches the web Customers screens', async ({ pa
   expect(after.name).toBe(customer.name);
   expect(Number(after.is_active)).toBe(1);
   expect(Number(after.credit_limit)).toBe(500);
+  expect(Number(after.version)).toBe(Number(customer.version) + 1); // BL-030: every update raises the version
   const invalid = await request.put('/api/v1/staff/customers/' + customer.id, { headers, data: { credit_limit: -1 } });
   expect(invalid.status()).toBe(422);
   expect((await request.get('/api/v1/staff/customers/99999999', { headers })).status()).toBe(404);
@@ -1356,6 +1357,14 @@ test('E2E-032 Staff customer API matches the web Customers screens', async ({ pa
   const webReceipts = await page.locator('#customerReceipts tbody tr:not(:has(.dataTables_empty))').count();
   expect(ledger.sales.length).toBe(webSales);
   expect(ledger.receipts.length).toBe(webReceipts);
+
+  // BL-030 soft delete: the customer disappears from lists and finds.
+  expect((await request.delete('/api/v1/staff/customers/' + customer.id, { headers })).status()).toBe(200);
+  expect((await (await request.get('/api/v1/staff/customers?q=' + unique, { headers })).json()).meta.total).toBe(0);
+  expect((await request.get('/api/v1/staff/customers/' + customer.id, { headers })).status()).toBe(404);
+  expect((await request.delete('/api/v1/staff/customers/' + customer.id, { headers })).status()).toBe(404);
+  await page.goto('/customers', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).not.toContainText('QA API Customer ' + unique);
 });
 
 function parseMultipart(body) {

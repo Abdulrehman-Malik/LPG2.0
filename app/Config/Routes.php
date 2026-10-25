@@ -37,6 +37,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('customers/(:num)','Api\\V1\\Staff\\Customers::show/$1');
         $routes->put('customers/(:num)','Api\\V1\\Staff\\Customers::update/$1');
         $routes->post('customers/(:num)','Api\\V1\\Staff\\Customers::update/$1');
+        $routes->delete('customers/(:num)','Api\\V1\\Staff\\Customers::delete/$1');
         $routes->get('customers/(:num)/balance','Api\\V1\\Staff\\Customers::balance/$1');
         $routes->get('customers/(:num)/ledger','Api\\V1\\Staff\\Customers::ledger/$1');
         $routes->get('sales','Api\\V1\\Staff\\Sales::index');

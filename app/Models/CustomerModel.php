@@ -5,6 +5,8 @@ class CustomerModel extends TenantModel
 {
     protected $table='customers'; protected $primaryKey='id'; protected $returnType='array';
     protected $useTimestamps=true; protected $createdField='created_at'; protected $updatedField='updated_at';
+    // BL-030: a deleted master keeps its row (history and sync); lists and finds skip it.
+    protected $useSoftDeletes=true; protected $deletedField='deleted_at';
     protected $allowedFields=['location_id','code','name','phone','city','address','vehicle_no','credit_limit','allow_credit_sale','opening_balance','is_active'];
     public function findForLocation(int $customerId, int $locationId): ?array
     {

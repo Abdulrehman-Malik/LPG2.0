@@ -11,6 +11,8 @@ PASS=0; FAIL=0
 ok(){ echo "PASS  $1"; PASS=$((PASS+1)); }
 bad(){ echo "FAIL  $1 :: $2"; FAIL=$((FAIL+1)); }
 q(){ local r="" i; for i in 1 2 3 4; do r=$($M -e "$1" | tr -d '\r'); [ -n "$r" ] && break; done; printf '%s' "$r"; }
+# Rolls back the given CI4 migration class and every later one (each migration is its own batch).
+rollback_from(){ local b; b=$(q "SELECT batch FROM migrations WHERE class LIKE '%$1'"); [ -n "$b" ] && qa_spark migrate:rollback -b $((b-1)) >/dev/null 2>&1; }
 
 MIG="$QA_ROOT/app/Database/Migrations"; mkdir -p "$MIG"
 PROBE="$MIG/2026-10-24-000001_QaBl001Probe.php"
@@ -115,10 +117,32 @@ for t in $UUID_TABLES; do
   uq=$(q "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$t' AND COLUMN_NAME='uuid' AND INDEX_NAME='uq_${t}_uuid' AND NON_UNIQUE=0")
   [ "$uq" = 1 ] && ok "$t.uuid has a unique index" || bad "$t.uuid" "unique index missing"
 done
-qa_spark migrate:rollback >/dev/null 2>&1
+rollback_from ClientUuids
 [ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='uuid' AND TABLE_NAME IN ('sales','customers','cylinder_custody')")" = 0 ] && ok "ClientUuids rollback removes the uuid columns" || bad "uuid rollback" "columns remain"
 qa_spark migrations:run >/dev/null 2>&1
 [ "$(q "SELECT CONCAT(COUNT(*)>0,'|',COUNT(uuid)=COUNT(*),'|',COUNT(DISTINCT uuid)=COUNT(*)) FROM customers")" = "1|1|1" ] && ok "re-run backfills every existing customer with a distinct uuid" || bad "uuid backfill" "$(q "SELECT COUNT(*),COUNT(uuid),COUNT(DISTINCT uuid) FROM customers")"
+bash "$DIR/reset_db.sh" >/dev/null 2>&1
+
+# --- 6. BL-030 sync columns on masters, version on update, soft delete keeps the row
+MASTERS="customers suppliers cylinder_types expense_categories rate_cards customer_rates business_catalog_products"
+for t in $MASTERS; do
+  n=$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$t' AND COLUMN_NAME IN ('updated_at','deleted_at','version')")
+  [ "$n" = 3 ] && ok "$t has updated_at, deleted_at, version" || bad "$t sync columns" "$n of 3"
+done
+TOK=$(curl -s -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' "$B/api/v1/staff/auth/login" | grep -oE '"access_token": *"[a-f0-9]{64}"' | grep -oE '[a-f0-9]{64}')
+CID=$(curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d '{"name":"QA Sync Customer","code":"QA-SYNC"}' "$B/api/v1/staff/customers" | grep -oE '"id": *"?[0-9]+' | head -1 | grep -oE '[0-9]+$')
+V1=$(q "SELECT version FROM customers WHERE id=$CID")
+curl -s -o /dev/null -X PUT -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d '{"phone":"0300"}' "$B/api/v1/staff/customers/$CID"
+curl -s -o /dev/null -X PUT -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' -d '{"city":"Lahore"}' "$B/api/v1/staff/customers/$CID"
+[ "$(q "SELECT version FROM customers WHERE id=$CID")" = "$((V1+2))" ] && ok "two updates raise the customer version by 2" || bad "version" "$V1 -> $(q "SELECT version FROM customers WHERE id=$CID")"
+curl -s -o /dev/null -X DELETE -H "Authorization: Bearer $TOK" "$B/api/v1/staff/customers/$CID"
+[ "$(q "SELECT CONCAT(deleted_at IS NOT NULL,'|',is_active) FROM customers WHERE id=$CID")" = "1|0" ] && ok "deleted customer keeps its row (deleted_at set, inactive)" || bad "soft delete" "$(q "SELECT CONCAT(COALESCE(deleted_at,'NULL'),'|',is_active) FROM customers WHERE id=$CID")"
+rollback_from SyncColumnsOnMasters
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('customers','expense_categories') AND COLUMN_NAME IN ('deleted_at','version')")" = 0 ] \
+  && [ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='expense_categories' AND COLUMN_NAME='updated_at'")" = 0 ] \
+  && [ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers' AND COLUMN_NAME='updated_at'")" = 1 ] \
+  && ok "SyncColumnsOnMasters rollback removes only what it added" || bad "sync rollback" "columns left or removed wrongly"
+qa_spark migrations:run >/dev/null 2>&1
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 
 echo; echo "RESULT: $PASS passed, $FAIL failed"

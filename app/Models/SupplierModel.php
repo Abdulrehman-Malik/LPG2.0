@@ -13,6 +13,9 @@ class SupplierModel extends TenantModel
     protected $useTimestamps=true;
     protected $createdField='created_at';
     protected $updatedField='updated_at';
+    // BL-030: a deleted master keeps its row (history and sync); lists and finds skip it.
+    protected $useSoftDeletes=true;
+    protected $deletedField='deleted_at';
     protected $allowedFields=['business_id','location_id','code','name','phone','city','address','credit_limit','opening_balance','is_active'];
 
     /** Suppliers a branch may use: its business's business-wide suppliers plus its own branch-only suppliers. */

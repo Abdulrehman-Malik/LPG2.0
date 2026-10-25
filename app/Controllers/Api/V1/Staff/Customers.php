@@ -19,7 +19,7 @@ class Customers extends ApiController
             return $scope;
         }
         [, $shopId] = $scope;
-        $builder = Database::connect()->table('customers')->where('location_id', $shopId)->orderBy('name');
+        $builder = Database::connect()->table('customers')->where('location_id', $shopId)->where('deleted_at', null)->orderBy('name');
         $search = trim((string) $this->request->getGet('q'));
         if ($search !== '') {
             $builder->groupStart()->like('name', $search)->orLike('code', $search)->orLike('phone', $search)->groupEnd();
@@ -86,6 +86,21 @@ class Customers extends ApiController
                 : $this->fail(422, 'VALIDATION_FAILED', user_error_message($e));
         }
         return $this->ok(['customer' => (new CustomerModel())->find($result['id'])], null, $result['created'] ? 201 : 200);
+    }
+
+    public function delete(int $id)
+    {
+        $scope = $this->staffScope('CUSTOMER_MANAGE');
+        if (!is_array($scope)) {
+            return $scope;
+        }
+        [$userId, $shopId] = $scope;
+        try {
+            (new CustomerService())->delete($id, $userId, $shopId);
+        } catch (\RuntimeException $e) {
+            return $this->fail(404, 'CUSTOMER_NOT_FOUND', 'Customer not found in the selected shop.');
+        }
+        return $this->ok(['id' => $id, 'deleted' => true]);
     }
 
     public function balance(int $id)

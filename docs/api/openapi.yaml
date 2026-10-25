@@ -454,6 +454,13 @@ paths:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Staff]
+      summary: Soft-delete a customer (row kept for history; hidden from lists; app sessions revoked)
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
     post:
       tags: [Staff]
       summary: Same as PUT, for clients that cannot send PUT

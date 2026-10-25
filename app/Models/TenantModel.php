@@ -41,6 +41,14 @@ abstract class TenantModel extends Model
             throw new RuntimeException('No tenant context: ' . static::class . ' cannot be queried outside an authorized request.');
         }
         $this->applyTenantScope($builder, $businessId);
+        // BL-030: builder-based queries (not only find/findAll) skip soft-deleted rows, unless the
+        // caller asked for them with withDeleted()/onlyDeleted().
+        if ($this->useSoftDeletes && $this->tempUseSoftDeletes) {
+            $deleted = $this->db->protectIdentifiers($this->table . '.' . $this->deletedField);
+            if (!str_contains($builder->getCompiledSelect(false), $deleted . ' IS NULL')) {
+                $builder->where($this->table . '.' . $this->deletedField, null);
+            }
+        }
 
         return $builder;
     }
