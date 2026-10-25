@@ -382,7 +382,11 @@ class MigrationRunnerService
         return $executed;
     }
 
-    public function runPending(): array
+    /**
+     * @param int $limit stop after this many migrations were applied or baselined (0 = all); the
+     *                   installer uses it so no single request runs for long on a remote database
+     */
+    public function runPending(int $limit = 0): array
     {
         $this->ensureHistoryTable();
 
@@ -396,10 +400,17 @@ class MigrationRunnerService
             $latest = $this->latestHistory();
             $executed = [];
 
+            $limited = false;
             foreach ($migrations as $migration) {
+                if ($limit > 0 && count($executed) >= $limit) {
+                    $limited = true;
+                    break;
+                }
                 $history = $latest[$migration['file']] ?? null;
 
-                if ($history && $history['status'] === 'success') {
+                // A baselined ('skipped') migration is done as well (as in status()); re-checking it on
+                // every run would also re-insert a history row each time.
+                if ($history && in_array($history['status'], ['success', 'skipped'], true)) {
                     if (!in_array((string) $history['checksum'], $migration['checksums'], true)) {
                         throw new RuntimeException('Migration file '.$migration['file'].' was changed after it was applied. Create a new migration sequence instead.');
                     }
@@ -517,7 +528,7 @@ class MigrationRunnerService
             }
 
             // Reversible migrations build on the SQL history, so they run only after it succeeded.
-            if ($failed === null) {
+            if ($failed === null && !$limited) {
                 foreach ($this->runPendingFrameworkMigrations() as $row) {
                     $executed[] = $row;
                     if ($row['status'] === 'failed') {
