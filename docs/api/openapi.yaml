@@ -934,6 +934,43 @@ paths:
         '201': { $ref: '#/components/responses/Data' }
         '422': { $ref: '#/components/responses/Error' }
 
+  # ---- Staff: dashboard and reports (BL-027; read-only) ------------------------
+  /staff/reports/dashboard:
+    get:
+      tags: [Staff]
+      summary: Dashboard figures of the shop (DASHBOARD_VIEW); today by default
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/reports/period:
+    get:
+      tags: [Staff]
+      summary: Period report of the shop as the Reports page (REPORT_VIEW)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/reports/custody:
+    get:
+      tags: [Staff]
+      summary: Cylinders with customers and the security deposit balance
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/reports/branches:
+    get:
+      tags: [Staff]
+      summary: Branch overview of the business across the shops the user may access
+      description: Defaults to the current month. `data.branches` is keyed by shop id.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: 'branch_ids[]', in: query, schema: { type: array, items: { type: integer } } }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:

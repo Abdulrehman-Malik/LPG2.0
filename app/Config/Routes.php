@@ -73,6 +73,10 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('expense-categories','Api\\V1\\Staff\\Money::expenseCategories');
         $routes->get('expenses','Api\\V1\\Staff\\Money::expenses');
         $routes->post('expenses','Api\\V1\\Staff\\Money::createExpense');
+        $routes->get('reports/dashboard','Api\\V1\\Staff\\Reports::dashboard');
+        $routes->get('reports/period','Api\\V1\\Staff\\Reports::period');
+        $routes->get('reports/custody','Api\\V1\\Staff\\Reports::custody');
+        $routes->get('reports/branches','Api\\V1\\Staff\\Reports::branches');
         $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
         $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
         $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');

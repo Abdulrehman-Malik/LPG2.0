@@ -63,6 +63,30 @@ done
 eq "TOTAL sales" "$(csvval "$T/hq.csv" TOTAL 'Sales total')" "$(q "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE location_id IN ($MAIN,$B2) AND status='posted'")"
 [ "${GITHUB_ACTIONS:-}" ] && [ "$FAIL" != 0 ] && head -5 "$T/hq.csv" | cut -c1-300 | sed "s/^/FAIL  csv: /"
 
+
+echo "--- staff API reports (BL-027)"
+apitok(){ curl -s -H 'Content-Type: application/json' -d "{\"username\":\"$1\",\"password\":\"admin123\"}" "$B/api/v1/staff/auth/login" | grep -oE '"access_token": *"[a-f0-9]{64}"' | grep -oE '[a-f0-9]{64}'; }
+TOK=$(apitok admin)
+# jget FILE PATH: value at a dotted path of a JSON file ("" when absent)
+jget(){ node -e 'const v=process.argv[1].split(".").reduce((o,k)=>o==null?o:o[k],JSON.parse(require("fs").readFileSync(0,"utf8")));console.log(v==null?"":typeof v==="object"?JSON.stringify(v):v)' "$2" < "$1"; }
+curl -s -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $MAIN" "$B/api/v1/staff/reports/branches" -o "$T/hq_api.json"
+for spec in "MAIN:$MAIN:Main LPG Shop" "QA-B2:$B2:QA Branch Two"; do
+  loc=$(echo "$spec" | cut -d: -f2); bn=$(echo "$spec" | cut -d: -f3)
+  eq "API $bn sales total equals the web report" "$(jget "$T/hq_api.json" "data.branches.$loc.sales_total")" "$(csvval "$T/hq.csv" "$bn" 'Sales total')"
+  eq "API $bn gas stock equals the web report" "$(jget "$T/hq_api.json" "data.branches.$loc.gas_stock_kg")" "$(csvval "$T/hq.csv" "$bn" 'Gas stock KG')"
+  eq "API $bn customer OS equals the web report" "$(jget "$T/hq_api.json" "data.branches.$loc.customer_os")" "$(csvval "$T/hq.csv" "$bn" 'Customer OS')"
+  eq "API $bn voided equals the web report" "$(jget "$T/hq_api.json" "data.branches.$loc.voided_count")" "$(csvval "$T/hq.csv" "$bn" 'Voided sales')"
+done
+eq "API TOTAL sales equals the web report" "$(jget "$T/hq_api.json" data.totals.sales_total)" "$(csvval "$T/hq.csv" TOTAL 'Sales total')"
+FROM=$(date '+%Y-%m-01'); TO=$(date '+%Y-%m-%d')
+curl -s -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $MAIN" "$B/api/v1/staff/reports/period?from=$FROM&to=$TO" -o "$T/period_api.json"
+eq "API period report MAIN sales total" "$(jget "$T/period_api.json" data.sales.total)" "$(q "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE location_id=$MAIN AND status='posted' AND transaction_type NOT IN ('security_deposit','cylinder_return') AND transaction_at BETWEEN '$FROM 00:00:00' AND '$TO 23:59:59'")"
+curl -s -o "$T/dash_api.json" -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $MAIN" "$B/api/v1/staff/reports/dashboard" | grep -q 200 && [ "$(jget "$T/dash_api.json" data.from)" = "$TO" ] && ok "API dashboard defaults to today" || bad "API dashboard" "$(head -c 200 "$T/dash_api.json")"
+curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $MAIN" "$B/api/v1/staff/reports/custody" | grep -q 200 && ok "API custody report" || bad "API custody" ""
+SMT=$(apitok qa_scoped_manager)
+curl -s -H "Authorization: Bearer $SMT" "$B/api/v1/staff/reports/branches?branch_ids[]=$B2" -o "$T/hq_scoped.json"
+[ -z "$(jget "$T/hq_scoped.json" "data.branches.$B2")" ] && [ -n "$(jget "$T/hq_scoped.json" "data.branches.$MAIN")" ] && ok "API: MAIN-only manager cannot see QA-B2 in the branch overview" || bad "API branch scope" "$(head -c 300 "$T/hq_scoped.json")"
+
 echo "--- branch scope"
 SM="$T/scoped.txt"; login "$SM" qa_scoped_manager admin123 >/dev/null
 curl -s -b "$SM" "$B/reports/branches?export=csv&branch_ids[]=$B2" -o "$T/scoped.csv"

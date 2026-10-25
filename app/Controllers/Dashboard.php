@@ -18,27 +18,7 @@ class Dashboard extends Controller
 
     private function dateRange(): array
     {
-        $today = date('Y-m-d');
-        $from = trim((string) $this->request->getGet('from'));
-        $to = trim((string) $this->request->getGet('to'));
-
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = $today;
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = $from;
-
-        $fromTs = strtotime($from);
-        $toTs = strtotime($to);
-        if ($fromTs === false) { $from = $today; $fromTs = strtotime($from); }
-        if ($toTs === false || $toTs < $fromTs) $to = $from;
-
-        return [
-            'from' => $from,
-            'to' => $to,
-            'toExclusive' => date('Y-m-d', strtotime($to . ' +1 day')),
-            'label' => $from === $to
-                ? date('d M Y', strtotime($from))
-                : date('d M Y', strtotime($from)) . ' — ' . date('d M Y', strtotime($to)),
-            'isToday' => $from === $today && $to === $today,
-        ];
+        return DashboardService::range((string) $this->request->getGet('from'), (string) $this->request->getGet('to'));
     }
 
     public function index()
