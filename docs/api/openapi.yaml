@@ -629,6 +629,119 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/List' }
 
+  # ---- Staff: inventory and transfers (BL-024) ---------------------------------
+  /staff/inventory/stock:
+    get:
+      tags: [Staff]
+      summary: Stock by cylinder type (filled, empty, gas KG, partly used) as the Inventory Detail report
+      description: Permission INVENTORY_MANAGE.
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/inventory/units:
+    get:
+      tags: [Staff]
+      summary: Physical cylinders of the shop
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: status, in: query, schema: { type: string, enum: [filled, empty, issued, in_transit] } }
+        - { name: cylinder_type_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/inventory/movements:
+    get:
+      tags: [Staff]
+      summary: Inventory movement history, newest first
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: inventory_type, in: query, schema: { type: string } }
+        - { name: source_type, in: query, schema: { type: string } }
+        - { name: direction, in: query, schema: { type: string, enum: [in, out] } }
+        - { name: cylinder_type_id, in: query, schema: { type: integer } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/inventory/adjustments:
+    post:
+      tags: [Staff]
+      summary: Stock adjustment (same rules as the Stock Adjustment screen; audited)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inventory_type, direction, quantity, reason]
+              properties:
+                inventory_type: { type: string, examples: [filled_cylinder, empty_cylinder, gas_kg] }
+                cylinder_type_id: { type: integer }
+                quantity: { type: number }
+                direction: { type: string, enum: [in, out] }
+                actual_gas_weight_kg: { type: number }
+                source_cylinder_unit_id: { type: integer, description: Required for a gas adjustment }
+                adjustment_scope: { type: string, enum: [bulk, specific] }
+                reason: { type: string }
+                notes: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/transfers:
+    get:
+      tags: [Staff]
+      summary: Stock transfers sent or received by the shop (STOCK_TRANSFER_MANAGE)
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: status, in: query, schema: { type: string, enum: [in_transit, received, cancelled] } }
+        - { name: direction, in: query, schema: { type: string, enum: [outgoing, incoming] } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Send physical cylinders to another shop of the business
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_location_id, unit_ids]
+              properties:
+                to_location_id: { type: integer }
+                unit_ids: { type: array, items: { type: integer } }
+                notes: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/transfers/{transferId}:
+    get:
+      tags: [Staff]
+      summary: Transfer with its cylinders (sender or receiver only)
+      parameters: [{ $ref: '#/components/parameters/transferId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/transfers/{transferId}/receive:
+    post:
+      tags: [Staff]
+      summary: Confirm receipt at the receiving shop (two-step flow)
+      parameters: [{ $ref: '#/components/parameters/transferId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/transfers/{transferId}/cancel:
+    post:
+      tags: [Staff]
+      summary: Cancel an in-transit transfer at the sending shop
+      parameters: [{ $ref: '#/components/parameters/transferId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:
@@ -798,6 +911,7 @@ components:
     accountId: { name: accountId, in: path, required: true, schema: { type: integer } }
     customerId: { name: customerId, in: path, required: true, schema: { type: integer } }
     saleId: { name: saleId, in: path, required: true, schema: { type: integer } }
+    transferId: { name: transferId, in: path, required: true, schema: { type: integer } }
     IdempotencyKey:
       name: Idempotency-Key
       in: header

@@ -87,6 +87,27 @@ CS="$T/cashier.txt"; login "$CS" qa_cashier admin123 >/dev/null
 [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$CS" $B/inventory/transfers)" = 403 ] && ok "cashier without STOCK_TRANSFER_MANAGE gets 403" || bad "permission" ""
 curl -s -b "$CS" $B/dashboard | grep -q "Branch Stock Transfers" && bad "menu" "cashier sees menu" || ok "menu entry hidden from cashier"
 
+echo "--- staff API (BL-024)"
+setcfg $BIZ stock_transfer_mode two_step
+TOK=$(curl -s -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' "$B/api/v1/staff/auth/login" | grep -oE '"access_token": *"[a-f0-9]{64}"' | grep -oE '[a-f0-9]{64}')
+api(){ local shop=$1; shift; curl -s -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $shop" -H 'Content-Type: application/json' "$@"; }
+jnum(){ grep -oE "\"$1\": *[0-9.]+" | head -1 | grep -oE '[0-9.]+$'; }
+N=$(q "SELECT COUNT(*) FROM stock_transfers")
+R=$(api $B2 -H 'Idempotency-Key: qa-api-transfer-1' -d "{\"to_location_id\":$MAIN,\"unit_ids\":[$U2],\"notes\":\"QA API transfer\"}" "$B/api/v1/staff/transfers")
+TR4=$(q "SELECT MAX(id) FROM stock_transfers")
+[ "$(q "SELECT CONCAT(status,'|',from_location_id,'|',to_location_id) FROM stock_transfers WHERE id=$TR4")" = "in_transit|$B2|$MAIN" ] && ok "API create: QA-B2 -> MAIN in transit" || bad "API create" "$R"
+R2=$(api $B2 -H 'Idempotency-Key: qa-api-transfer-1' -d "{\"to_location_id\":$MAIN,\"unit_ids\":[$U2],\"notes\":\"QA API transfer\"}" "$B/api/v1/staff/transfers")
+[ "$(q "SELECT COUNT(*) FROM stock_transfers")" = "$((N+1))" ] && [ "$R2" = "$R" ] && ok "API create replay with the same key returns the same transfer" || bad "API replay" "$R2"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $B2" -X POST "$B/api/v1/staff/transfers/$TR4/receive")" = 404 ] && ok "API: sending branch cannot receive (404)" || bad "API sender receive" ""
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $OTHER" "$B/api/v1/staff/transfers/$TR4")" = 404 ] && ok "API: unrelated shop gets 404 for the transfer" || bad "API detail isolation" ""
+R=$(api $MAIN -X POST "$B/api/v1/staff/transfers/$TR4/receive")
+[ "$(q "SELECT status FROM stock_transfers WHERE id=$TR4")" = received ] && [ "$(unit $U2)" = "MAIN:filled:6.000" ] && ok "API receive at MAIN: cylinder in MAIN stock" || bad "API receive" "$R"
+api $MAIN "$B/api/v1/staff/transfers?per_page=1" | grep -qE '"has_more": *true' && ok "API transfer list is paginated" || bad "API list" ""
+GAS_SQL=$(q "SELECT ROUND(COALESCE(SUM(gas_weight_kg),0),3) FROM cylinder_units WHERE location_id=$MAIN AND status='filled'")
+GAS_API=$(api $MAIN "$B/api/v1/staff/inventory/stock" | jnum companyTotalGas)
+[ "$(q "SELECT CAST(${GAS_API:-0} AS DECIMAL(12,3))")" = "$GAS_SQL" ] && ok "API stock total gas equals the cylinders ($GAS_SQL kg, as Inventory Detail)" || bad "API stock" "api=$GAS_API sql=$GAS_SQL"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $OTHER" "$B/api/v1/staff/inventory/movements?per_page=500")" = 200 ] && ok "API movements reachable with per_page capped" || bad "API movements" ""
+
 echo "--- reconciliation"
 reconcile $MAIN MAIN; reconcile $B2 QA-B2
 

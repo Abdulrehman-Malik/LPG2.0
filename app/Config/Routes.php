@@ -49,6 +49,15 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->post('cash/move','Api\\V1\\Staff\\Cash::move');
         $routes->post('cash/close','Api\\V1\\Staff\\Cash::close');
         $routes->get('cash/history','Api\\V1\\Staff\\Cash::history');
+        $routes->get('inventory/stock','Api\\V1\\Staff\\Inventory::stock');
+        $routes->get('inventory/units','Api\\V1\\Staff\\Inventory::units');
+        $routes->get('inventory/movements','Api\\V1\\Staff\\Inventory::movements');
+        $routes->post('inventory/adjustments','Api\\V1\\Staff\\Inventory::adjust');
+        $routes->get('transfers','Api\\V1\\Staff\\Inventory::transfers');
+        $routes->post('transfers','Api\\V1\\Staff\\Inventory::createTransfer');
+        $routes->get('transfers/(:num)','Api\\V1\\Staff\\Inventory::transfer/$1');
+        $routes->post('transfers/(:num)/receive','Api\\V1\\Staff\\Inventory::receiveTransfer/$1');
+        $routes->post('transfers/(:num)/cancel','Api\\V1\\Staff\\Inventory::cancelTransfer/$1');
         $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
         $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
         $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');
