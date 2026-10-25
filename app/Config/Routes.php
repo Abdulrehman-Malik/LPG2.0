@@ -42,6 +42,7 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('sales','Api\\V1\\Staff\\Sales::index');
         $routes->post('sales','Api\\V1\\Staff\\Sales::create');
         $routes->get('sales/(:num)','Api\\V1\\Staff\\Sales::show/$1');
+        $routes->get('sales/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})','Api\\V1\\Staff\\Sales::show/$1');
         $routes->get('sales/(:num)/receipt','Api\\V1\\Staff\\Sales::receipt/$1');
         $routes->post('sales/(:num)/void','Api\\V1\\Staff\\Sales::void/$1');
         $routes->get('cash/current','Api\\V1\\Staff\\Cash::current');

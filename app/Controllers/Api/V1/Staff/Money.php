@@ -34,12 +34,15 @@ class Money extends ApiController
             return $scope;
         }
         [$userId, $shopId] = $scope;
-        try {
-            $result = (new CustomerReceiptService())->post($this->payload(), $userId, $shopId);
-        } catch (\Throwable $e) {
-            return $this->fail(422, 'RECEIPT_REJECTED', user_error_message($e));
-        }
-        return $this->ok($result, null, 201);
+        return $this->withClientUuid('customer_receipts', function () use ($userId, $shopId) {
+            try {
+                $result = (new CustomerReceiptService())->post($this->payload(), $userId, $shopId);
+            } catch (\Throwable $e) {
+                return $this->fail(422, 'RECEIPT_REJECTED', user_error_message($e));
+            }
+            $result['uuid'] = Database::connect()->table('customer_receipts')->select('uuid')->where('id', $result['id'])->get()->getRow('uuid');
+            return $this->ok($result, null, 201);
+        });
     }
 
     public function expenseCategories()
@@ -73,11 +76,14 @@ class Money extends ApiController
             return $scope;
         }
         [$userId, $shopId] = $scope;
-        try {
-            $result = (new ExpenseService())->post($this->payload(), $userId, $shopId);
-        } catch (\Throwable $e) {
-            return $this->fail(422, 'EXPENSE_REJECTED', user_error_message($e));
-        }
-        return $this->ok($result, null, 201);
+        return $this->withClientUuid('expenses', function () use ($userId, $shopId) {
+            try {
+                $result = (new ExpenseService())->post($this->payload(), $userId, $shopId);
+            } catch (\Throwable $e) {
+                return $this->fail(422, 'EXPENSE_REJECTED', user_error_message($e));
+            }
+            $result['uuid'] = Database::connect()->table('expenses')->select('uuid')->where('id', $result['id'])->get()->getRow('uuid');
+            return $this->ok($result, null, 201);
+        });
     }
 }

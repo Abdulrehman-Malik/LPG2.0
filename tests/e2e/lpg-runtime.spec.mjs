@@ -1399,12 +1399,20 @@ test('E2E-033 Staff sales API posts exactly like the POS screen', async ({ page,
   };
 
   expect((await request.post('/api/v1/staff/sales', { headers, data: payload })).status()).toBe(422); // key required
+  const badUuid = await request.post('/api/v1/staff/sales', { headers: key('baduuid'), data: { ...payload, uuid: 'not-a-uuid' } });
+  expect(badUuid.status()).toBe(422);
+  expect((await badUuid.json()).error.code).toBe('INVALID_UUID');
+  payload.uuid = crypto.randomUUID(); // client-named record (BL-028)
   const k = key('gas');
   const posted = await request.post('/api/v1/staff/sales', { headers: k, data: payload });
   const postedBody = await posted.json();
   expect(posted.status(), JSON.stringify(postedBody)).toBe(201);
   const apiSale = postedBody.data.sale;
   expect(Number(apiSale.sale.total_amount)).toBeCloseTo(uiTotal, 2);
+  expect(apiSale.sale.uuid).toBe(payload.uuid);
+  expect(postedBody.data.uuid).toBe(payload.uuid);
+  const byUuid = (await (await request.get('/api/v1/staff/sales/' + payload.uuid, { headers })).json()).data;
+  expect(Number(byUuid.sale.id)).toBe(Number(postedBody.data.id));
   const replay = await request.post('/api/v1/staff/sales', { headers: k, data: payload });
   expect(replay.headers()['idempotent-replay']).toBe('true');
   expect((await replay.json()).data.sale_no).toBe(postedBody.data.sale_no);
@@ -1432,6 +1440,7 @@ test('E2E-033 Staff sales API posts exactly like the POS screen', async ({ page,
   expect(pick(apiSale)).toEqual(pick(posSale));
 
   // Business rules are the POS rules: zero quantity, walk-in credit and the credit limit.
+  delete payload.uuid;
   const zero = structuredClone(payload); zero.lines[0].quantity = '0';
   expect((await request.post('/api/v1/staff/sales', { headers: key('zero'), data: zero })).status()).toBe(422);
   const walkIn = { ...structuredClone(payload), customer_id: null, payments: [{ payment_type: 'sale', payment_mode: 'credit', amount: uiTotal }] };
@@ -1510,10 +1519,12 @@ test('E2E-035 Staff receipts and expenses API move OS and cash like the web scre
   const customer = (await get('/api/v1/staff/customers?q=QA-E2E-CUST')).customers[0];
   const osBefore = (await get('/api/v1/staff/customers/' + customer.id + '/balance')).os_balance;
 
-  const receipt = await request.post('/api/v1/staff/receipts', { headers, data: { customer_id: Number(customer.id), amount: 100, payment_mode: 'cash', notes: 'QA API receipt' } });
+  const receiptUuid = crypto.randomUUID();
+  const receipt = await request.post('/api/v1/staff/receipts', { headers, data: { customer_id: Number(customer.id), amount: 100, payment_mode: 'cash', notes: 'QA API receipt', uuid: receiptUuid } });
   expect(receipt.status(), await receipt.text()).toBe(201);
   const r = (await receipt.json()).data;
   expect(r.outstanding).toBeCloseTo(osBefore, 2);
+  expect(r.uuid).toBe(receiptUuid);
   expect(r.balance_after).toBeCloseTo(osBefore - 100, 2);
   expect((await get('/api/v1/staff/customers/' + customer.id + '/balance')).os_balance).toBeCloseTo(osBefore - 100, 2);
   expect((await get('/api/v1/staff/cash/current')).expected).toBeCloseTo(cash.expected + 100, 2);

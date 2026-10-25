@@ -3,6 +3,7 @@
 namespace App\Database\MySQLi;
 
 use App\Database\TenantTables;
+use App\Libraries\Uuid;
 use CodeIgniter\Database\MySQLi\Builder as BaseBuilder;
 
 /**
@@ -22,6 +23,11 @@ class Builder extends BaseBuilder
             $this->set($set, '', $escape);
         }
         $this->stampTenant();
+        // BL-028: the client's UUID waiting for this table, else a new v4 UUID.
+        $table = $this->baseTable();
+        if ($this->uuidColumnReady($table) && !array_key_exists($this->db->protectIdentifiers('uuid', false), $this->QBSet)) {
+            $this->set('uuid', Uuid::take($table) ?? Uuid::v4());
+        }
 
         return parent::insert(null, $escape);
     }
@@ -39,6 +45,14 @@ class Builder extends BaseBuilder
                         if ($businessId !== null) {
                             $row['business_id'] = $businessId;
                         }
+                    }
+                }
+                unset($row);
+            }
+            if ($this->uuidColumnReady($table)) {
+                foreach ($set as &$row) {
+                    if (is_array($row) && !array_key_exists('uuid', $row)) {
+                        $row['uuid'] = Uuid::v4();
                     }
                 }
                 unset($row);
@@ -68,9 +82,27 @@ class Builder extends BaseBuilder
         return true;
     }
 
+    /** @var array<string,bool> table => has the BL-028 uuid column */
+    private static array $hasUuidColumn = [];
+
+    private function uuidColumnReady(string $table): bool
+    {
+        if (!in_array($table, TenantTables::UUID_TABLES, true)) {
+            return false;
+        }
+        if (!array_key_exists($table, self::$hasUuidColumn)) {
+            self::$hasUuidColumn[$table] = (int) $this->db->query(
+                "SELECT COUNT(*) n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'uuid'",
+                [$this->db->DBPrefix . $table]
+            )->getRow('n') > 0;
+        }
+        return self::$hasUuidColumn[$table];
+    }
+
     /** Forget cached schema facts (after migrations change the tenant columns). */
     public static function resetTenantCache(): void
     {
+        self::$hasUuidColumn = [];
         self::$hasTenantColumn = [];
         self::$businessCache = [];
     }

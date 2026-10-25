@@ -28,14 +28,17 @@ class Sales extends ApiController
         return $this->ok(['from' => $from, 'to' => $to, 'sales' => $rows], $meta);
     }
 
-    public function show(int $id)
+    /** @param string $id numeric id or the sale's uuid (BL-028) */
+    public function show(string $id)
     {
         $scope = $this->staffScope('POS_HISTORY');
         if (!is_array($scope)) {
             return $scope;
         }
         [$userId, $shopId] = $scope;
-        $details = (new SaleQueryService())->details($id, $shopId);
+        $queries = new SaleQueryService();
+        $saleId = ctype_digit($id) ? (int) $id : $queries->idForUuid($id, $shopId);
+        $details = $saleId ? $queries->details($saleId, $shopId) : null;
         if (!$details) {
             return $this->fail(404, 'SALE_NOT_FOUND', 'Sale not found in the selected shop.');
         }
@@ -65,12 +68,15 @@ class Sales extends ApiController
         }
         $fields = ['transaction_type', 'customer_id', 'transaction_at', 'discount_amount', 'security_deposit_amount', 'security_deposit_refund_amount',
             'custody_unit_ids', 'return_unit_ids', 'lines', 'payments', 'notes', 'stock_override_confirmed', 'rate_change_reason', 'uuid'];
-        try {
-            $result = (new SalesService())->post(array_intersect_key($p, array_flip($fields)), $userId, $shopId);
-        } catch (\Throwable $e) {
-            return $this->fail(422, 'SALE_REJECTED', user_error_message($e));
-        }
-        return $this->ok(['id' => (int) $result['id'], 'sale_no' => $result['sale_no'], 'sale' => (new SaleQueryService())->details((int) $result['id'], $shopId)], null, 201);
+        return $this->withClientUuid('sales', function () use ($p, $fields, $userId, $shopId) {
+            try {
+                $result = (new SalesService())->post(array_intersect_key($p, array_flip($fields)), $userId, $shopId);
+            } catch (\Throwable $e) {
+                return $this->fail(422, 'SALE_REJECTED', user_error_message($e));
+            }
+            $sale = (new SaleQueryService())->details((int) $result['id'], $shopId);
+            return $this->ok(['id' => (int) $result['id'], 'uuid' => $sale['sale']['uuid'] ?? null, 'sale_no' => $result['sale_no'], 'sale' => $sale], null, 201);
+        });
     }
 
     public function void(int $id)

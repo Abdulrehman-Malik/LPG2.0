@@ -10,6 +10,12 @@ namespace App\Database;
 final class TenantTables
 {
     /** Branch-owned tables: business_id follows location_id. table => location_id nullable */
+    /** Tables with the BL-028 client/server `uuid` column (migration ClientUuids). */
+    public const UUID_TABLES = [
+        'sales', 'sale_payments', 'customer_receipts', 'customers', 'expenses', 'inventory_movements',
+        'customer_orders', 'cash_transactions', 'stock_transfers', 'cylinder_custody',
+    ];
+
     public const BRANCH_OWNED = [
         'customers' => false, 'sales' => false, 'purchases' => false, 'customer_receipts' => false,
         'supplier_payments' => false, 'expenses' => false, 'cash_registers' => false, 'cylinder_units' => false,

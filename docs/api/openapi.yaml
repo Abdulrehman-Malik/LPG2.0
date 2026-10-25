@@ -510,6 +510,7 @@ paths:
               required: [transaction_type, lines, payments]
               properties:
                 transaction_type: { $ref: '#/components/schemas/TransactionType' }
+                uuid: { $ref: '#/components/schemas/ClientUuid' }
                 customer_id: { type: integer, description: Omit for walk-in (cash only) }
                 transaction_at: { type: string, description: Back-dating per the business rule }
                 discount_amount: { type: number }
@@ -891,6 +892,7 @@ paths:
               type: object
               required: [customer_id, amount, payment_mode]
               properties:
+                uuid: { $ref: '#/components/schemas/ClientUuid' }
                 customer_id: { type: integer }
                 amount: { type: number, exclusiveMinimum: 0 }
                 payment_mode: { type: string, enum: [cash, cheque, online] }
@@ -924,6 +926,7 @@ paths:
               type: object
               required: [category_id, amount, payment_mode]
               properties:
+                uuid: { $ref: '#/components/schemas/ClientUuid' }
                 category_id: { type: integer }
                 amount: { type: number, exclusiveMinimum: 0 }
                 payment_mode: { type: string, enum: [cash, cheque, online] }
@@ -1139,7 +1142,12 @@ components:
     requestId: { name: requestId, in: path, required: true, schema: { type: integer } }
     accountId: { name: accountId, in: path, required: true, schema: { type: integer } }
     customerId: { name: customerId, in: path, required: true, schema: { type: integer } }
-    saleId: { name: saleId, in: path, required: true, schema: { type: integer } }
+    saleId:
+      name: saleId
+      in: path
+      required: true
+      description: Numeric id, or the sale's uuid for GET /staff/sales/{saleId}
+      schema: { type: string }
     transferId: { name: transferId, in: path, required: true, schema: { type: integer } }
     supplierId: { name: supplierId, in: path, required: true, schema: { type: integer } }
     purchaseId: { name: purchaseId, in: path, required: true, schema: { type: integer } }
@@ -1153,6 +1161,11 @@ components:
       in: header
       schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,100}$' }
   schemas:
+    ClientUuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[47][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+      description: Client-generated v4 or v7 UUID naming the record (BL-028); the server generates one when absent. Invalid values are 422 INVALID_UUID.
     TransactionType:
       type: string
       enum: [gas_sale, cylinder_sale, security_deposit, cylinder_return]
@@ -1234,6 +1247,7 @@ components:
           schema:
             type: object
             properties:
+              uuid: { $ref: '#/components/schemas/ClientUuid' }
               name: { type: string, description: Required on create }
               code: { type: string }
               phone: { type: string }

@@ -52,7 +52,7 @@ class Customers extends ApiController
 
     public function create()
     {
-        return $this->saveCustomer(0);
+        return $this->withClientUuid('customers', fn () => $this->saveCustomer(0));
     }
 
     public function update(int $id)

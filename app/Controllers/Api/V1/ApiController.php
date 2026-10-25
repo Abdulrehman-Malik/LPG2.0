@@ -5,6 +5,7 @@ namespace App\Controllers\Api\V1;
 use App\Libraries\ApiPage;
 use App\Libraries\RequestContext;
 use App\Libraries\TenantContext;
+use App\Libraries\Uuid;
 use App\Services\PermissionService;
 use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
@@ -80,6 +81,27 @@ abstract class ApiController extends Controller
         }
         TenantContext::setApi($userId, $shopId);
         return [$userId, $shopId, TenantContext::requireBusinessId()];
+    }
+
+    /**
+     * Runs a create with the client's `uuid` from the body (BL-028): an invalid one is 422, a
+     * valid one is put on the record the service inserts into $table.
+     *
+     * @param callable():ResponseInterface $create
+     */
+    protected function withClientUuid(string $table, callable $create): ResponseInterface
+    {
+        try {
+            $uuid = Uuid::fromInput($this->payload()['uuid'] ?? null);
+        } catch (\RuntimeException $e) {
+            return $this->fail(422, 'INVALID_UUID', $e->getMessage());
+        }
+        Uuid::expect($table, $uuid);
+        try {
+            return $create();
+        } finally {
+            Uuid::expect($table, null);
+        }
     }
 
     /** @return array{0:list<array<string,mixed>>,1:array<string,int|bool>} rows and meta of one page */

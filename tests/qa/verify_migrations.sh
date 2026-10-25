@@ -109,5 +109,17 @@ rm -f "$PROBE"
 [ "$(schema)" = "$BASE" ] && ok "probe removed; schema back to baseline" || bad "final cleanup" "fingerprint differs"
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 
+# --- 5. BL-028 client UUIDs: unique uuid column on every listed table; rollback; backfill on re-run
+UUID_TABLES="sales sale_payments customer_receipts customers expenses inventory_movements customer_orders cash_transactions stock_transfers cylinder_custody"
+for t in $UUID_TABLES; do
+  uq=$(q "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='$t' AND COLUMN_NAME='uuid' AND INDEX_NAME='uq_${t}_uuid' AND NON_UNIQUE=0")
+  [ "$uq" = 1 ] && ok "$t.uuid has a unique index" || bad "$t.uuid" "unique index missing"
+done
+qa_spark migrate:rollback >/dev/null 2>&1
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='uuid' AND TABLE_NAME IN ('sales','customers','cylinder_custody')")" = 0 ] && ok "ClientUuids rollback removes the uuid columns" || bad "uuid rollback" "columns remain"
+qa_spark migrations:run >/dev/null 2>&1
+[ "$(q "SELECT CONCAT(COUNT(*)>0,'|',COUNT(uuid)=COUNT(*),'|',COUNT(DISTINCT uuid)=COUNT(*)) FROM customers")" = "1|1|1" ] && ok "re-run backfills every existing customer with a distinct uuid" || bad "uuid backfill" "$(q "SELECT COUNT(*),COUNT(uuid),COUNT(DISTINCT uuid) FROM customers")"
+bash "$DIR/reset_db.sh" >/dev/null 2>&1
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

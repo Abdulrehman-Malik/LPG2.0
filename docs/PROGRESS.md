@@ -17,3 +17,18 @@
 | 2026-10-25 | BL-010 business_id on child tables | Done | bl-010-business-id-child-tables | targeted + E2E subset | |
 | 2026-10-25 | BL-011 tenant-scoped base model | Done | bl-011-tenant-scoped-models | full regression green | |
 | 2026-10-25 | BL-012 no cross-tenant fallbacks | Done | bl-012-no-cross-tenant-fallbacks | isolation 23/23, tenancy 33/33 | found + fixed Shop Settings cross-tenant user leak |
+| 2026-10-25 | BL-014 standard SaaS roles | Done | bl-014-standard-saas-roles | verify_security | Owner, Manager, Cashier, Driver, Accountant; docs/roles.md |
+| 2026-10-25 | BL-015 audit every sensitive action | Done | bl-015-audit-sensitive-actions | verify_audit 22/22 | rates, users, roles, settings, cash, voids |
+| 2026-10-25 | BL-016 audit log integrity | Done | bl-016-audit-integrity | full regression green; Playwright 26/26 | strict audit in transactions; refresh/restore guarded in production |
+| 2026-10-25 | BL-017 receipt/supplier-payment/expense services | Done | bl-017-money-services | business_flow, cash, parties | PHPUnit smoke for the three services |
+| 2026-10-25 | BL-018 report queries out of controllers; no DB in views | Done | bl-018-report-queries | pages, hq, flow, history; Playwright 26/26 | LayoutData for the shell |
+| 2026-10-25 | BL-019 API conventions | Done | bl-019-api-conventions | E2E-031; migrations, security, isolation | meta uses has_more (no cursor); Idempotency-Key is a route filter; only 2xx/3xx stored |
+| 2026-10-25 | BL-020 OpenAPI spec | Done | bl-020-openapi | openapi_check in CI and run_all | docs/api/openapi.yaml; fails on undocumented routes |
+| 2026-10-25 | BL-021 API customers | Done | bl-021-api-customers | E2E-032; isolation now crawls PUT | partial PUT merges stored fields |
+| 2026-10-25 | BL-022 API POS sales | Done | bl-022-api-sales | E2E-033 (API vs POS row comparison); Playwright 29/29 | Idempotency-Key required; web Sale History shares SaleQueryService |
+| 2026-10-25 | BL-023 API cash sessions | Done | bl-023-api-cash | E2E-034; cash_check, verify_audit | CashService::manualMove (atomic audit) |
+| 2026-10-25 | BL-024 API inventory and transfers | Done | bl-024-api-inventory | verify_transfers 31/31 | |
+| 2026-10-25 | BL-025 API suppliers, purchases, supplier payments | Done | bl-025-api-purchasing | verify_business_flow 57/57 | SupplierService extracted (now audited) |
+| 2026-10-25 | BL-026 API receipts and expenses | Done | bl-026-api-money | E2E-035 | |
+| 2026-10-25 | BL-027 API dashboard and reports | Done | bl-027-api-reports | verify_hq 42/42 | DashboardService::range shared with the web dashboard |
+| 2026-10-25 | BL-028 client-generated UUIDs | Done | bl-028-client-uuids | verify_migrations 31/31; E2E-033/035 | uuid nullable, unique; app builder stamps v4 (MySQL rejects UUID() defaults/triggers with binlog) |

@@ -68,6 +68,13 @@ class SaleQueryService
         return $from > $to ? [$to, $from] : [$from, $to];
     }
 
+    /** Id of the branch's sale with this uuid (BL-028), null when there is none. */
+    public function idForUuid(string $uuid, int $locationId): ?int
+    {
+        $row = $this->db->table('sales')->select('id')->where(['uuid' => strtolower($uuid), 'location_id' => $locationId])->get()->getRowArray();
+        return $row ? (int) $row['id'] : null;
+    }
+
     /** Sale header, lines, payments and inventory movements; null when not in this branch. */
     public function details(int $saleId, int $locationId): ?array
     {
