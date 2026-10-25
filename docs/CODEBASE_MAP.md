@@ -58,7 +58,7 @@ Notes:
 
 **Public, not behind the `auth` filter:**
 - `/`, `login` (GET/POST), `logout`.
-- `installation`, `installation/run`: guarded by `FRESH_DATABASE_SETUP` env plus admin password and `REPLACE DATABASE` confirmation (`InstallationSetupService::install`).
+- `installation` (wizard), `installation/step/*`, `installation/execute/*`: guarded by `FRESH_DATABASE_SETUP` env plus admin password and `REPLACE DATABASE` confirmation (`InstallationSetupService::install`).
 - `migrations/run`: needs a signed-in system admin or system-admin credentials posted (`Migrations::authorizedSystemAdministrator`).
 - `database-backup/*` (index, download, create, restore, email settings, delete, email): each action checks `PermissionService::allows('BACKUP_MANAGE')`, which needs `is_system_admin=1`. These routes skip `AuthFilter`'s disabled-user and migration-gate checks.
 

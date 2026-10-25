@@ -39,10 +39,18 @@ The installer does not run while this flag is false. Regular login and the exist
 1. Configure the target database host, username, password, port, and database name in .env (database.default.* or the supported LPG_DB_* variables).
 2. Ensure the MySQL account has permission to create the configured database and create/alter tables. For replacement, it also needs permission to drop that database.
 3. Set FRESH_DATABASE_SETUP = true for the initial setup window.
-4. Open the application login URL. If setup has not completed, the login page redirects to Installation Setup.
-5. Review the target database name and submit INSTALL DATABASE.
-6. The installer creates the database if it does not exist, executes database/schema.sql, runs pending numbered SQL migrations in sequence, and records completion only after the migrations succeed.
-7. Confirm that login works, then set FRESH_DATABASE_SETUP = false.
+4. Open the application login URL. If setup has not completed, the login page redirects to the installation wizard.
+5. Work through the wizard; nothing is written to the database until the last step:
+   1. **Checks** — PHP version and extensions, a writable `writable/` folder, the database server connection and the state of the configured database.
+   2. **Business** — name, short code, city and optional phone, email and address.
+   3. **First branch** — name, code, city and optional phone and address.
+   4. **Owner account** — full name, username, optional email and a password that meets the password policy (it is kept only as a hash).
+   5. **Review** — the answers, what will happen to the database, and the INSTALL DATABASE confirmation (plus the administrator password and REPLACE DATABASE when existing data is replaced).
+   6. **Install** — runs as separate short requests with a progress list: prepare the database (and take the safety backup when needed), create the tables and starting data, apply the migrations in batches, then save the business, branch and owner. A failed part can be retried from the page.
+6. The seeded starting records are replaced by the answers: no `admin` / `admin123` account remains, and every other seeded account (such as `pak`) is disabled, so the owner is the only active user.
+7. Sign in as the owner, then set FRESH_DATABASE_SETUP = false.
+
+The database connection itself (host, port, name, user, password) comes from the environment and is shown, not edited, by the wizard: on a hosted database such as Railway use the user and database the host provides.
 
 ## Replacing an existing database
 
@@ -57,7 +65,7 @@ If the existing database has tables but no verifiable active administrator, repl
 
 ## If an installation does not finish
 
-The installer marks the database as *installing* before it applies the schema and as *complete* only after every migration succeeds. If a run stops part-way (for example a lost connection or a failed migration), opening Installation Setup again shows **A previous installation did not finish**. Typing INSTALL DATABASE then rebuilds that database from the start, with no administrator password or backup needed, because nothing in it was entered by users. This applies only while the database contains no sales, purchases, receipts, supplier payments, expenses or cash sessions. Once any of those exist, the normal replacement safeguards above apply.
+The installer marks the database as *installing* before it applies the schema and as *complete* only after every migration succeeds. If a run stops part-way (for example a lost connection or a failed migration), opening Installation Setup again shows **A previous installation did not finish**. Completing the wizard again rebuilds that database from the start, with no administrator password needed, because nothing in it was entered by users; a safety backup is still taken first. The same applies when an earlier run stopped before any administrator account existed (the page lists the tables that were not created). This applies only while the database contains no sales, purchases, receipts, supplier payments, expenses or cash sessions, and only when every table in it is one this application creates — a database that also holds another application's tables stays blocked. Once business records exist, the normal replacement safeguards above apply.
 
 ## Supported database servers
 

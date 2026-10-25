@@ -247,11 +247,17 @@ class InstallationSetupService
         }
     }
 
-    public function install(array $post): array
+    /**
+     * Phase 1 of an installation: checks the confirmations, takes the safety backup where data
+     * exists, (re)creates the database and marks it 'installing'. Every later phase requires that
+     * mark, so they can never run against a live database.
+     *
+     * @param array{confirm?:string,admin_password?:string,replace_confirm?:string} $post
+     * @return array{database:string,backup:?string}
+     */
+    public function prepare(array $post, bool $adminVerified = false): array
     {
-        if (!$this->enabled()) throw new RuntimeException('Fresh database setup is disabled. Set FRESH_DATABASE_SETUP=true in .env to enable it.');
-        $state = $this->inspect();
-        if (($post['confirm'] ?? '') !== 'INSTALL DATABASE') throw new RuntimeException('Please enter INSTALL DATABASE in the confirmation field.');
+        $state = $this->checkAuthorization($post, !$adminVerified);
         $backupPath = null;
 
         if ($state['has_data'] && !empty($state['interrupted'])) {
@@ -265,13 +271,6 @@ class InstallationSetupService
             log_message('warning', 'Rebuilding unfinished installation of database {database}. Safety backup: {backup}', ['database' => $state['database'], 'backup' => basename($backupPath)]);
             $this->replaceDatabase();
         } elseif ($state['has_data']) {
-            if (!$state['admin_exists']) throw new RuntimeException('This database contains tables but no verifiable active administrator was found. Replacement is blocked for safety.');
-            $password = (string) ($post['admin_password'] ?? '');
-            if ($password === '' || !$this->verifyAdminPassword($password)) {
-                usleep(500000);
-                throw new RuntimeException('Administrator password verification failed. The database was not changed.');
-            }
-            if (($post['replace_confirm'] ?? '') !== 'REPLACE DATABASE') throw new RuntimeException('To replace this existing database, enter REPLACE DATABASE in the destructive confirmation field.');
             $backup = (new DatabaseBackupService())->createBackup(false);
             $backupPath = (string) ($backup['path'] ?? '');
             if ($backupPath === '' || !is_file($backupPath) || (filesize($backupPath) ?: 0) < 50) {
@@ -284,11 +283,146 @@ class InstallationSetupService
         }
 
         $this->recordState('installing');
+        return ['database' => $state['database'], 'backup' => $backupPath];
+    }
+
+    /**
+     * Checks the wizard's confirmations without changing anything (review step): INSTALL DATABASE,
+     * and for a database with live data an active administrator's password and REPLACE DATABASE.
+     */
+    public function authorize(array $post): void
+    {
+        $this->checkAuthorization($post, true);
+    }
+
+    private function checkAuthorization(array $post, bool $checkPassword): array
+    {
+        if (!$this->enabled()) throw new RuntimeException('Fresh database setup is disabled. Set FRESH_DATABASE_SETUP=true in .env to enable it.');
+        $state = $this->inspect();
+        if (($post['confirm'] ?? '') !== 'INSTALL DATABASE') throw new RuntimeException('Please enter INSTALL DATABASE in the confirmation field.');
+        if ($state['has_data'] && empty($state['interrupted'])) {
+            if (!$state['admin_exists']) throw new RuntimeException('This database contains tables but no verifiable active administrator was found. Replacement is blocked for safety.');
+            if ($checkPassword) {
+                $password = (string) ($post['admin_password'] ?? '');
+                if ($password === '' || !$this->verifyAdminPassword($password)) {
+                    usleep(500000);
+                    throw new RuntimeException('Administrator password verification failed. The database was not changed.');
+                }
+            }
+            if (($post['replace_confirm'] ?? '') !== 'REPLACE DATABASE') throw new RuntimeException('To replace this existing database, enter REPLACE DATABASE in the destructive confirmation field.');
+        }
+        return $state;
+    }
+
+    /** Phase 2: database/schema.sql with the starting data. */
+    public function createSchema(): void
+    {
+        $this->assertInstalling();
         $this->executeSchema();
-        $result = (new MigrationRunnerService())->runPending();
-        if (empty($result['success'])) throw new RuntimeException('Schema was created, but one or more migrations failed. Login remains blocked. ' . ($result['message'] ?? ''));
+    }
+
+    /**
+     * Phase 3: pending migrations, at most $limit per call so no request runs long; call again
+     * while 'done' is false.
+     *
+     * @return array{done:bool,applied:list<string>,message:string}
+     */
+    public function migrate(int $limit = 5): array
+    {
+        $this->assertInstalling();
+        $result = (new MigrationRunnerService())->runPending($limit);
+        $applied = array_map(static fn (array $r): string => (string) $r['file'], $result['executed'] ?? []);
+        foreach ($result['executed'] ?? [] as $row) {
+            if (($row['status'] ?? '') === 'failed') {
+                throw new RuntimeException('Migration ' . $row['file'] . ' failed: ' . ($row['message'] ?? ''));
+            }
+        }
+        return ['done' => !empty($result['success']), 'applied' => $applied, 'message' => (string) ($result['message'] ?? '')];
+    }
+
+    /**
+     * Phase 4: the owner's business, first branch and administrator replace the seeded defaults
+     * (Perfect LPG / MAIN / admin with a known password), then the installation is complete.
+     *
+     * @param array{business:array<string,string>,branch:array<string,string>,owner:array<string,string>} $setup
+     */
+    public function finalize(array $setup): void
+    {
+        $this->assertInstalling();
+        $b = $setup['business'];
+        $l = $setup['branch'];
+        $o = $setup['owner'];
+        $s = $this->settings();
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $db = new \mysqli($s['host'], $s['user'], $s['pass'], $s['name'], $s['port']);
+        $db->set_charset('utf8mb4');
+        try {
+            $db->begin_transaction();
+            $stmt = $db->prepare("UPDATE businesses SET code=?, name=?, email=NULLIF(?,''), phone=NULLIF(?,''), address=NULLIF(?,''), city=NULLIF(?,'') WHERE code='DEFAULT'");
+            $stmt->bind_param('ssssss', $b['code'], $b['name'], $b['email'], $b['phone'], $b['address'], $b['city']);
+            $stmt->execute();
+            if ($stmt->affected_rows !== 1) throw new RuntimeException('The starting business record was not found.');
+            $stmt = $db->prepare("UPDATE locations SET code=?, name=?, phone=NULLIF(?,''), address=NULLIF(?,''), city=NULLIF(?,'') WHERE code='MAIN'");
+            $stmt->bind_param('sssss', $l['code'], $l['name'], $l['phone'], $l['address'], $l['city']);
+            $stmt->execute();
+            if ($stmt->affected_rows !== 1) throw new RuntimeException('The starting branch record was not found.');
+            $stmt = $db->prepare("UPDATE users SET full_name=?, username=?, email=NULLIF(?,''), password_hash=?, must_change_password=0, is_active=1 WHERE username='admin' AND is_system_admin=1");
+            $stmt->bind_param('ssss', $o['full_name'], $o['username'], $o['email'], $o['password_hash']);
+            $stmt->execute();
+            if ($stmt->affected_rows !== 1) throw new RuntimeException('The starting administrator account was not found.');
+            // Accounts seeded by the schema or migrations (e.g. 'pak') have published passwords; a new
+            // installation starts with the owner only, who adds staff from the Users screen.
+            $stmt = $db->prepare('UPDATE users SET is_active=0 WHERE username<>?');
+            $stmt->bind_param('s', $o['username']);
+            $stmt->execute();
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            throw $e;
+        } finally {
+            $db->close();
+        }
         $this->recordState('complete');
-        log_message('info', 'Fresh database installation completed for database {database}.', ['database' => $state['database']]);
-        return ['database' => $state['database'], 'backup' => $backupPath, 'migration_result' => $result];
+        log_message('info', 'Installation completed for database {database}: business {business}, owner {owner}.', ['database' => $s['name'], 'business' => $b['code'], 'owner' => $o['username']]);
+    }
+
+    /** All phases in one call (scripts and tests); the wizard calls them one per request. */
+    public function install(array $post, ?array $setup = null): array
+    {
+        $prepared = $this->prepare($post);
+        $this->createSchema();
+        do {
+            $step = $this->migrate(100);
+        } while (!$step['done'] && $step['applied'] !== []);
+        if (!$step['done']) throw new RuntimeException('Schema was created, but migrations did not finish. Login remains blocked. ' . $step['message']);
+        if ($setup !== null) {
+            $this->finalize($setup);
+        } else {
+            $this->recordState('complete');
+        }
+        return ['database' => $prepared['database'], 'backup' => $prepared['backup'], 'migration_result' => $step];
+    }
+
+    private function assertInstalling(): void
+    {
+        if (!$this->stateIs('installing')) {
+            throw new RuntimeException('No installation is in progress. Start the setup again.');
+        }
+    }
+
+    private function stateIs(string $wanted): bool
+    {
+        $s = $this->settings();
+        $db = $this->connectServer();
+        try {
+            $q = chr(96);
+            $dbName = $q . str_replace($q, $q . $q, $s['name']) . $q;
+            $row = $db->query("SELECT state FROM " . $dbName . ".lpg_installation_state WHERE id=1")->fetch_assoc();
+            return ($row['state'] ?? '') === $wanted;
+        } catch (\Throwable $e) {
+            return false;
+        } finally {
+            $db->close();
+        }
     }
 }
