@@ -258,8 +258,11 @@ class DatabaseBackup extends Controller
      */
     public function refreshTransactionalData()
     {
-        if (strtoupper((string) session()->get('role')) !== 'ADMIN') {
-            return $this->response->setStatusCode(403)->setBody('Forbidden');
+        // Clears the data of every business: System Administrators only (a business owner holds
+        // the ADMIN role too), and never in production (BL-016).
+        if ($r = $this->guard()) return $r;
+        if (ENVIRONMENT === 'production') {
+            return redirect()->to('/database-backup')->with('error', 'The transactional data refresh is disabled in production.');
         }
         if ($this->request->getPost('confirmation') !== 'RESET TRANSACTIONAL DATA') {
             return redirect()->to('/database-backup')->with('error', 'Refresh cancelled. Enter the exact confirmation phrase to continue.');
@@ -272,7 +275,9 @@ class DatabaseBackup extends Controller
             if ($backupPath === '' || !is_file($backupPath) || (filesize($backupPath) ?: 0) < 50) {
                 throw new \RuntimeException('Refresh cancelled because a valid safety backup could not be verified.');
             }
+            $refreshAttempted = true;
             $result = (new \App\Services\TransactionalDataRefreshService())->refresh();
+            \App\Services\AuditService::log('TRANSACTIONAL_REFRESH', 'database', null, null, ['tables_cleared' => $result['tables_cleared'], 'safety_backup' => $backup['name'] ?? null], (int) session()->get('user_id'), (int) session()->get('location_id') ?: null);
             $message = 'Transactional data refresh completed. Safety backup: ' . ($backup['name'] ?? 'created') .
                 '. Tables cleared: ' . count($result['tables_cleared']) . '. Master data and application settings were preserved.';
             return redirect()->to('/database-backup')->with('success', $message);
@@ -292,6 +297,11 @@ class DatabaseBackup extends Controller
     public function restore()
     {
         if ($r = $this->guard()) return $r;
+        // A restore replaces the data of every business; in production it needs an explicit
+        // opt-in (backup.allowRestoreInProduction = true in .env) (BL-016).
+        if (ENVIRONMENT === 'production' && !filter_var(env('backup.allowRestoreInProduction', false), FILTER_VALIDATE_BOOLEAN)) {
+            return redirect()->back()->with('error', 'Database restore is disabled in production. Set backup.allowRestoreInProduction = true in .env for a planned restore.');
+        }
 
         $file = $this->request->getFile('backup_file');
         if (!$file || !$file->isValid()) {
@@ -319,6 +329,8 @@ class DatabaseBackup extends Controller
 
             (new DatabaseBackupService())->createBackup(false);
             $result = (new DatabaseBackupService())->restore($temporary);
+            // Written after the restore, so it is part of the restored audit log.
+            \App\Services\AuditService::log('DATABASE_RESTORED', 'database', null, null, ['file' => $result['name'] ?? null], (int) session()->get('user_id'), null);
 
             return redirect()->to('/database-backup')->with(
                 'success',

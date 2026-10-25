@@ -367,6 +367,8 @@ test('E2E-013 Customer Ledger receipt history shows POS source and payment detai
   await expect(customerRow).toBeVisible();
   await customerRow.getByRole('link', { name: 'Ledger' }).click();
   await expect(page).toHaveURL(/\/customers\/ledger\/\d+/);
+  // The URL changes when navigation commits; wait for the page scripts (Bootstrap tabs) first.
+  await page.waitForLoadState('networkidle');
   await page.locator('[data-bs-target="#customerReceipts"]').click();
   const history = page.locator('#customerReceipts table.datatable');
   await expect(history.locator('thead')).toContainText('Source');

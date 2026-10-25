@@ -13,10 +13,14 @@ class TransactionalDataRefreshService
      */
     public function refresh(): array
     {
+        // A test-data tool: it clears the data of every business, so it never runs in production,
+        // and the audit log is never cleared (BL-016).
+        if (ENVIRONMENT === 'production') {
+            throw new RuntimeException('The transactional data refresh is disabled in production.');
+        }
         $db = Database::connect();
 
         $tables = [
-            'audit_logs',
             'customer_security_deposits',
             'cylinder_custody',
             'sale_payments',

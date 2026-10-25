@@ -158,5 +158,37 @@ line=$(grep -F "\"request_id\":\"$ref\"" "$LOG" | grep -F "[$ref]" | tail -1)
 echo "$line" | grep -q "suppliers" && ok "log line with that reference holds the database error" || bad "log detail" "not found for $ref"
 echo "$line" | "$QA_PHP" -r '$j=json_decode(stream_get_contents(STDIN),true); exit(is_array($j)&&isset($j["level"],$j["time"],$j["user_id"],$j["path"])?0:1);' && ok "log line is JSON with level, time, user and path" || bad "json log" "$line"
 
+echo "--- BL-016 audit log integrity"
+qa_clear_throttle
+OWNER_ROLE=$(q "SELECT id FROM roles WHERE code='ADMIN'")
+$M -e "INSERT IGNORE INTO users(location_id,is_system_admin,role_id,full_name,username,email,password_hash,is_active) VALUES($MAIN,0,$OWNER_ROLE,'QA Plain Owner','qa_plain_owner','qa_plain_owner@x.local','$HASH',1)" 2>/dev/null
+PO="$T/plain_owner.txt"; login "$PO" qa_plain_owner admin123 >/dev/null
+CUSTS=$(q "SELECT COUNT(*) FROM customers")
+code=$(post "$PO" database-backup/transactional-refresh -d "confirmation=RESET TRANSACTIONAL DATA")
+[ "$code" = 403 ] && [ "$(q "SELECT COUNT(*) FROM customers")" = "$CUSTS" ] && ok "a business owner (not System Administrator) cannot run the all-tenant data refresh" || bad "refresh by owner" "http $code"
+# A sale void whose audit row cannot be written is rolled back.
+AD="$T/admin.txt"; login "$AD" admin admin123 >/dev/null
+C6=$(q "SELECT id FROM cylinder_types WHERE code='C6' AND business_id=(SELECT business_id FROM locations WHERE id=$MAIN)")
+CRED=$(q "SELECT id FROM customers WHERE code='QA-E2E-CREDIT'"); U1=$(q "SELECT id FROM cylinder_units WHERE unit_code='QA-E2E-C6-001'")
+q "UPDATE customers SET credit_limit=100000, allow_credit_sale=1 WHERE id=$CRED; SELECT 1" >/dev/null
+SALE=$(curl -s -b "$AD" -c "$AD" -H 'Accept: application/json' -H 'X-Requested-With: XMLHttpRequest' --data-urlencode "csrf_test_name=$(csrf "$AD")" --data-urlencode transaction_type=gas_sale --data-urlencode "customer_id=$CRED" --data-urlencode "lines_json=[{\"cylinder_type_id\":\"$C6\",\"source_cylinder_unit_id\":\"$U1\",\"quantity\":\"0.2\",\"gas_entry_mode\":\"quantity\",\"gas_rate\":\"\"}]" --data-urlencode 'payments_json=[{"payment_type":"sale","payment_mode":"credit","amount":"0"}]' "$B/sales/save" | grep -oE '"id": *[0-9]+' | grep -oE '[0-9]+')
+[ -n "$SALE" ] && ok "fixture sale $SALE posted" || bad "fixture sale" "not posted"
+$M -e "RENAME TABLE audit_logs TO qa_bl016_audit_logs" 2>/dev/null
+post "$AD" "sales/void/$SALE" -d "void_reason=QA strict audit" >/dev/null
+$M -e "RENAME TABLE qa_bl016_audit_logs TO audit_logs" 2>/dev/null
+[ "$(q "SELECT status FROM sales WHERE id=$SALE")" = posted ] && ok "void is rolled back when its audit row cannot be written" || bad "strict audit" "sale was voided without audit"
+post "$AD" "sales/void/$SALE" -d "void_reason=QA strict audit" >/dev/null
+[ "$(q "SELECT status FROM sales WHERE id=$SALE")" = voided ] && [ -n "$(q "SELECT id FROM audit_logs WHERE action='VOID' AND entity_id=$SALE")" ] && ok "with the audit log available the void succeeds and is audited" || bad "void after restore" "not voided/audited"
+# Production guards (CLI command under CI_ENVIRONMENT=production on the QA database).
+cp "$QA_ROOT/tests/qa/commands/QaProductionGuards.php" "$QA_ROOT/app/Commands/QaProductionGuards.php"
+PG=$(cd "$QA_ROOT" && env CI_ENVIRONMENT=production LPG_DB_HOST="$QA_DB_HOST" LPG_DB_PORT="$QA_DB_PORT" LPG_DB_USER="$QA_DB_USER" LPG_DB_PASS="$QA_DB_PASS" LPG_DB_NAME="$QA_DB" LPG_DB_DRIVER=MySQLi "$QA_PHP" spark qa:production-guards 2>&1)
+rm -f "$QA_ROOT/app/Commands/QaProductionGuards.php"
+echo "$PG" | grep -q "refresh:refused" && [ "$(q "SELECT COUNT(*) FROM customers")" -gt 0 ] && ok "the data refresh refuses to run in production" || bad "production refresh" "$(echo "$PG" | tail -2 | tr '\n' ' ')"
+# System Administrator refresh (development): data cleared, audit log kept and the refresh recorded.
+AUD=$(q "SELECT COUNT(*) FROM audit_logs")
+post "$AD" database-backup/transactional-refresh -d "confirmation=RESET TRANSACTIONAL DATA" >/dev/null
+[ "$(q "SELECT COUNT(*) FROM sales")" = 0 ] && ok "System Administrator refresh clears transactional data (development)" || bad "sysadmin refresh" "sales remain"
+[ "$(q "SELECT COUNT(*) FROM audit_logs")" -gt "$AUD" ] && [ -n "$(q "SELECT id FROM audit_logs WHERE action='TRANSACTIONAL_REFRESH' LIMIT 1")" ] && ok "the refresh keeps the audit log and records itself" || bad "refresh audit" "audit log cleared or refresh not recorded"
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
