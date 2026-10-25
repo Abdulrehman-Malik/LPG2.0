@@ -68,6 +68,11 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('purchases/(:num)','Api\\V1\\Staff\\Purchasing::purchase/$1');
         $routes->post('purchases/(:num)/void','Api\\V1\\Staff\\Purchasing::voidPurchase/$1');
         $routes->post('supplier-payments','Api\\V1\\Staff\\Purchasing::createSupplierPayment');
+        $routes->get('receipts','Api\\V1\\Staff\\Money::receipts');
+        $routes->post('receipts','Api\\V1\\Staff\\Money::createReceipt');
+        $routes->get('expense-categories','Api\\V1\\Staff\\Money::expenseCategories');
+        $routes->get('expenses','Api\\V1\\Staff\\Money::expenses');
+        $routes->post('expenses','Api\\V1\\Staff\\Money::createExpense');
         $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
         $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
         $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');

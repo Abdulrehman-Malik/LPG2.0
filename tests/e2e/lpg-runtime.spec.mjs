@@ -1496,3 +1496,44 @@ test('E2E-034 Staff cash API figures equal the Counter Cash screen', async ({ pa
   expect((await request.post('/api/v1/staff/cash/move', { headers, data: { direction: 'in', amount: 1 } })).status()).toBe(409);
   expect((await request.post('/api/v1/staff/cash/open', { headers, data: { opening_cash: 0 } })).status()).toBe(201);
 });
+
+test('E2E-035 Staff receipts and expenses API move OS and cash like the web screens', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+  const get = async (url) => (await (await request.get(url, { headers })).json()).data;
+  let cash = await get('/api/v1/staff/cash/current');
+  if (!cash.session) {
+    await request.post('/api/v1/staff/cash/open', { headers, data: { opening_cash: 0 } });
+    cash = await get('/api/v1/staff/cash/current');
+  }
+  const customer = (await get('/api/v1/staff/customers?q=QA-E2E-CUST')).customers[0];
+  const osBefore = (await get('/api/v1/staff/customers/' + customer.id + '/balance')).os_balance;
+
+  const receipt = await request.post('/api/v1/staff/receipts', { headers, data: { customer_id: Number(customer.id), amount: 100, payment_mode: 'cash', notes: 'QA API receipt' } });
+  expect(receipt.status(), await receipt.text()).toBe(201);
+  const r = (await receipt.json()).data;
+  expect(r.outstanding).toBeCloseTo(osBefore, 2);
+  expect(r.balance_after).toBeCloseTo(osBefore - 100, 2);
+  expect((await get('/api/v1/staff/customers/' + customer.id + '/balance')).os_balance).toBeCloseTo(osBefore - 100, 2);
+  expect((await get('/api/v1/staff/cash/current')).expected).toBeCloseTo(cash.expected + 100, 2);
+  const receipts = await (await request.get('/api/v1/staff/receipts?customer_id=' + customer.id + '&per_page=1', { headers })).json();
+  expect(receipts.data.receipts[0].receipt_no).toBe(r.receipt_no);
+  expect((await request.post('/api/v1/staff/receipts', { headers, data: { customer_id: Number(customer.id), amount: 10, payment_mode: 'credit' } })).status()).toBe(422);
+
+  const categories = (await get('/api/v1/staff/expense-categories')).categories;
+  expect(categories.length).toBeGreaterThan(0);
+  const expense = await request.post('/api/v1/staff/expenses', { headers, data: { category_id: Number(categories[0].id), amount: 40, payment_mode: 'cash', description: 'QA API expense' } });
+  expect(expense.status(), await expense.text()).toBe(201);
+  const e = (await expense.json()).data;
+  expect((await get('/api/v1/staff/cash/current')).expected).toBeCloseTo(cash.expected + 60, 2);
+  expect((await request.post('/api/v1/staff/expenses', { headers, data: { category_id: 99999999, amount: 5, payment_mode: 'cash' } })).status()).toBe(422);
+
+  await login(page);
+  await page.goto('/receipts', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).toContainText(r.receipt_no);
+  await page.goto('/expenses', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).toContainText(e.expense_no);
+  await page.goto('/cash', { waitUntil: 'networkidle' });
+  expect(Number(await page.locator('#countedCash').getAttribute('data-expected'))).toBeCloseTo(cash.expected + 60, 2);
+});

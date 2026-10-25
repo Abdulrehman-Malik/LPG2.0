@@ -869,6 +869,71 @@ paths:
         '201': { $ref: '#/components/responses/Data' }
         '422': { $ref: '#/components/responses/Error' }
 
+  # ---- Staff: receipts and expenses (BL-026) -----------------------------------
+  /staff/receipts:
+    get:
+      tags: [Staff]
+      summary: Customer receipts of the shop, newest first (POS_SALE)
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: customer_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Receive money against a customer's OS; cash goes into the open cash session
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer_id, amount, payment_mode]
+              properties:
+                customer_id: { type: integer }
+                amount: { type: number, exclusiveMinimum: 0 }
+                payment_mode: { type: string, enum: [cash, cheque, online] }
+                transaction_at: { type: string }
+                reference_no: { type: string }
+                notes: { type: string }
+      responses:
+        '201': { description: 'receipt_no, outstanding before, amount and balance after', $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/expense-categories:
+    get:
+      tags: [Staff]
+      summary: Active expense categories of the business (EXPENSE_MANAGE)
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/expenses:
+    get:
+      tags: [Staff]
+      summary: Expenses of the shop, newest first
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/per_page' }]
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Record an expense; cash is paid out of the open cash session
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category_id, amount, payment_mode]
+              properties:
+                category_id: { type: integer }
+                amount: { type: number, exclusiveMinimum: 0 }
+                payment_mode: { type: string, enum: [cash, cheque, online] }
+                transaction_at: { type: string }
+                reference_no: { type: string }
+                description: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:
