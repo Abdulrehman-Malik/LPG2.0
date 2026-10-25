@@ -129,6 +129,11 @@ jobs:
       - name: Install Playwright browser test dependencies
         run: npm --prefix tests/e2e install --no-audit --no-fund
 
+      - name: OpenAPI spec is valid and covers every api/v1 route
+        env:
+          CI_ENVIRONMENT: testing
+        run: node tests/qa/checks/openapi_check.mjs
+
       - name: Install Chromium for Playwright
         run: cd tests/e2e && npx playwright install --with-deps chromium
 

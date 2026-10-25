@@ -8,6 +8,8 @@
     },
     "devDependencies": {
         "@playwright/test": "^1.56.0",
-        "axe-core": "4.10.2"
+        "@seriousme/openapi-schema-validator": "2.4.1",
+        "axe-core": "4.10.2",
+        "yaml": "2.8.4"
     }
 }

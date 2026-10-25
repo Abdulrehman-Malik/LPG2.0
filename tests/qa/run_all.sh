@@ -47,6 +47,7 @@ node_check hier_check bash "$DIR/verify_branch_admin.sh"
 node_check parties_check eval 'bash "$DIR/verify_phase9.sh" >/dev/null 2>&1; bash "$DIR/verify_hq.sh" >/dev/null 2>&1; $M < "$DIR/fixtures/parties.sql"'
 node_check shell_check bash "$DIR/verify_hq.sh"
 node_check rates_check bash "$DIR/verify_rates.sh"
+out=$(qa_spark routes > "$QA_TMP/routes.txt" 2>&1; node "$DIR/checks/openapi_check.mjs" "$QA_TMP/routes.txt" 2>&1); echo "$out" | grep "^FAIL"; record openapi_check "$(echo "$out" | tail -1)"
 fi
 if [[ " $* " == *" --a11y "* ]]; then reset; (cd "$DIR/checks" && node a11y_check.mjs) | tee "$QA_TMP/a11y-report.txt" | head -1; fi
 echo; echo "SUMMARY"; printf '%s\n' "${RESULTS[@]}"

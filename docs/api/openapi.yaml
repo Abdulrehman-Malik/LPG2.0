@@ -1,0 +1,718 @@
+openapi: 3.1.0
+info:
+  title: Perfect LPG API
+  version: v1
+  description: |
+    REST API for the staff and customer mobile apps (BL-019/BL-020).
+
+    Conventions:
+    - Success bodies are `{"data": ..., "meta": ...}`; `meta` is present on list endpoints.
+    - Error bodies are `{"error": {"code", "message", "request_id"}}`; `request_id` equals the
+      `X-Request-Id` response header and finds the server log lines.
+    - Lists accept `page` (from 1) and `per_page` (1–100, default 50).
+    - Any authenticated POST may send `Idempotency-Key` (8–100 of `A-Z a-z 0-9 . _ : -`). A retry
+      with the same key and body returns the stored response with `Idempotent-Replay: true`;
+      another body under the same key is 409 `IDEMPOTENCY_KEY_REUSED`. Not applied to `auth/*`.
+      `POST /customer/orders` requires a key and keeps it on the order itself.
+    - Staff requests act in the shop given by `X-Shop-Id` (or `shop_id`), else the user's
+      default shop; the user must have access to that shop.
+
+    Every change to `app/Config/Routes.php` under `api/v1` must update this file; the CI check
+    `tests/qa/checks/openapi_check.mjs` fails when a route is missing here.
+servers:
+  - url: /api/v1
+tags:
+  - name: Public
+  - name: Customer
+  - name: Staff
+security:
+  - bearer: []
+
+paths:
+  /health:
+    get:
+      tags: [Public]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: API is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+                  api_version: { type: string }
+
+  # ---- Customer authentication -------------------------------------------------
+  /customer/auth/shops:
+    get:
+      tags: [Public]
+      summary: Shops open for customer self-registration
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /customer/auth/signup:
+    post:
+      tags: [Public]
+      summary: Request a customer app account (staff approve it)
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, customer_name, phone, shop_id]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+                customer_name: { type: string }
+                phone: { type: string }
+                city: { type: string }
+                address: { type: string }
+                vehicle_no: { type: string }
+                shop_id: { type: integer, description: Alias location_id }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /customer/auth/login:
+    post:
+      tags: [Public]
+      summary: Customer login; returns access and refresh tokens
+      security: []
+      requestBody: { $ref: '#/components/requestBodies/Login' }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /customer/auth/refresh:
+    post:
+      tags: [Public]
+      summary: Rotate the refresh token
+      security: []
+      requestBody: { $ref: '#/components/requestBodies/Refresh' }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+  /customer/auth/logout:
+    post:
+      tags: [Customer]
+      summary: Revoke the current session
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /customer/auth/change-password:
+    post:
+      tags: [Customer]
+      summary: Change the customer password
+      requestBody: { $ref: '#/components/requestBodies/ChangePassword' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  # ---- Customer app ------------------------------------------------------------
+  /customer/me:
+    get:
+      tags: [Customer]
+      summary: Customer profile, shop and business
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '401': { $ref: '#/components/responses/Error' }
+  /customer/products:
+    get:
+      tags: [Customer]
+      summary: Products the customer's shop offers, with fulfilment options
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/per_page' }]
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+        '403': { $ref: '#/components/responses/Error' }
+  /customer/orders:
+    get:
+      tags: [Customer]
+      summary: The customer's orders
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Customer]
+      summary: Place an order request (Idempotency-Key required)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                fulfilment_method: { type: string, enum: [delivery, collection] }
+                delivery_address: { type: string }
+                delivery_city: { type: string }
+                customer_notes: { type: string }
+                idempotency_key: { type: string, description: Used when the header is absent }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [product_id, quantity]
+                    properties:
+                      product_id: { type: integer }
+                      quantity: { type: number }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '200': { description: Replay of an earlier order under the same key, $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /customer/orders/{orderId}:
+    get:
+      tags: [Customer]
+      summary: One of the customer's orders with lines and history
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /customer/orders/{orderId}/cancel:
+    post:
+      tags: [Customer]
+      summary: Cancel an order that is not yet fulfilled
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /customer/orders/{orderId}/reconfirm-price:
+    post:
+      tags: [Customer]
+      summary: Accept the current price of an order whose price changed
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  # ---- Staff authentication ----------------------------------------------------
+  /staff/auth/login:
+    post:
+      tags: [Public]
+      summary: Staff login; returns tokens, shops and current shop
+      security: []
+      requestBody: { $ref: '#/components/requestBodies/Login' }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { description: PASSWORD_CHANGE_REQUIRED, $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /staff/auth/refresh:
+    post:
+      tags: [Public]
+      summary: Rotate the refresh token
+      security: []
+      requestBody: { $ref: '#/components/requestBodies/Refresh' }
+      responses:
+        '200': { $ref: '#/components/responses/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+  /staff/auth/logout:
+    post:
+      tags: [Staff]
+      summary: Revoke the current session
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/auth/change-password:
+    post:
+      tags: [Staff]
+      summary: Change the staff password
+      requestBody: { $ref: '#/components/requestBodies/ChangePassword' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  # ---- Staff: identity, configuration, businesses ------------------------------
+  /staff/me:
+    get:
+      tags: [Staff]
+      summary: Signed-in user, permissions and current shop
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/shops:
+    get:
+      tags: [Staff]
+      summary: Shops the user may act in
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/per_page' }]
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/configuration/application:
+    get:
+      tags: [Staff]
+      summary: Application-level settings (system administrator)
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+  /staff/configuration/businesses/{businessId}:
+    get:
+      tags: [Staff]
+      summary: Effective settings of a business
+      parameters: [{ $ref: '#/components/parameters/businessId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+  /staff/configuration/shops/{shopId}:
+    get:
+      tags: [Staff]
+      summary: Effective settings of a shop
+      parameters: [{ $ref: '#/components/parameters/shopId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+  /staff/configuration/save:
+    post:
+      tags: [Staff]
+      summary: Set one setting at application, business or shop scope
+      requestBody: { $ref: '#/components/requestBodies/Setting' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/configuration/reset:
+    post:
+      tags: [Staff]
+      summary: Remove an override so the inherited value applies
+      requestBody: { $ref: '#/components/requestBodies/Setting' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+  /staff/businesses:
+    get:
+      tags: [Staff]
+      summary: Businesses the user may see
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/per_page' }]
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Create a business (platform administrator only)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody: { $ref: '#/components/requestBodies/Party' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/businesses/{businessId}/shops:
+    get:
+      tags: [Staff]
+      summary: Shops of a business
+      parameters:
+        - { $ref: '#/components/parameters/businessId' }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Staff]
+      summary: Create a shop in the business with its default records
+      parameters:
+        - { $ref: '#/components/parameters/businessId' }
+        - { $ref: '#/components/parameters/IdempotencyKeyOptional' }
+      requestBody: { $ref: '#/components/requestBodies/Party' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/businesses/{businessId}/staff-access:
+    get:
+      tags: [Staff]
+      summary: Head-office and shop access assignments
+      parameters:
+        - { $ref: '#/components/parameters/businessId' }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Staff]
+      summary: Grant or revoke a user's head-office or shop access
+      parameters: [{ $ref: '#/components/parameters/businessId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, access_type, enabled]
+              properties:
+                user_id: { type: integer }
+                access_type: { type: string, enum: [head_office, shop] }
+                shop_id: { type: integer }
+                enabled: { type: boolean }
+                is_default: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  # ---- Staff: catalog ----------------------------------------------------------
+  /staff/businesses/{businessId}/catalog:
+    get:
+      tags: [Staff]
+      summary: Business ordering catalog
+      parameters:
+        - { $ref: '#/components/parameters/businessId' }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Create or update a catalog product
+      parameters: [{ $ref: '#/components/parameters/businessId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_id: { type: integer, description: Omit to create }
+                cylinder_type_id: { type: integer }
+                sale_mode: { type: string }
+                display_name: { type: string }
+                description: { type: string }
+                min_quantity: { type: number }
+                quantity_step: { type: number }
+                sort_order: { type: integer }
+                is_active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/shops/{shopId}/products:
+    get:
+      tags: [Staff]
+      summary: Catalog products with this shop's availability
+      parameters:
+        - { $ref: '#/components/parameters/shopId' }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/shops/{shopId}/products/{productId}/availability:
+    post:
+      tags: [Staff]
+      summary: Offer or withdraw a catalog product at the shop
+      parameters:
+        - { $ref: '#/components/parameters/shopId' }
+        - { name: productId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_active]
+              properties:
+                is_active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+
+  # ---- Staff: customer app accounts --------------------------------------------
+  /staff/customer-signups:
+    get:
+      tags: [Staff]
+      summary: Pending customer signup requests of the shop
+      parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/per_page' }]
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/customer-signups/{requestId}/approve:
+    post:
+      tags: [Staff]
+      summary: Approve a signup, linking or creating the customer
+      parameters:
+        - { $ref: '#/components/parameters/requestId' }
+        - { $ref: '#/components/parameters/IdempotencyKeyOptional' }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_id: { type: integer, description: Link to an existing customer }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/customer-signups/{requestId}/reject:
+    post:
+      tags: [Staff]
+      summary: Reject a signup
+      parameters: [{ $ref: '#/components/parameters/requestId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/customers/{customerId}/app-account:
+    post:
+      tags: [Staff]
+      summary: Create an app account for an existing customer
+      parameters:
+        - { name: customerId, in: path, required: true, schema: { type: integer } }
+        - { $ref: '#/components/parameters/IdempotencyKeyOptional' }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/customer-app-accounts/{accountId}/disable:
+    post:
+      tags: [Staff]
+      summary: Disable an app account and revoke its sessions
+      parameters: [{ $ref: '#/components/parameters/accountId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/customer-app-accounts/{accountId}/enable:
+    post:
+      tags: [Staff]
+      summary: Enable a disabled app account
+      parameters: [{ $ref: '#/components/parameters/accountId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/customer-app-accounts/{accountId}/reset-password:
+    post:
+      tags: [Staff]
+      summary: Set a new password for an app account
+      parameters: [{ $ref: '#/components/parameters/accountId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, format: password }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+
+  # ---- Staff: customer orders --------------------------------------------------
+  /staff/orders:
+    get:
+      tags: [Staff]
+      summary: Customer orders of the shop
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+  /staff/orders/{orderId}:
+    get:
+      tags: [Staff]
+      summary: One order with lines and status history
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/orders/{orderId}/status:
+    post:
+      tags: [Staff]
+      summary: Move an order to a new status (accept, reject, dispatch, …)
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string }
+                reason: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /staff/orders/{orderId}/fulfillment-options:
+    get:
+      tags: [Staff]
+      summary: Physical cylinders that can fulfil each order line
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/orders/{orderId}/fulfill:
+    post:
+      tags: [Staff]
+      summary: Post the order to POS once (a repeat returns the same sale)
+      parameters: [{ $ref: '#/components/parameters/orderId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fulfillment_lines, payments]
+              properties:
+                fulfillment_lines:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      line_no: { type: integer }
+                      source_cylinder_unit_id: { type: integer }
+                payments:
+                  type: array
+                  items: { $ref: '#/components/schemas/Payment' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Access token from `/staff/auth/login` or `/customer/auth/login`.
+  parameters:
+    page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    per_page: { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    orderId: { name: orderId, in: path, required: true, schema: { type: integer } }
+    businessId: { name: businessId, in: path, required: true, schema: { type: integer } }
+    shopId: { name: shopId, in: path, required: true, schema: { type: integer } }
+    requestId: { name: requestId, in: path, required: true, schema: { type: integer } }
+    accountId: { name: accountId, in: path, required: true, schema: { type: integer } }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,100}$' }
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,100}$' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [IDEMPOTENCY_KEY_REUSED] }
+            message: { type: string }
+            request_id: { type: string }
+            details: { type: object }
+    Meta:
+      type: object
+      required: [page, per_page, total, has_more]
+      properties:
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        has_more: { type: boolean }
+    Payment:
+      type: object
+      required: [payment_mode, amount]
+      properties:
+        payment_mode: { type: string, examples: [cash, cheque, online, credit] }
+        amount: { type: number }
+        reference_no: { type: string }
+  requestBodies:
+    Login:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [username, password]
+            properties:
+              username: { type: string, description: Alias login }
+              password: { type: string, format: password }
+    Refresh:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [refresh_token]
+            properties:
+              refresh_token: { type: string }
+    ChangePassword:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [current_password, new_password]
+            properties:
+              current_password: { type: string, format: password }
+              new_password: { type: string, format: password }
+    Reason:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              reason: { type: string }
+    Setting:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [scope, key]
+            properties:
+              scope: { type: string, enum: [application, business, shop] }
+              owner_id: { type: integer }
+              key: { type: string }
+              value: {}
+    Party:
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, name]
+            properties:
+              code: { type: string }
+              name: { type: string }
+              phone: { type: string }
+              email: { type: string }
+              city: { type: string }
+              address: { type: string }
+  responses:
+    Data:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { type: object }
+    List:
+      description: One page of a list
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, meta]
+            properties:
+              data: { type: object }
+              meta: { $ref: '#/components/schemas/Meta' }
+    Tokens:
+      description: Tokens and principal
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: object
+                properties:
+                  tokens:
+                    type: object
+                    properties:
+                      access_token: { type: string }
+                      refresh_token: { type: string }
+                      access_expires_at: { type: string }
+    Error:
+      description: Failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
