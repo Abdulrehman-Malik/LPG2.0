@@ -50,44 +50,82 @@ class InstallationSetupService
             $exists = (bool) $stmt->get_result()->fetch_row();
             $tables = 0;
             $adminExists = false;
+            $adminNote = null;
             $complete = false;
             $interrupted = false;
+            $missing = [];
+            $foreign = [];
             if ($exists) {
-                $stmt = $db->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?');
+                $stmt = $db->prepare('SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?');
                 $stmt->bind_param('s', $s['name']);
                 $stmt->execute();
-                $tables = (int) $stmt->get_result()->fetch_row()[0];
+                $names = array_map(static fn (array $r): string => strtolower((string) $r[0]), $stmt->get_result()->fetch_all());
+                $tables = count($names);
                 if ($tables > 0) {
                     $q = chr(96);
                     $dbName = $q . str_replace($q, $q . $q, $s['name']) . $q;
-                    $stmt = $db->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME='users'");
-                    $stmt->bind_param('s', $s['name']);
-                    $stmt->execute();
-                    if ((int) $stmt->get_result()->fetch_row()[0] > 0) {
+                    $known = $this->knownTables();
+                    $missing = array_values(array_diff($this->schemaTables(), $names));
+                    $foreign = array_values(array_diff($names, $known));
+                    if (!in_array('users', $names, true) || !in_array('roles', $names, true)) {
+                        $adminNote = 'The users or roles table does not exist.';
+                    } else {
                         try {
                             $query = "SELECT COUNT(*) FROM " . $dbName . ".users u JOIN " . $dbName . ".roles r ON r.id=u.role_id WHERE UPPER(r.code)='ADMIN' AND u.is_active=1";
                             $adminExists = (int) $db->query($query)->fetch_row()[0] > 0;
-                        } catch (\Throwable $ignored) {
-                            $adminExists = false;
+                            if (!$adminExists) {
+                                $adminNote = 'No active user has the ADMIN role.';
+                            }
+                        } catch (\Throwable $e) {
+                            $adminNote = 'The administrator check failed: ' . $e->getMessage();
                         }
                     }
-                    $stmt = $db->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME='lpg_installation_state'");
-                    $stmt->bind_param('s', $s['name']);
-                    $stmt->execute();
-                    if ((int) $stmt->get_result()->fetch_row()[0] > 0) {
-                        $result = $db->query("SELECT state FROM " . $dbName . ".lpg_installation_state WHERE id=1");
-                        $row = $result->fetch_assoc();
-                        $complete = ($row['state'] ?? '') === 'complete';
-                        // 'installing' is written by this installer before it starts and replaced by
-                        // 'complete' at the end, so it marks a database the installer itself left unfinished.
-                        $interrupted = ($row['state'] ?? '') === 'installing' && !$this->hasTransactions($db, $dbName);
+                    $state = null;
+                    if (in_array('lpg_installation_state', $names, true)) {
+                        $row = $db->query("SELECT state FROM " . $dbName . ".lpg_installation_state WHERE id=1")->fetch_assoc();
+                        $state = $row['state'] ?? null;
+                        $complete = $state === 'complete';
                     }
+                    // An unfinished install of this app can be rebuilt: either the installer marked it
+                    // 'installing', or setup never got as far as creating an administrator. Both only when
+                    // no business document exists and every table is one this app creates, so another
+                    // application's database under the same name is never treated as disposable.
+                    $interrupted = !$complete && !$this->hasTransactions($db, $dbName)
+                        && ($state === 'installing' || (!$adminExists && $foreign === []));
                 }
             }
-            return ['database' => $s['name'], 'exists' => $exists, 'tables' => $tables, 'has_data' => $tables > 0, 'admin_exists' => $adminExists, 'complete' => $complete, 'interrupted' => $interrupted];
+            return [
+                'database' => $s['name'], 'exists' => $exists, 'tables' => $tables, 'has_data' => $tables > 0,
+                'admin_exists' => $adminExists, 'admin_note' => $adminNote, 'complete' => $complete, 'interrupted' => $interrupted,
+                'missing_tables' => $missing, 'foreign_tables' => $foreign,
+            ];
         } finally {
             $db->close();
         }
+    }
+
+    /** Tables database/schema.sql creates. */
+    private function schemaTables(): array
+    {
+        $sql = (string) @file_get_contents(ROOTPATH . 'database' . DIRECTORY_SEPARATOR . 'schema.sql');
+        preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([A-Za-z0-9_]+)`?/i', $sql, $m);
+        return array_values(array_unique(array_map('strtolower', $m[1])));
+    }
+
+    /** Every table this application creates: the schema, the SQL and CI4 migrations, and its bookkeeping tables. */
+    private function knownTables(): array
+    {
+        $tables = $this->schemaTables();
+        $files = array_merge(glob(ROOTPATH . 'database/migrations/*.sql') ?: [], glob(APPPATH . 'Database/Migrations/*.php') ?: []);
+        foreach ($files as $file) {
+            preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([A-Za-z0-9_]+)`?|createTable\(\s*\'([A-Za-z0-9_]+)\'/i', (string) file_get_contents($file), $m);
+            foreach (array_merge($m[1], $m[2]) as $t) {
+                if ($t !== '') {
+                    $tables[] = strtolower($t);
+                }
+            }
+        }
+        return array_values(array_unique(array_merge($tables, ['migrations', 'lpg_installation_state', 'lpg_migration_history'])));
     }
 
     public function shouldRedirectToSetup(): bool
@@ -157,13 +195,25 @@ class InstallationSetupService
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         $db = new \mysqli($s['host'], $s['user'], $s['pass'], $s['name'], $s['port']);
         $db->set_charset('utf8mb4');
+        // Statement list only to name the one that fails (multi_query runs the file as written).
+        $statements = array_values(array_filter(array_map('trim', preg_split('/;\s*(?:\r?\n|$)/', $sql) ?: []), static fn (string $st): bool => $st !== '' && !str_starts_with($st, '--')));
+        $index = 0;
+        $fail = static function (string $error) use (&$index, $statements): RuntimeException {
+            $statement = preg_replace('/\s+/', ' ', (string) ($statements[$index] ?? ''));
+            return new RuntimeException('Schema execution failed at statement ' . ($index + 1) . ' (' . substr((string) $statement, 0, 80) . '…): ' . $error);
+        };
         try {
-            if (!$db->multi_query($sql)) throw new RuntimeException('Schema execution failed: ' . $db->error);
-            do {
-                if ($result = $db->store_result()) $result->free();
-                if (!$db->more_results()) break;
-                if (!$db->next_result()) throw new RuntimeException('Schema execution failed: ' . $db->error);
-            } while (true);
+            try {
+                if (!$db->multi_query($sql)) throw $fail($db->error);
+                do {
+                    if ($result = $db->store_result()) $result->free();
+                    if (!$db->more_results()) break;
+                    $index++;
+                    if (!$db->next_result()) throw $fail($db->error);
+                } while (true);
+            } catch (\mysqli_sql_exception $e) {
+                throw $fail($e->getMessage());
+            }
         } finally {
             $db->close();
         }
@@ -207,7 +257,12 @@ class InstallationSetupService
         if ($state['has_data'] && !empty($state['interrupted'])) {
             // A previous run of this installer did not finish and no business documents exist:
             // rebuild it without the replacement safeguards meant for live data.
-            log_message('warning', 'Rebuilding unfinished installation of database {database}.', ['database' => $state['database']]);
+            $backup = (new DatabaseBackupService())->createBackup(false);
+            $backupPath = (string) ($backup['path'] ?? '');
+            if ($backupPath === '' || !is_file($backupPath)) {
+                throw new RuntimeException('The unfinished installation was not rebuilt because a safety backup could not be made.');
+            }
+            log_message('warning', 'Rebuilding unfinished installation of database {database}. Safety backup: {backup}', ['database' => $state['database'], 'backup' => basename($backupPath)]);
             $this->replaceDatabase();
         } elseif ($state['has_data']) {
             if (!$state['admin_exists']) throw new RuntimeException('This database contains tables but no verifiable active administrator was found. Replacement is blocked for safety.');

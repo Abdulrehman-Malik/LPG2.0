@@ -35,13 +35,20 @@ $blocked = $replace && empty($state['admin_exists']);
             </dl>
 
             <?php if ($interrupted) : ?>
-                <div class="alert alert-warning"><strong>A previous installation did not finish.</strong> No sales or other business records exist in this database, so running setup again rebuilds it from the start.</div>
+                <div class="alert alert-warning"><strong>A previous installation did not finish.</strong> No sales or other business records exist in this database, so running setup again rebuilds it from the start (a backup is taken first).
+                    <?php if (!empty($state['admin_note'])) : ?><div class="small mt-1"><?= esc($state['admin_note']) ?></div><?php endif; ?>
+                    <?php if (!empty($state['missing_tables'])) : ?><div class="small mt-1">Tables not yet created: <?= esc(implode(', ', array_slice($state['missing_tables'], 0, 10))) ?><?= count($state['missing_tables']) > 10 ? ', …' : '' ?>.</div><?php endif; ?>
+                </div>
             <?php elseif ($replace) : ?>
                 <div class="warning mb-4">
                     <h5 class="text-danger"><i class="bi bi-exclamation-triangle"></i> Destructive database replacement</h5>
                     <p class="mb-2"><strong>All existing records and tables in this database will be permanently deleted.</strong> A verified SQL backup is required before replacement. This operation is separate from Transactional Data Refresh.</p>
                     <?php if (empty($state['admin_exists'])) : ?>
-                        <div class="alert alert-danger mb-0">No active administrator account could be verified. Replacement is blocked for safety.</div>
+                        <div class="alert alert-danger mb-0">
+                            No active administrator account could be verified. Replacement is blocked for safety.
+                            <?php if (!empty($state['admin_note'])) : ?><div class="small mt-1"><?= esc($state['admin_note']) ?></div><?php endif; ?>
+                            <?php if (!empty($state['foreign_tables'])) : ?><div class="small mt-1">This database also holds tables this application does not create (<?= esc(implode(', ', array_slice($state['foreign_tables'], 0, 8))) ?><?= count($state['foreign_tables']) > 8 ? ', …' : '' ?>), so it is not treated as an unfinished installation. Point <code>LPG_DB_NAME</code> at an empty database, or remove it manually after a backup.</div><?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
             <?php else : ?>
