@@ -1,30 +1,53 @@
 <?php
+
 namespace App\Controllers;
-use App\Services\CashService;
-use App\Services\AuditService;
+
+use App\Libraries\TenantContext;
+use App\Services\CustomerBalanceService;
+use App\Services\CustomerReceiptService;
+use App\Services\PermissionService;
 use CodeIgniter\Controller;
-use Config\Database;
-class Receipts extends Controller{
- private function guard(){return \App\Services\PermissionService::allows('POS_SALE')?null:$this->response->setStatusCode(403)->setBody('Forbidden');}
- public function index(){if($r=$this->guard())return $r;$db=Database::connect();$locationId=(int)session()->get('location_id');$customers=$db->table('customers')->where(['location_id'=>$locationId,'is_active'=>1])->orderBy('name')->get()->getResultArray();$gasBalances=(new \App\Services\CustomerBalanceService($db))->gasBalances($locationId);$customerBalances=[];foreach($customers as $customer){$customerBalances[(int)$customer['id']]=$gasBalances[(int)$customer['id']]??0.0;}return view('receipts/index',['title'=>'Customer Receipts','customers'=>$customers,'customerBalances'=>$customerBalances,'receipts'=>$db->query("SELECT * FROM (
- SELECT cr.receipt_at,cr.receipt_no,c.name AS customer_name,cr.amount,cr.payment_mode,cr.reference_no,cr.notes,cr.status,
-        CASE WHEN cr.notes LIKE 'OS settlement collected with sale %' THEN 'POS — OS Settlement' ELSE 'Customer Receipts screen' END AS source
- FROM customer_receipts cr
- LEFT JOIN customers c ON c.id=cr.customer_id
- WHERE cr.location_id=?
- UNION ALL
- SELECT sp.payment_at AS receipt_at,
-        CONCAT(s.sale_no,CASE sp.payment_type WHEN 'security_deposit' THEN ' / Deposit' WHEN 'security_deposit_refund' THEN ' / Deposit Refund' ELSE ' / POS' END) AS receipt_no,
-        c.name AS customer_name,sp.amount,sp.payment_mode,sp.reference_no,
-        CASE sp.payment_type WHEN 'security_deposit' THEN CONCAT('POS security deposit payment for ',s.sale_no) WHEN 'security_deposit_refund' THEN CONCAT('POS security deposit refund for ',s.sale_no) ELSE CONCAT('POS sale payment for ',s.sale_no) END AS notes,
-        s.status,
-        CASE sp.payment_type WHEN 'security_deposit' THEN 'POS — Security Deposit' WHEN 'security_deposit_refund' THEN 'POS — Security Deposit Refund' ELSE CONCAT('POS — ',REPLACE(s.transaction_type,'_',' '),' / Sale Payment') END AS source
- FROM sale_payments sp
- JOIN sales s ON s.id=sp.sale_id
- LEFT JOIN customers c ON c.id=s.customer_id
- WHERE s.location_id=? AND sp.payment_mode <> 'credit'
-) AS receipt_history
-ORDER BY receipt_at DESC,receipt_no DESC
-LIMIT 100",[$locationId,$locationId])->getResultArray()]);}
- public function save(){if($r=$this->guard())return $r;try{$at=(new \App\Services\TransactionDatePolicy())->resolve((string)$this->request->getPost('transaction_at'),(int)session()->get('location_id'));$amount=(float)$this->request->getPost('amount');$mode=(string)$this->request->getPost('payment_mode');$customer=(int)$this->request->getPost('customer_id');if($amount<=0||!$customer||!in_array($mode,['cash','cheque','online'],true))throw new \RuntimeException('Invalid receipt.');$db=Database::connect();$db->transBegin();$customerRow=$db->query('SELECT * FROM customers WHERE id=? AND location_id=? AND is_active=1 FOR UPDATE',[$customer,(int)session()->get('location_id')])->getRowArray();if(!$customerRow)throw new \RuntimeException('Customer is invalid or inactive.');$locationId=(int)session()->get('location_id');$creditRow=$db->table('sales')->selectSum('credit_amount','credit')->selectSum('return_gas_ledger_amount','return_ledger')->where(['customer_id'=>$customer,'status'=>'posted','location_id'=>$locationId])->get()->getRowArray();$paidRow=$db->table('customer_receipts')->selectSum('amount','paid')->where(['customer_id'=>$customer,'status'=>'posted','location_id'=>$locationId])->get()->getRowArray();$outstanding=(float)$customerRow['opening_balance']+(float)($creditRow['credit']??0)+(float)($creditRow['return_ledger']??0)-(float)($paidRow['paid']??0);$balanceAfter=$outstanding-$amount;$no=(new \App\Services\DocumentNumberService($db))->next('receipt',(int)session()->get('location_id'),$at);$db->table('customer_receipts')->insert(['receipt_no'=>$no,'location_id'=>(int)session()->get('location_id'),'customer_id'=>$customer,'status'=>'posted','amount'=>$amount,'payment_mode'=>$mode,'receipt_at'=>$at,'reference_no'=>trim((string)$this->request->getPost('reference_no'))?:null,'notes'=>trim((string)$this->request->getPost('notes'))?:null,'created_by'=>(int)session()->get('user_id')]);$id=(int)$db->insertID();if($mode==='cash'){$s=(new CashService())->openSessionForLocation((int)session()->get('location_id'));if(!$s)throw new \RuntimeException('Open the counter cash session before a cash receipt.');(new CashService())->postGeneric((int)$s['id'],'customer_receipt','in',$amount,'customer_receipt',$id,(int)session()->get('user_id'),'Customer cash receipt',$at);}if(!$db->transStatus())throw new \RuntimeException('Receipt posting failed.');$db->transCommit();AuditService::log('CREATE','customer_receipt',$id,null,['receipt_no'=>$no,'amount'=>$amount],(int)session()->get('user_id'),(int)session()->get('location_id'));return redirect()->to('/receipts')->with('success','Receipt '.$no.' posted. Current OS: Rs. '.number_format($outstanding,2).'; Received: Rs. '.number_format($amount,2).'; Balance after receipt: Rs. '.number_format($balanceAfter,2).'.');}catch(\Throwable $e){if(isset($db)&&$db->transStatus()!==false)$db->transRollback();return redirect()->back()->withInput()->with('error',user_error_message($e));}}
+
+/** Customer Receipts screen; posting and history live in CustomerReceiptService (BL-017). */
+class Receipts extends Controller
+{
+    private function guard()
+    {
+        return PermissionService::allows('POS_SALE') ? null : $this->response->setStatusCode(403)->setBody('Forbidden');
+    }
+
+    public function index()
+    {
+        if ($r = $this->guard()) {
+            return $r;
+        }
+        $locationId = TenantContext::requireBranchId();
+        $service = new CustomerReceiptService();
+        $customers = $service->activeCustomers($locationId);
+        $gasBalances = (new CustomerBalanceService())->gasBalances($locationId);
+        $customerBalances = [];
+        foreach ($customers as $customer) {
+            $customerBalances[(int) $customer['id']] = $gasBalances[(int) $customer['id']] ?? 0.0;
+        }
+        return view('receipts/index', [
+            'title' => 'Customer Receipts',
+            'customers' => $customers,
+            'customerBalances' => $customerBalances,
+            'receipts' => $service->history($locationId, 100),
+        ]);
+    }
+
+    public function save()
+    {
+        if ($r = $this->guard()) {
+            return $r;
+        }
+        try {
+            $r = (new CustomerReceiptService())->post($this->request->getPost(), (int) session()->get('user_id'), TenantContext::requireBranchId());
+        } catch (\Throwable $e) {
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
+        }
+        return redirect()->to('/receipts')->with('success', 'Receipt ' . $r['receipt_no'] . ' posted. Current OS: Rs. ' . number_format($r['outstanding'], 2)
+            . '; Received: Rs. ' . number_format($r['amount'], 2) . '; Balance after receipt: Rs. ' . number_format($r['balance_after'], 2) . '.');
+    }
 }

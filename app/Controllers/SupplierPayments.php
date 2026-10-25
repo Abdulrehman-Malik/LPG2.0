@@ -1,12 +1,43 @@
 <?php
+
 namespace App\Controllers;
-use App\Services\CashService;
-use App\Services\AuditService;
+
+use App\Libraries\TenantContext;
+use App\Models\SupplierModel;
+use App\Services\PermissionService;
+use App\Services\PurchaseService;
+use App\Services\SupplierPaymentService;
 use CodeIgniter\Controller;
-use Config\Database;
-class SupplierPayments extends Controller{
- private function guard(){return \App\Services\PermissionService::allows('PURCHASE_MANAGE')?null:$this->response->setStatusCode(403)->setBody('Forbidden');}
- public function index(){if($r=$this->guard())return $r;$db=Database::connect();$suppliers=(new \App\Models\SupplierModel())->activeDirectory();$purchaseService=new \App\Services\PurchaseService();$balances=array_map(static fn($v)=>round($v,2),$purchaseService->supplierBalances($suppliers,(int)session()->get('location_id')));return view('supplier_payments/index',['title'=>'Supplier Payments','suppliers'=>$suppliers,'balances'=>$balances]);}
- public function save(){if($r=$this->guard())return $r;try{$at=(new \App\Services\TransactionDatePolicy())->resolve((string)$this->request->getPost('transaction_at'),(int)session()->get('location_id'));$supplier=(int)$this->request->getPost('supplier_id');$amount=(float)$this->request->getPost('amount');$mode=(string)$this->request->getPost('payment_mode');if(!$supplier||$amount<=0||!in_array($mode,['cash','cheque','online'],true))throw new \RuntimeException('Invalid supplier payment.');$db=Database::connect();$db->transBegin();$supplierRow=\App\Services\BusinessContext::supplierVisibleTo($supplier,(int)session()->get('location_id'))?$db->query('SELECT * FROM suppliers WHERE id=? AND is_active=1 FOR UPDATE',[$supplier])->getRowArray():null;if(!$supplierRow)throw new \RuntimeException('Supplier is invalid or inactive.');$locationId=(int)session()->get('location_id');
-$outstanding=(new \App\Services\SupplierBalanceService($db))->balance($supplierRow,$locationId);if($amount>$outstanding+0.01)throw new \RuntimeException('Supplier payment cannot exceed the outstanding balance of Rs. '.number_format(max(0,$outstanding),2).'.');$no=(new \App\Services\DocumentNumberService($db))->next('supplier_payment',(int)session()->get('location_id'),$at);$db->table('supplier_payments')->insert(['payment_no'=>$no,'location_id'=>(int)session()->get('location_id'),'supplier_id'=>$supplier,'status'=>'posted','amount'=>$amount,'payment_mode'=>$mode,'payment_at'=>$at,'reference_no'=>trim((string)$this->request->getPost('reference_no'))?:null,'notes'=>trim((string)$this->request->getPost('notes'))?:null,'created_by'=>(int)session()->get('user_id')]);$id=(int)$db->insertID();if($mode==='cash'){$s=(new CashService())->openSessionForLocation((int)session()->get('location_id'));if(!$s)throw new \RuntimeException('Open the counter cash session before a cash supplier payment.');(new CashService())->postGeneric((int)$s['id'],'supplier_payment','out',$amount,'supplier_payment',$id,(int)session()->get('user_id'),'Supplier cash payment',$at);}if(!$db->transStatus())throw new \RuntimeException('Supplier payment failed.');$db->transCommit();AuditService::log('CREATE','supplier_payment',$id,null,['payment_no'=>$no,'amount'=>$amount],(int)session()->get('user_id'),(int)session()->get('location_id'));return redirect()->to('/supplier-payments')->with('success','Supplier payment '.$no.' posted.');}catch(\Throwable $e){if(isset($db)&&$db->transStatus()!==false)$db->transRollback();return redirect()->back()->withInput()->with('error',user_error_message($e));}}
+
+/** Supplier Payments screen; posting lives in SupplierPaymentService (BL-017), shared with the API. */
+class SupplierPayments extends Controller
+{
+    private function guard()
+    {
+        return PermissionService::allows('PURCHASE_MANAGE') ? null : $this->response->setStatusCode(403)->setBody('Forbidden');
+    }
+
+    public function index()
+    {
+        if ($r = $this->guard()) {
+            return $r;
+        }
+        $locationId = TenantContext::requireBranchId();
+        $suppliers = (new SupplierModel())->activeDirectory($locationId);
+        $balances = array_map(static fn ($v) => round($v, 2), (new PurchaseService())->supplierBalances($suppliers, $locationId));
+        return view('supplier_payments/index', ['title' => 'Supplier Payments', 'suppliers' => $suppliers, 'balances' => $balances]);
+    }
+
+    public function save()
+    {
+        if ($r = $this->guard()) {
+            return $r;
+        }
+        try {
+            $result = (new SupplierPaymentService())->post($this->request->getPost(), (int) session()->get('user_id'), TenantContext::requireBranchId());
+        } catch (\Throwable $e) {
+            return redirect()->back()->withInput()->with('error', user_error_message($e));
+        }
+        return redirect()->to('/supplier-payments')->with('success', 'Supplier payment ' . $result['payment_no'] . ' posted.');
+    }
 }
