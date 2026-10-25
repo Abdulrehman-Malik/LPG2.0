@@ -24,7 +24,8 @@ await Promise.all([p.waitForNavigation(), p.click('button[type=submit]')]);
 // Customers: OS column vs independent SQL (gas balance; deposit setting is off)
 await p.goto(B + '/customers', { waitUntil: 'networkidle' });
 const expected = Object.fromEntries(sql(`SELECT c.code, c.opening_balance + COALESCE((SELECT SUM(credit_amount)+SUM(return_gas_ledger_amount) FROM sales s WHERE s.customer_id=c.id AND s.status='posted' AND s.location_id=1),0) - COALESCE((SELECT SUM(amount) FROM customer_receipts r WHERE r.customer_id=c.id AND r.status='posted' AND r.location_id=1),0) FROM customers c WHERE c.location_id=1`).split('\n').map((l) => l.split('\t')).map(([k, v]) => [k, Number(v)]));
-const shown = await p.$$eval('table.datatable tbody tr', (rows) => rows.map((r) => [r.cells[0].textContent.trim(), r.cells[7].textContent.trim()]));
+const osCol = await p.$$eval('table.datatable thead th', (ths) => ths.findIndex((th) => th.textContent.trim() === 'OS Balance'));
+const shown = await p.$$eval('table.datatable tbody tr', (rows, col) => rows.map((r) => [r.cells[0].textContent.trim(), r.cells[col].textContent.trim()]), osCol);
 for (const [code, os] of shown) check(Math.abs(Number(os.replace(/,/g, '')) - (expected[code] ?? NaN)) < 0.005, `customer ${code} OS ${os} matches SQL`, String(expected[code]));
 const kpiOs = num(await p.locator('.kpi', { hasText: 'Outstanding' }).locator('.kpi-value').innerText());
 check(Math.abs(kpiOs - Object.values(expected).filter((v) => v > 0.005).reduce((a, b) => a + b, 0)) < 0.005, 'Outstanding KPI equals sum of positive balances', String(kpiOs));

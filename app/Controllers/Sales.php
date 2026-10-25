@@ -22,7 +22,8 @@ class Sales extends Controller
     {
         if($r=$this->guard()) return $r;
         $types=(new CylinderTypeModel())->activeOrdered();
-        $customers=(new CustomerModel())->activeDirectory();
+        // BL-031: blocked customers cannot be chosen for a new sale (SalesService rejects them too).
+        $customers=array_values(array_filter((new CustomerModel())->activeDirectory(),static fn($c)=>empty($c['is_blocked'])));
         // One grouped balance query for the whole branch (CustomerBalanceService) instead of one per customer.
         $balanceService=new \App\Services\CustomerBalanceService();
         $osBalances=$balanceService->osBalances((int)session()->get('location_id'));

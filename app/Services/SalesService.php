@@ -205,6 +205,10 @@ class SalesService
         // Business back-dating rule (D10-1) is enforced for every POS transaction type.
         $payload['transaction_at']=(new TransactionDatePolicy())->resolve(isset($payload['transaction_at'])?(string)$payload['transaction_at']:null,$locationId);
         $customerId=!empty($payload['customer_id'])?(int)$payload['customer_id']:null;
+        // BL-031: a blocked customer stays in lists and history but takes no new transactions.
+        if($customerId && (int)($this->db->table('customers')->select('is_blocked')->where(['id'=>$customerId,'location_id'=>$locationId])->get()->getRow('is_blocked')??0)===1){
+            throw new RuntimeException('This customer is blocked. Unblock the customer on the Customers screen before posting a new transaction.');
+        }
         $headerType=(string)($payload['transaction_type']??'');
         if(in_array($headerType,['gas_sale','cylinder_sale','security_deposit','cylinder_return'],true)){
             return $this->postHeaderTransaction($payload,$userId,$locationId,$headerType);

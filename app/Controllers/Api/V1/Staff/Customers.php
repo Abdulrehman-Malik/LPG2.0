@@ -24,6 +24,12 @@ class Customers extends ApiController
         if ($search !== '') {
             $builder->groupStart()->like('name', $search)->orLike('code', $search)->orLike('phone', $search)->groupEnd();
         }
+        if (($type = trim((string) $this->request->getGet('customer_type'))) !== '') {
+            $builder->where('customer_type', $type);
+        }
+        if ($this->request->getGet('blocked') !== null) {
+            $builder->where('is_blocked', (int) $this->request->getGet('blocked') === 1 ? 1 : 0);
+        }
         if ($this->request->getGet('active') !== null) {
             $builder->where('is_active', (int) $this->request->getGet('active') === 1 ? 1 : 0);
         }

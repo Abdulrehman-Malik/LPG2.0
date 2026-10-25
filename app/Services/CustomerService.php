@@ -36,7 +36,11 @@ class CustomerService
         $data['is_active'] = self::flag($input['is_active'] ?? 0);
         foreach (CustomerFields::EXTRA as $f => $kind) {
             if (array_key_exists($f, $input)) {
-                $data[$f] = $kind === 'flag' ? self::flag($input[$f]) : (trim((string) $input[$f]) ?: null);
+                $data[$f] = match ($kind) {
+                    'flag' => self::flag($input[$f]),
+                    'type' => strtolower(trim((string) $input[$f])) ?: 'domestic',
+                    default => trim((string) $input[$f]) ?: null,
+                };
             }
         }
         return $data;

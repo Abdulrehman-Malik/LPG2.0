@@ -426,6 +426,8 @@ paths:
         - { $ref: '#/components/parameters/per_page' }
         - { name: q, in: query, description: 'Name, code or phone contains', schema: { type: string } }
         - { name: active, in: query, schema: { type: integer, enum: [0, 1] } }
+        - { name: customer_type, in: query, schema: { type: string, enum: [domestic, commercial, retailer_dealer] } }
+        - { name: blocked, in: query, schema: { type: integer, enum: [0, 1] } }
       responses:
         '200': { $ref: '#/components/responses/List' }
         '403': { $ref: '#/components/responses/Error' }
@@ -1267,6 +1269,11 @@ components:
               opening_balance: { type: number, minimum: 0 }
               allow_credit_sale: { type: boolean }
               is_active: { type: boolean, description: Defaults to true on create }
+              customer_type: { type: string, enum: [domestic, commercial, retailer_dealer], description: Defaults to domestic }
+              area: { type: string, maxLength: 80 }
+              notes: { type: string, maxLength: 500 }
+              is_blocked: { type: boolean, description: 'A blocked customer takes no new sales (422 SALE_REJECTED); still listed and can pay' }
+              whatsapp_enabled: { type: boolean }
     Supplier:
       content:
         application/json:

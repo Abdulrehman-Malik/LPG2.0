@@ -1623,3 +1623,41 @@ test('E2E-036 Ten concurrent sale POSTs with one client UUID post one sale and d
   expect((await conflict.json()).error.code).toBe('IDEMPOTENCY_KEY_REUSED');
   expect(await unitGas()).toBeCloseTo(gasBefore - 1, 3);
 });
+
+test('E2E-037 Blocked customers cannot buy; customer type filters the list', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+  const unique = Date.now().toString(36).toUpperCase();
+  const created = await request.post('/api/v1/staff/customers', { headers, data: { name: 'QA Blocked ' + unique, code: 'BLK-' + unique, customer_type: 'commercial', area: 'Gulberg', is_blocked: true } });
+  expect(created.status(), await created.text()).toBe(201);
+  const blocked = (await created.json()).data.customer;
+  expect(blocked.customer_type).toBe('commercial');
+  expect(Number(blocked.is_blocked)).toBe(1);
+  expect((await request.post('/api/v1/staff/customers', { headers, data: { name: 'QA Bad Type', customer_type: 'vip' } })).status()).toBe(422);
+
+  await login(page);
+  // The POS customer list leaves the blocked customer out.
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  expect(await page.locator('#customer_id option').filter({ hasText: 'QA Blocked ' + unique }).count()).toBe(0);
+
+  // The server rejects a sale for the blocked customer even when sent directly.
+  const payload = await capturePosGasSale(page, 1);
+  const res = await request.post('/api/v1/staff/sales', { headers: { ...headers, 'Idempotency-Key': 'qa-blocked-' + unique }, data: { ...payload, customer_id: Number(blocked.id) } });
+  expect(res.status()).toBe(422);
+  expect((await res.json()).error.message).toMatch(/blocked/i);
+
+  // Unblocking makes the customer selectable again.
+  expect((await request.put('/api/v1/staff/customers/' + blocked.id, { headers, data: { is_blocked: false } })).status()).toBe(200);
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  expect(await page.locator('#customer_id option').filter({ hasText: 'QA Blocked ' + unique }).count()).toBe(1);
+
+  // Type filter on the web list and the API.
+  await page.goto('/customers?type=commercial', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).toContainText('QA Blocked ' + unique);
+  await expect(page.locator('body')).not.toContainText('QA E2E Customer');
+  await page.goto('/customers?type=domestic', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).not.toContainText('QA Blocked ' + unique);
+  const api = await (await request.get('/api/v1/staff/customers?customer_type=commercial&q=' + unique, { headers })).json();
+  expect(api.meta.total).toBe(1);
+});

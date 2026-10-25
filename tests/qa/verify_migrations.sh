@@ -145,5 +145,14 @@ rollback_from SyncColumnsOnMasters
 qa_spark migrations:run >/dev/null 2>&1
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 
+# --- 7. BL-031 customer profile columns; rollback
+n=$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers' AND COLUMN_NAME IN ('customer_type','area','notes','is_blocked','whatsapp_enabled')")
+[ "$n" = 5 ] && ok "customers has customer_type, area, notes, is_blocked, whatsapp_enabled" || bad "customer profile columns" "$n of 5"
+[ "$(q "SELECT COUNT(*) FROM customers WHERE customer_type<>'domestic' OR is_blocked<>0")" = 0 ] && ok "existing customers default to domestic, not blocked" || bad "profile defaults" ""
+rollback_from CustomerProfileFields
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='customers' AND COLUMN_NAME IN ('customer_type','is_blocked')")" = 0 ] && ok "CustomerProfileFields rollback removes the columns" || bad "profile rollback" "columns remain"
+qa_spark migrations:run >/dev/null 2>&1
+bash "$DIR/reset_db.sh" >/dev/null 2>&1
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

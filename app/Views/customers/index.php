@@ -36,25 +36,35 @@ $owing = array_filter($balances, static fn ($b) => $b > 0.005);
     <div class="col-sm-4"><div class="kpi is-danger"><div class="kpi-label">Outstanding (OS) <i class="bi bi-hourglass-split"></i></div><div class="kpi-value">Rs. <?= number_format(array_sum($owing), 2) ?></div><div class="kpi-hint"><?= count($owing) ?> customer<?= count($owing) === 1 ? '' : 's' ?> owe money</div></div></div>
 </div>
 
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-2" aria-label="Filter customers">
+    <label class="form-label mb-0" for="typeFilter">Customer type</label>
+    <select id="typeFilter" name="type" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        <option value="">All types</option>
+        <?php foreach (\App\Services\CustomerFields::TYPES as $code => $label): ?><option value="<?= esc($code) ?>" <?= ($typeFilter ?? '') === $code ? 'selected' : '' ?>><?= esc($label) ?></option><?php endforeach; ?>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-secondary">Filter</button></noscript>
+</form>
+
 <div class="card">
     <?php if (!$customers): ?>
         <div class="empty-state"><i class="bi bi-people"></i><div class="empty-state-title">No customers yet</div>Add a customer or upload them from the Excel template. Walk-in sales need no customer.</div>
     <?php else: ?>
     <div class="card-body table-responsive">
         <table class="table table-sm table-hover align-middle mb-0 datatable">
-            <thead><tr><th>Code</th><th>Name</th><th>Phone</th><th>City</th><th>Credit</th><th class="text-end">Credit Limit</th><th class="text-end">Opening</th><th class="text-end">OS Balance</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Phone</th><th>City</th><th>Credit</th><th class="text-end">Credit Limit</th><th class="text-end">Opening</th><th class="text-end">OS Balance</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($customers as $c): $os = (float) ($balances[(int) $c['id']] ?? 0); ?>
                 <tr>
                     <td class="fw-semibold"><?= esc($c['code'] ?? '') ?></td>
                     <td><?= esc($c['name']) ?><?php if (!empty($c['vehicle_no'])): ?><div class="small text-muted"><?= esc($c['vehicle_no']) ?></div><?php endif; ?></td>
-                    <td class="text-nowrap"><?= esc($c['phone'] ?? '') ?></td>
-                    <td><?= esc($c['city'] ?? '') ?></td>
+                    <td><?= esc(\App\Services\CustomerFields::typeLabel($c['customer_type'] ?? null)) ?></td>
+                    <td class="text-nowrap"><?= esc($c['phone'] ?? '') ?><?php if (!empty($c['whatsapp_enabled'])): ?> <i class="bi bi-whatsapp text-success" title="WhatsApp enabled"></i><?php endif; ?></td>
+                    <td><?= esc($c['city'] ?? '') ?><?php if (!empty($c['area'])): ?><div class="small text-muted"><?= esc($c['area']) ?></div><?php endif; ?></td>
                     <td><?= !empty($c['allow_credit_sale']) ? '<span class="status status-info">Allowed</span>' : '<span class="status">Cash only</span>' ?></td>
                     <td class="text-end"><?= (float) $c['credit_limit'] > 0 ? number_format((float) $c['credit_limit'], 2) : (!empty($c['allow_credit_sale']) ? '<span class="text-muted">No limit</span>' : '—') ?></td>
                     <td class="text-end"><?= number_format((float) $c['opening_balance'], 2) ?></td>
                     <td class="text-end fw-semibold <?= $os > 0.005 ? 'text-danger' : '' ?>" data-order="<?= $os ?>"><?= number_format($os, 2) ?></td>
-                    <td><?= $c['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="status">Inactive</span>' ?></td>
+                    <td><?= $c['is_active'] ? '<span class="status status-success">Active</span>' : '<span class="status">Inactive</span>' ?><?php if (!empty($c['is_blocked'])): ?> <span class="status status-danger" title="No new sales">Blocked</span><?php endif; ?></td>
                     <td class="text-end text-nowrap">
                         <a class="btn btn-sm btn-outline-secondary" href="<?= site_url('customers?edit=' . $c['id']) ?>"><i class="bi bi-pencil me-1"></i>Edit</a>
                         <a class="btn btn-sm btn-outline-primary" href="<?= site_url('customers/ledger/' . $c['id']) ?>"><i class="bi bi-journal-text me-1"></i>Ledger</a>
@@ -92,11 +102,27 @@ $owing = array_filter($balances, static fn ($b) => $b > 0.005);
                 <div class="row g-3">
                     <div class="col-md-3"><label class="form-label" for="cCode">Code</label><input id="cCode" name="code" class="form-control" maxlength="40" value="<?= esc($val('code')) ?>" placeholder="Optional"></div>
                     <div class="col-md-6"><label class="form-label required" for="cName">Name</label><input id="cName" name="name" class="form-control" maxlength="150" required value="<?= esc($val('name')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label" for="cType">Customer type</label><select id="cType" name="customer_type" class="form-select"><?php $curType = (string) ($val('customer_type') ?: 'domestic'); foreach (\App\Services\CustomerFields::TYPES as $code => $label): ?><option value="<?= esc($code) ?>" <?= $curType === $code ? 'selected' : '' ?>><?= esc($label) ?></option><?php endforeach; ?></select></div>
                     <div class="col-md-3"><label class="form-label" for="cPhone">Phone</label><input id="cPhone" name="phone" class="form-control" maxlength="30" inputmode="tel" value="<?= esc($val('phone')) ?>"></div>
                     <div class="col-md-3"><label class="form-label" for="cCity">City</label><input id="cCity" name="city" class="form-control" maxlength="80" value="<?= esc($val('city')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label" for="cArea">Area</label><input id="cArea" name="area" class="form-control" maxlength="80" value="<?= esc($val('area')) ?>" placeholder="Mohalla / sector"></div>
                     <div class="col-md-3"><label class="form-label" for="cVehicle">Vehicle no.</label><input id="cVehicle" name="vehicle_no" class="form-control" maxlength="40" value="<?= esc($val('vehicle_no')) ?>"></div>
                     <div class="col-md-6"><label class="form-label" for="cAddress">Address</label><input id="cAddress" name="address" class="form-control" maxlength="255" value="<?= esc($val('address')) ?>"></div>
                 </div>
+            </div>
+            <div class="form-section">
+                <h3 class="form-section-title">Status and notes</h3>
+                <div class="form-check form-switch mb-2">
+                    <input type="hidden" name="is_blocked" value="0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="cBlocked" name="is_blocked" value="1" <?= $checked('is_blocked', false) ?>>
+                    <label class="form-check-label" for="cBlocked"><strong>Blocked</strong> — no new sales; the customer stays listed and can still pay</label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input type="hidden" name="whatsapp_enabled" value="0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="cWhatsapp" name="whatsapp_enabled" value="1" <?= $checked('whatsapp_enabled', false) ?>>
+                    <label class="form-check-label" for="cWhatsapp">WhatsApp messages (receipts, reminders) to the phone number</label>
+                </div>
+                <label class="form-label" for="cNotes">Notes</label><textarea id="cNotes" name="notes" class="form-control" rows="2" maxlength="500"><?= esc($val('notes')) ?></textarea>
             </div>
             <div class="form-section mb-0">
                 <h3 class="form-section-title">Credit and balances</h3>

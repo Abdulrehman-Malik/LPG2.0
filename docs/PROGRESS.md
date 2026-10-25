@@ -34,3 +34,4 @@
 | 2026-10-25 | BL-028 client-generated UUIDs | Done | bl-028-client-uuids | verify_migrations 31/31; E2E-033/035 | uuid nullable, unique; app builder stamps v4 (MySQL rejects UUID() defaults/triggers with binlog) |
 | 2026-10-25 | BL-029 idempotent creates by UUID | Done | bl-029-idempotent-uuid | E2E-036 (10 concurrent POSTs: 1 sale, 1 stock deduction); Playwright 32/32 | body uuid is the idempotency key when no header |
 | 2026-10-25 | BL-030 sync columns and soft delete on masters | Done | bl-030-sync-soft-delete | run_all green (network-flake reruns: shell_check 78/78, Playwright 32/32); verify_migrations 41/41; ledger_check 4/4 | docs/sync-policy.md; builder raises version; cylinder type delete is now soft |
+| 2026-10-26 | BL-031 customer type, area, notes, blocked, WhatsApp | Done | bl-031-customer-profile | E2E-037; verify_migrations 44/44; parties, pos, pages, isolation, security, phase8 | blocked: hidden from POS, rejected server-side, can still pay |

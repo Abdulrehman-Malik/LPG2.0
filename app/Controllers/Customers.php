@@ -45,7 +45,8 @@ class Customers extends Controller
                 if($code!=='') { $key=strtoupper($code); if(isset($seenCodes[$key])) throw new \RuntimeException('Row '.$row['excel_row'].': duplicate customer code '.$code.' in the uploaded file.'); $seenCodes[$key]=true; if($this->model->where(['location_id'=>$locationId,'code'=>$code])->first()) throw new \RuntimeException('Row '.$row['excel_row'].': customer code '.$code.' already exists in this shop. Existing customers are not overwritten.'); }
                 foreach([['credit_limit','Credit Limit'],['opening_balance','Opening Balance']] as [$field,$label]){ if($row[$field]===''||!is_numeric($row[$field])||(float)$row[$field]<0) throw new \RuntimeException('Row '.$row['excel_row'].': '.$label.' must be a number greater than or equal to 0.'); }
                 foreach([['allow_credit_sale','Allow Credit Sale'],['is_active','Active']] as [$field,$label]) if(!in_array($row[$field],['0','1'],true)) throw new \RuntimeException('Row '.$row['excel_row'].': '.$label.' must be 0 or 1.');
-                $data=['location_id'=>$locationId,'code'=>$code?:null,'name'=>$name,'phone'=>$row['phone']?:null,'city'=>$row['city']?:null,'address'=>$row['address']?:null,'vehicle_no'=>$row['vehicle_no']?:null,'credit_limit'=>(float)$row['credit_limit'],'allow_credit_sale'=>(int)$row['allow_credit_sale'],'opening_balance'=>(float)$row['opening_balance'],'is_active'=>(int)$row['is_active']];
+                $data=['location_id'=>$locationId,'code'=>$code?:null,'name'=>$name,'phone'=>$row['phone']?:null,'city'=>$row['city']?:null,'address'=>$row['address']?:null,'vehicle_no'=>$row['vehicle_no']?:null,'credit_limit'=>(float)$row['credit_limit'],'allow_credit_sale'=>(int)$row['allow_credit_sale'],'opening_balance'=>(float)$row['opening_balance'],'is_active'=>(int)$row['is_active'],'customer_type'=>strtolower($row['customer_type'])?:'domestic','area'=>$row['area']?:null,'notes'=>$row['notes']?:null];
+                try { \App\Services\CustomerFields::validate($data); } catch (\RuntimeException $e) { throw new \RuntimeException('Row '.$row['excel_row'].': '.$e->getMessage()); }
                 $id=$this->model->insert($data,true); if(!$id) throw new \RuntimeException('Row '.$row['excel_row'].': customer could not be created.');
                 AuditService::log('excel_import','customer',(int)$id,null,$data,$userId,(int)(session()->get('location_id')??0)); $created++;
             }
@@ -61,9 +62,15 @@ class Customers extends Controller
         if($locationId<=0) return $this->response->setStatusCode(403)->setBody('A shop context is required.');
         $editId=(int)$this->request->getGet('edit');
         $edit=$editId?$this->model->findForLocation($editId,$locationId):null;
+        // BL-031: list filter by customer type.
+        $type=(string)$this->request->getGet('type');
+        $type=isset(\App\Services\CustomerFields::TYPES[$type])?$type:'';
+        $query=$this->model->where('location_id',$locationId);
+        if($type!=='') $query->where('customer_type',$type);
         return view('customers/index',[
             'title'=>'Customers / Parties',
-            'customers'=>$this->model->where('location_id',$locationId)->orderBy('name')->findAll(),
+            'typeFilter'=>$type,
+            'customers'=>$query->orderBy('name')->findAll(),
             'balances'=>(new \App\Services\CustomerBalanceService())->osBalances($locationId),
             'edit'=>$edit,
         ]);
