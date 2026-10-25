@@ -38,6 +38,17 @@ class CashService {
   $this->db->table('cash_transactions')->insert(['cash_session_id'=>$sessionId,'transaction_type'=>$type,'direction'=>$direction,'amount'=>$amount,'transaction_at'=>$at?:date('Y-m-d H:i:s'),'reference_type'=>$referenceType,'reference_id'=>$referenceId,'created_by'=>$userId,'notes'=>$notes?:null]);
   if(!$this->db->transStatus()) throw new RuntimeException('Cash transaction could not be posted.');
  }
+ /** Manual cash in/out on the branch's open session, audited atomically (Counter Cash screen and API). */
+ public function manualMove(int $locationId,int $userId,string $direction,float $amount,string $notes=''): int {
+  $session=$this->openSessionForLocation($locationId);
+  if(!$session) throw new RuntimeException('Open a cash session first.');
+  $this->db->transBegin();
+  try {
+   $this->postGeneric((int)$session['id'],$direction==='in'?'manual_in':'manual_out',$direction,$amount,'cash_manual',0,$userId,$notes);
+   AuditService::log('CASH_MANUAL_MOVE','cash_session',(int)$session['id'],null,['direction'=>$direction,'amount'=>$amount,'notes'=>$notes],$userId,$locationId);
+   $this->db->transCommit(); return (int)$session['id'];
+  } catch(\Throwable $e){$this->db->transRollback();throw $e;}
+ }
  public function summary(int $sessionId): array {
   $session=$this->db->table('cash_sessions')->where('id',$sessionId)->get()->getRowArray();
   if(!$session) throw new RuntimeException('Cash session not found.');

@@ -1457,3 +1457,42 @@ test('E2E-033 Staff sales API posts exactly like the POS screen', async ({ page,
   const receipt = (await (await request.get('/api/v1/staff/sales/' + postedBody.data.id + '/receipt', { headers })).json()).data;
   expect(Object.keys(receipt.shopSettings).sort()).toEqual(['receipt_footer', 'receipt_title', 'show_address_on_receipt']);
 });
+
+test('E2E-034 Staff cash API figures equal the Counter Cash screen', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+  const webExpected = async () => {
+    await page.goto('/cash', { waitUntil: 'networkidle' });
+    return Number(await page.locator('#countedCash').getAttribute('data-expected'));
+  };
+  await login(page);
+
+  let current = (await (await request.get('/api/v1/staff/cash/current', { headers })).json()).data;
+  if (!current.session) {
+    expect((await request.post('/api/v1/staff/cash/open', { headers, data: { opening_cash: 0 } })).status()).toBe(201);
+    current = (await (await request.get('/api/v1/staff/cash/current', { headers })).json()).data;
+  }
+  expect(current.expected).toBeCloseTo(await webExpected(), 2);
+
+  const moved = await request.post('/api/v1/staff/cash/move', { headers, data: { direction: 'in', amount: 125.5, notes: 'QA API cash in' } });
+  expect(moved.status()).toBe(201);
+  const afterMove = (await moved.json()).data;
+  expect(afterMove.expected).toBeCloseTo(current.expected + 125.5, 2);
+  expect(afterMove.expected).toBeCloseTo(await webExpected(), 2);
+  expect((await request.post('/api/v1/staff/cash/move', { headers, data: { direction: 'sideways', amount: 5 } })).status()).toBe(422);
+  expect((await request.post('/api/v1/staff/cash/move', { headers, data: { direction: 'out', amount: 0 } })).status()).toBe(422);
+  const history = (await (await request.get('/api/v1/staff/cash/history?per_page=5', { headers })).json());
+  expect(history.data.transactions[0].notes).toBe('QA API cash in');
+  await page.goto('/audit?action=CASH_MANUAL_MOVE', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).toContainText('QA API cash in');
+
+  // Close with the exact expected amount, then reopen so later runs find an open session.
+  expect((await request.post('/api/v1/staff/cash/close', { headers, data: {} })).status()).toBe(422);
+  const closed = await request.post('/api/v1/staff/cash/close', { headers, data: { counted_cash: afterMove.expected } });
+  expect(closed.status(), await closed.text()).toBe(200);
+  expect((await closed.json()).data.difference).toBeCloseTo(0, 2);
+  expect((await (await request.get('/api/v1/staff/cash/current', { headers })).json()).data.session).toBeNull();
+  expect((await request.post('/api/v1/staff/cash/move', { headers, data: { direction: 'in', amount: 1 } })).status()).toBe(409);
+  expect((await request.post('/api/v1/staff/cash/open', { headers, data: { opening_cash: 0 } })).status()).toBe(201);
+});

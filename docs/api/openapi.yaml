@@ -557,6 +557,78 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
+  # ---- Staff: counter cash (BL-023; permission CASH_MANAGE) --------------------
+  /staff/cash/current:
+    get:
+      tags: [Staff]
+      summary: Open cash session with cash in, cash out, expected cash and latest movements
+      description: '`data.session` is null when no session is open.'
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /staff/cash/open:
+    post:
+      tags: [Staff]
+      summary: Open a cash session on the shop's register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                opening_cash: { type: number, minimum: 0 }
+                notes: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/cash/move:
+    post:
+      tags: [Staff]
+      summary: Manual cash in or out (audited)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direction, amount]
+              properties:
+                direction: { type: string, enum: [in, out] }
+                amount: { type: number, exclusiveMinimum: 0 }
+                notes: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '409': { description: NO_OPEN_CASH_SESSION, $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/cash/close:
+    post:
+      tags: [Staff]
+      summary: Close a session with the counted cash; returns expected, counted and difference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [counted_cash]
+              properties:
+                session_id: { type: integer, description: Defaults to the open session }
+                counted_cash: { type: number, minimum: 0 }
+                notes: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/cash/history:
+    get:
+      tags: [Staff]
+      summary: Cash movements of the shop (default last 30 days)
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: register_id, in: query, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:

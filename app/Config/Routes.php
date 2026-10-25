@@ -44,6 +44,11 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('sales/(:num)','Api\\V1\\Staff\\Sales::show/$1');
         $routes->get('sales/(:num)/receipt','Api\\V1\\Staff\\Sales::receipt/$1');
         $routes->post('sales/(:num)/void','Api\\V1\\Staff\\Sales::void/$1');
+        $routes->get('cash/current','Api\\V1\\Staff\\Cash::current');
+        $routes->post('cash/open','Api\\V1\\Staff\\Cash::open');
+        $routes->post('cash/move','Api\\V1\\Staff\\Cash::move');
+        $routes->post('cash/close','Api\\V1\\Staff\\Cash::close');
+        $routes->get('cash/history','Api\\V1\\Staff\\Cash::history');
         $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
         $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
         $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');
