@@ -4,9 +4,9 @@ namespace App\Controllers;
 
 use App\Models\SupplierModel;
 use App\Services\BusinessContext;
-use App\Services\ConfigurationService;
 use App\Services\PermissionService;
 use App\Services\SupplierBalanceService;
+use App\Services\SupplierService;
 use CodeIgniter\Controller;
 
 /**
@@ -25,7 +25,7 @@ class Suppliers extends Controller
         return null;
     }
     private function locationId(): int { return (int)session()->get('location_id'); }
-    private function scopeMode(): string { return (string)(new ConfigurationService())->valueForShop('supplier_scope_mode',$this->locationId()); }
+    private function scopeMode(): string { return (new SupplierService($this->model))->scopeMode($this->locationId()); }
 
     public function index()
     {
@@ -62,59 +62,11 @@ class Suppliers extends Controller
     public function save()
     {
         if($r=$this->guard()) return $r;
-        $id=(int)$this->request->getPost('id');
-        $locationId=$this->locationId();
-        $businessId=BusinessContext::businessIdForLocation($locationId);
-        $data=[
-            'code'=>trim((string)$this->request->getPost('code')) ?: null,
-            'name'=>trim((string)$this->request->getPost('name')),
-            'phone'=>trim((string)$this->request->getPost('phone')) ?: null,
-            'city'=>trim((string)$this->request->getPost('city')) ?: null,
-            'address'=>trim((string)$this->request->getPost('address')) ?: null,
-            'credit_limit'=>(float)$this->request->getPost('credit_limit'),
-            'is_active'=>$this->request->getPost('is_active') ? 1 : 0,
-        ];
-        if($data['name']==='') return redirect()->back()->withInput()->with('error','Supplier name is required.');
-        $opening=(float)$this->request->getPost('opening_balance');
-        if($data['credit_limit']<0||$opening<0) return redirect()->back()->withInput()->with('error','Credit limit and opening balance cannot be negative.');
-
-        $mode=$this->scopeMode();
-        $requested=(string)$this->request->getPost('supplier_scope');
-        $branchOnly=match($mode){ 'branch'=>true, 'both'=>$requested==='branch', default=>false };
-        $data['location_id']=$branchOnly?$locationId:null;
-
         try {
-            if($data['code']!==null){
-                $duplicate=$this->model->where(['business_id'=>$businessId,'code'=>$data['code']])->where('id !=',$id)->first();
-                if($duplicate) throw new \RuntimeException('Another supplier of this business already uses this code.');
-            }
-            if($id){
-                $existing=BusinessContext::supplierVisibleTo($id,$locationId,false);
-                if(!$existing) throw new \RuntimeException('Supplier not found.');
-                if($branchOnly && $existing['location_id']===null && $this->usedByOtherBranches($id,$locationId)){
-                    throw new \RuntimeException('This supplier already has transactions in other branches, so it must stay business-wide.');
-                }
-                if($mode==='shared' && $existing['location_id']!==null){
-                    // Business switched to shared suppliers: existing branch-only suppliers become business-wide when edited.
-                    $data['location_id']=null;
-                }
-                $this->model->update($id,$data);
-            } else {
-                $id=(int)$this->model->insert($data+['business_id'=>$businessId,'opening_balance'=>0]);
-                $created=true;
-            }
-            // D9-4: the opening payable is recorded at this branch.
-            (new SupplierBalanceService())->setBranchOpening($id,$locationId,$opening,(int)session()->get('user_id'));
+            $result=(new SupplierService($this->model))->save((int)$this->request->getPost('id'),$this->request->getPost(),(int)session()->get('user_id'),$this->locationId());
         } catch (\Throwable $e) {
             return redirect()->back()->withInput()->with('error','Supplier could not be saved: '.user_error_message($e));
         }
-        return redirect()->to('/suppliers')->with('success',empty($created)?'Supplier updated.':'Supplier created.');
-    }
-
-    private function usedByOtherBranches(int $supplierId,int $locationId): bool
-    {
-        $db=$this->model->db;
-        return $db->table('purchases')->where('supplier_id',$supplierId)->where('location_id !=',$locationId)->countAllResults()>0
-            || $db->table('supplier_payments')->where('supplier_id',$supplierId)->where('location_id !=',$locationId)->countAllResults()>0;
+        return redirect()->to('/suppliers')->with('success',$result['created']?'Supplier created.':'Supplier updated.');
     }
 }

@@ -742,6 +742,133 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
+  # ---- Staff: suppliers, purchases, supplier payments (BL-025) -----------------
+  /staff/suppliers:
+    get:
+      tags: [Staff]
+      summary: Suppliers visible to the shop with the payable at this shop (SUPPLIER_MANAGE)
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: active, in: query, schema: { type: integer, enum: [0, 1] } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Create a supplier (business-wide or branch-only per supplier_scope_mode)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody: { $ref: '#/components/requestBodies/Supplier' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/suppliers/{supplierId}:
+    put:
+      tags: [Staff]
+      summary: Update a supplier; fields not sent keep their value
+      parameters: [{ $ref: '#/components/parameters/supplierId' }]
+      requestBody: { $ref: '#/components/requestBodies/Supplier' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Staff]
+      summary: Same as PUT, for clients that cannot send PUT
+      parameters: [{ $ref: '#/components/parameters/supplierId' }]
+      requestBody: { $ref: '#/components/requestBodies/Supplier' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/suppliers/{supplierId}/ledger:
+    get:
+      tags: [Staff]
+      summary: Supplier ledger (purchases, payments, payable) at the shop
+      parameters: [{ $ref: '#/components/parameters/supplierId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/purchases:
+    get:
+      tags: [Staff]
+      summary: Purchases of the shop, newest first (PURCHASE_MANAGE)
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+    post:
+      tags: [Staff]
+      summary: Post a purchase through PurchaseService (filled cylinders need actual gas weight)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supplier_id, lines]
+              properties:
+                supplier_id: { type: integer }
+                transaction_at: { type: string }
+                discount_amount: { type: number }
+                notes: { type: string }
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      line_type: { type: string }
+                      cylinder_type_id: { type: integer }
+                      quantity: { type: number }
+                      unit_rate: { type: number }
+                      actual_gas_weight_kg: { type: number }
+                payments:
+                  type: array
+                  items: { $ref: '#/components/schemas/Payment' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/purchases/{purchaseId}:
+    get:
+      tags: [Staff]
+      summary: Purchase with lines and payments
+      parameters: [{ $ref: '#/components/parameters/purchaseId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/purchases/{purchaseId}/void:
+    post:
+      tags: [Staff]
+      summary: Void a purchase (when purchase_void_enabled)
+      parameters: [{ $ref: '#/components/parameters/purchaseId' }]
+      requestBody: { $ref: '#/components/requestBodies/Reason' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/supplier-payments:
+    post:
+      tags: [Staff]
+      summary: Pay a supplier; cannot exceed the payable at the shop
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supplier_id, amount, payment_mode]
+              properties:
+                supplier_id: { type: integer }
+                amount: { type: number, exclusiveMinimum: 0 }
+                payment_mode: { type: string, enum: [cash, cheque, online] }
+                transaction_at: { type: string }
+                reference_no: { type: string }
+                notes: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:
@@ -912,6 +1039,8 @@ components:
     customerId: { name: customerId, in: path, required: true, schema: { type: integer } }
     saleId: { name: saleId, in: path, required: true, schema: { type: integer } }
     transferId: { name: transferId, in: path, required: true, schema: { type: integer } }
+    supplierId: { name: supplierId, in: path, required: true, schema: { type: integer } }
+    purchaseId: { name: purchaseId, in: path, required: true, schema: { type: integer } }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1012,6 +1141,21 @@ components:
               credit_limit: { type: number, minimum: 0 }
               opening_balance: { type: number, minimum: 0 }
               allow_credit_sale: { type: boolean }
+              is_active: { type: boolean, description: Defaults to true on create }
+    Supplier:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string, description: Required on create }
+              code: { type: string }
+              phone: { type: string }
+              city: { type: string }
+              address: { type: string }
+              credit_limit: { type: number, minimum: 0 }
+              opening_balance: { type: number, minimum: 0, description: Opening payable at this shop }
+              supplier_scope: { type: string, enum: [business, branch], description: Used when supplier_scope_mode is both }
               is_active: { type: boolean, description: Defaults to true on create }
     Party:
       content:

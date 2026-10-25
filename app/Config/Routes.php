@@ -58,6 +58,16 @@ $routes->group('api/v1', ['filter'=>'api-ready'], static function(RouteCollectio
         $routes->get('transfers/(:num)','Api\\V1\\Staff\\Inventory::transfer/$1');
         $routes->post('transfers/(:num)/receive','Api\\V1\\Staff\\Inventory::receiveTransfer/$1');
         $routes->post('transfers/(:num)/cancel','Api\\V1\\Staff\\Inventory::cancelTransfer/$1');
+        $routes->get('suppliers','Api\\V1\\Staff\\Purchasing::suppliers');
+        $routes->post('suppliers','Api\\V1\\Staff\\Purchasing::createSupplier');
+        $routes->put('suppliers/(:num)','Api\\V1\\Staff\\Purchasing::updateSupplier/$1');
+        $routes->post('suppliers/(:num)','Api\\V1\\Staff\\Purchasing::updateSupplier/$1');
+        $routes->get('suppliers/(:num)/ledger','Api\\V1\\Staff\\Purchasing::supplierLedger/$1');
+        $routes->get('purchases','Api\\V1\\Staff\\Purchasing::purchases');
+        $routes->post('purchases','Api\\V1\\Staff\\Purchasing::createPurchase');
+        $routes->get('purchases/(:num)','Api\\V1\\Staff\\Purchasing::purchase/$1');
+        $routes->post('purchases/(:num)/void','Api\\V1\\Staff\\Purchasing::voidPurchase/$1');
+        $routes->post('supplier-payments','Api\\V1\\Staff\\Purchasing::createSupplierPayment');
         $routes->get('businesses','Api\\V1\\Staff\\Businesses::index');
         $routes->post('businesses','Api\\V1\\Staff\\Businesses::createBusiness');
         $routes->get('businesses/(:num)/shops','Api\\V1\\Staff\\Businesses::shops/$1');

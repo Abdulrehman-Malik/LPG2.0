@@ -65,6 +65,30 @@ post "purchases/void/$P2" -d "void_reason=QA flow void" >/dev/null
 [ "$(filled)" = "$((F2-1))" ] && ok "voided purchase's cylinder removed from stock" || bad "void stock" "$F2 -> $(filled)"
 eqn "payable after void (500 credit reversed)" "$(payable $SUP)" 1000
 
+echo "--- staff API: suppliers, purchases, supplier payments (BL-025)"
+TOK=$(curl -s -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' "$B/api/v1/staff/auth/login" | grep -oE '"access_token": *"[a-f0-9]{64}"' | grep -oE '[a-f0-9]{64}')
+api(){ curl -s -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $LOC" -H 'Content-Type: application/json' "$@"; }
+apipayable(){ api "$B/api/v1/staff/suppliers?per_page=100" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).data.suppliers.find(x=>+x.id===+process.argv[1]);console.log(r?r.payable:"")})' "$1"; }
+eqn "API payable equals SupplierBalanceService" "$(apipayable $SUP)" "$(payable $SUP)"
+R=$(api -H 'Idempotency-Key: qa-api-purchase-1' -d "{\"supplier_id\":$SUP,\"lines\":[{\"line_type\":\"filled_cylinder\",\"cylinder_type_id\":$C6,\"quantity\":1,\"unit_rate\":1000,\"actual_gas_weight_kg\":6}],\"payments\":[]}" "$B/api/v1/staff/purchases")
+echo "$R" | grep -q '"purchase_no"' && ok "API purchase posted" || bad "API purchase" "$R"
+api -H 'Idempotency-Key: qa-api-purchase-1' -d "{\"supplier_id\":$SUP,\"lines\":[{\"line_type\":\"filled_cylinder\",\"cylinder_type_id\":$C6,\"quantity\":1,\"unit_rate\":1000,\"actual_gas_weight_kg\":6}],\"payments\":[]}" "$B/api/v1/staff/purchases" >/dev/null
+eqn "payable after API credit purchase (replay posted nothing)" "$(payable $SUP)" 2000
+eqn "API payable after purchase" "$(apipayable $SUP)" 2000
+R=$(api -d "{\"supplier_id\":$SUP,\"amount\":5000,\"payment_mode\":\"cheque\"}" -w ' HTTP%{http_code}' "$B/api/v1/staff/supplier-payments")
+echo "$R" | grep -q 'HTTP422' && ok "API payment above the payable refused" || bad "API payment bound" "$R"
+api -d "{\"supplier_id\":$SUP,\"amount\":500,\"payment_mode\":\"cheque\",\"reference_no\":\"CHQ-API\"}" "$B/api/v1/staff/supplier-payments" | grep -q '"payment_no"' && ok "API supplier payment posted" || bad "API payment" ""
+eqn "payable after API payment" "$(apipayable $SUP)" 1500
+R=$(api -d '{"name":"QA API Supplier","code":"QAPI-SUP","phone":"0300","opening_balance":250}' -w ' HTTP%{http_code}' "$B/api/v1/staff/suppliers")
+SUPA=$(q "SELECT id FROM suppliers WHERE code='QAPI-SUP'")
+echo "$R" | grep -q 'HTTP201' && [ "$(q "SELECT is_active FROM suppliers WHERE id=$SUPA")" = 1 ] && ok "API supplier created active" || bad "API supplier create" "$R"
+eqn "API supplier opening payable recorded at the shop" "$(apipayable $SUPA)" 250
+api -X PUT -d '{"phone":"0311"}' "$B/api/v1/staff/suppliers/$SUPA" >/dev/null
+[ "$(q "SELECT CONCAT(name,'|',phone,'|',is_active) FROM suppliers WHERE id=$SUPA")" = "QA API Supplier|0311|1" ] && ok "API partial supplier update keeps other fields" || bad "API supplier update" "$(q "SELECT CONCAT(name,'|',phone,'|',is_active) FROM suppliers WHERE id=$SUPA")"
+eqn "partial update keeps the opening payable" "$(apipayable $SUPA)" 250
+api "$B/api/v1/staff/suppliers/$SUP/ledger" | grep -q '"purchases"' && ok "API supplier ledger" || bad "API ledger" ""
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOK" -H "X-Shop-Id: $LOC" "$B/api/v1/staff/purchases/99999999")" = 404 ] && ok "API unknown purchase is 404" || bad "API purchase 404" ""
+
 echo "--- Cylinder Sale (header path)"
 E0=$(empty)
 R=$(salejson --data-urlencode transaction_type=cylinder_sale --data-urlencode "lines_json=[{\"cylinder_type_id\":\"$C6\",\"cylinder_status\":\"empty\",\"quantity\":\"1\",\"cylinder_rate\":\"1500\",\"selected_cylinder_unit_ids\":[]}]" --data-urlencode 'payments_json=[{"payment_type":"sale","payment_mode":"cash","amount":"1500"}]')
