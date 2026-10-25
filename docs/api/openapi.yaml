@@ -412,6 +412,70 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Data' }
 
+  # ---- Staff: customers (BL-021; permission CUSTOMER_MANAGE) -------------------
+  /staff/customers:
+    get:
+      tags: [Staff]
+      summary: Customers of the shop with their OS balance
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/per_page' }
+        - { name: q, in: query, description: 'Name, code or phone contains', schema: { type: string } }
+        - { name: active, in: query, schema: { type: integer, enum: [0, 1] } }
+      responses:
+        '200': { $ref: '#/components/responses/List' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Staff]
+      summary: Create a customer (same rules as the Customers screen)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKeyOptional' }]
+      requestBody: { $ref: '#/components/requestBodies/Customer' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/customers/{customerId}:
+    get:
+      tags: [Staff]
+      summary: One customer of the shop
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Staff]
+      summary: Update a customer; fields not sent keep their value
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      requestBody: { $ref: '#/components/requestBodies/Customer' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Staff]
+      summary: Same as PUT, for clients that cannot send PUT
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      requestBody: { $ref: '#/components/requestBodies/Customer' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/customers/{customerId}/balance:
+    get:
+      tags: [Staff]
+      summary: OS (receivable), gas-account and security-deposit balances
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/customers/{customerId}/ledger:
+    get:
+      tags: [Staff]
+      summary: Customer ledger with running balance (as the web Customer Ledger)
+      parameters: [{ $ref: '#/components/parameters/customerId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+
   # ---- Staff: customer app accounts --------------------------------------------
   /staff/customer-signups:
     get:
@@ -579,6 +643,7 @@ components:
     shopId: { name: shopId, in: path, required: true, schema: { type: integer } }
     requestId: { name: requestId, in: path, required: true, schema: { type: integer } }
     accountId: { name: accountId, in: path, required: true, schema: { type: integer } }
+    customerId: { name: customerId, in: path, required: true, schema: { type: integer } }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -661,6 +726,22 @@ components:
               owner_id: { type: integer }
               key: { type: string }
               value: {}
+    Customer:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string, description: Required on create }
+              code: { type: string }
+              phone: { type: string }
+              city: { type: string }
+              address: { type: string }
+              vehicle_no: { type: string }
+              credit_limit: { type: number, minimum: 0 }
+              opening_balance: { type: number, minimum: 0 }
+              allow_credit_sale: { type: boolean }
+              is_active: { type: boolean, description: Defaults to true on create }
     Party:
       content:
         application/json:

@@ -5,7 +5,6 @@ namespace App\Controllers\Api\V1;
 use App\Libraries\ApiPage;
 use App\Libraries\RequestContext;
 use App\Libraries\TenantContext;
-use App\Services\ApiSessionService;
 use App\Services\PermissionService;
 use App\Services\ShopScopeService;
 use CodeIgniter\Controller;
@@ -22,8 +21,6 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 abstract class ApiController extends Controller
 {
-    private ?array $principalCache = null;
-
     protected function payload(): array
     {
         $json = $this->request->getJSON(true);
@@ -52,16 +49,11 @@ abstract class ApiController extends Controller
         return $this->response->setStatusCode($status)->setJSON(['error' => $error]);
     }
 
-    /** The authenticated staff principal (ApiAuthFilter has already validated the token). */
+    /** The authenticated staff principal, recorded by ApiAuthFilter. */
     protected function staff(): ?array
     {
-        if ($this->principalCache === null) {
-            $header = trim($this->request->getHeaderLine('Authorization'));
-            $this->principalCache = preg_match('/^Bearer\s+([a-f0-9]{64})$/i', $header, $m)
-                ? ((new ApiSessionService())->authenticateAccessToken($m[1], 'staff') ?: [])
-                : [];
-        }
-        return $this->principalCache ?: null;
+        $principal = RequestContext::apiPrincipal();
+        return $principal && $principal['audience'] === 'staff' ? ['user_id' => $principal['id']] : null;
     }
 
     /**

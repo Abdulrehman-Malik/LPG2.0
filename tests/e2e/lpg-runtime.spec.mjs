@@ -1314,3 +1314,46 @@ test('E2E-031 API lists paginate and POST creates honour Idempotency-Key', async
   expect(badKey.status()).toBe(422);
   expect((await badKey.json()).error.code).toBe('INVALID_IDEMPOTENCY_KEY');
 });
+
+test('E2E-032 Staff customer API matches the web Customers screens', async ({ page, request }) => {
+  const apiLogin = await request.post('/api/v1/staff/auth/login', { data: { username: 'admin', password: 'admin123' } });
+  const staff = (await apiLogin.json()).data;
+  const headers = { Authorization: 'Bearer ' + staff.tokens.access_token, 'X-Shop-Id': String(staff.current_shop_id) };
+
+  const unique = Date.now().toString(36).toUpperCase();
+  const created = await request.post('/api/v1/staff/customers', { headers, data: { name: 'QA API Customer ' + unique, code: 'API-' + unique, phone: '03001234567', credit_limit: 500 } });
+  expect(created.status()).toBe(201);
+  const customer = (await created.json()).data.customer;
+  expect(Number(customer.is_active)).toBe(1);
+
+  // A partial update keeps the other fields.
+  const updated = await request.put('/api/v1/staff/customers/' + customer.id, { headers, data: { phone: '03007654321' } });
+  expect(updated.status()).toBe(200);
+  const after = (await updated.json()).data.customer;
+  expect(after.phone).toBe('03007654321');
+  expect(after.name).toBe(customer.name);
+  expect(Number(after.is_active)).toBe(1);
+  expect(Number(after.credit_limit)).toBe(500);
+  const invalid = await request.put('/api/v1/staff/customers/' + customer.id, { headers, data: { credit_limit: -1 } });
+  expect(invalid.status()).toBe(422);
+  expect((await request.get('/api/v1/staff/customers/99999999', { headers })).status()).toBe(404);
+
+  const list = await (await request.get('/api/v1/staff/customers?q=' + unique, { headers })).json();
+  expect(list.meta.total).toBe(1);
+  expect(list.data.customers[0].os_balance).toBe(0);
+  const balance = (await (await request.get('/api/v1/staff/customers/' + customer.id + '/balance', { headers })).json()).data;
+  expect(balance.os_balance).toBe(0);
+
+  await login(page);
+  await page.goto('/customers', { waitUntil: 'networkidle' });
+  await expect(page.locator('body')).toContainText('QA API Customer ' + unique);
+
+  // The seeded customer's ledger equals the web Customer Ledger (same LedgerService).
+  const seeded = (await (await request.get('/api/v1/staff/customers?q=QA-E2E-CUST', { headers })).json()).data.customers[0];
+  const ledger = (await (await request.get('/api/v1/staff/customers/' + seeded.id + '/ledger', { headers })).json()).data;
+  await page.goto('/customers/ledger/' + seeded.id, { waitUntil: 'networkidle' });
+  const webSales = await page.locator('#customerSales tbody tr:not(:has(.dataTables_empty))').count();
+  const webReceipts = await page.locator('#customerReceipts tbody tr:not(:has(.dataTables_empty))').count();
+  expect(ledger.sales.length).toBe(webSales);
+  expect(ledger.receipts.length).toBe(webReceipts);
+});
