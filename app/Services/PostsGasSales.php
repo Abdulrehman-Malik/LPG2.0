@@ -209,15 +209,15 @@ trait PostsGasSales
                     $after=$before-$used;$newStatus=$after<=0.00001?'empty':'filled';
                     $this->db->table('cylinder_units')->where('id',(int)$source['id'])->update(['gas_weight_kg'=>max(0,$after),'status'=>$newStatus]);
 
-                    $movementRows=[['type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','unit_id'=>(int)$source['id'],'notes'=>($allowSourceSelection?'Gas sold from selected filled cylinder':'Gas auto-allocated from filled cylinder in sequence')]];
+                    $movementRows=[['type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','from'=>'filled','to'=>$newStatus,'unit_id'=>(int)$source['id'],'notes'=>($allowSourceSelection?'Gas sold from selected filled cylinder':'Gas auto-allocated from filled cylinder in sequence')]];
                     if($newStatus==='empty'){
-                        $movementRows[]=['type'=>'filled_cylinder','cylinder_type_id'=>$row['type_id'],'quantity'=>1,'direction'=>'out','unit_id'=>(int)$source['id'],'notes'=>'Cylinder became empty after gas sale'];
-                        $movementRows[]=['type'=>'empty_cylinder','cylinder_type_id'=>$row['type_id'],'quantity'=>1,'direction'=>'in','unit_id'=>(int)$source['id'],'notes'=>'Cylinder became empty after gas sale'];
+                        $movementRows[]=['type'=>'filled_cylinder','cylinder_type_id'=>$row['type_id'],'quantity'=>1,'direction'=>'out','from'=>'filled','to'=>'empty','unit_id'=>(int)$source['id'],'notes'=>'Cylinder became empty after gas sale'];
+                        $movementRows[]=['type'=>'empty_cylinder','cylinder_type_id'=>$row['type_id'],'quantity'=>1,'direction'=>'in','from'=>'filled','to'=>'empty','unit_id'=>(int)$source['id'],'notes'=>'Cylinder became empty after gas sale'];
                     }
                     foreach($movementRows as $m){
                         $this->db->table('inventory_movements')->insert([
                             'location_id'=>$locationId,'inventory_type'=>$m['type'],'cylinder_type_id'=>$m['cylinder_type_id'],
-                            'quantity'=>$m['quantity'],'direction'=>$m['direction'],'movement_at'=>$transactionAt,
+                            'quantity'=>$m['quantity'],'direction'=>$m['direction'],'from_state'=>$m['from'],'to_state'=>$m['to'],'movement_at'=>$transactionAt,
                             'source_type'=>'sale','source_id'=>$saleId,'source_line_id'=>$saleItemId,
                             'cylinder_unit_id'=>$m['unit_id'],'created_by'=>$userId,'notes'=>$m['notes']
                         ]);

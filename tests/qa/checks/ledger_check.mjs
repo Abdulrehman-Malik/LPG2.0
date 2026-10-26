@@ -56,5 +56,23 @@ unlisted.length === 0 ? ok(found.size + ' ledger mutation sites, all allowed by 
 const unused = [...allowed].filter((s) => !found.has(s)).sort();
 unused.length === 0 ? ok('every allowed mutation site still exists') : bad('allowed sites no longer in the code', unused.join('; '));
 
+// BL-033: every stock movement records the cylinder's state before and after it.
+const insertCall = "table('inventory_movements')->insert(";
+const stateless = [];
+let inserts = 0;
+for (const f of walk('app').filter((f) => f.endsWith('.php') && !f.includes('/Database/Migrations/'))) {
+  const src = read(f);
+  for (let at = src.indexOf(insertCall); at >= 0; at = src.indexOf(insertCall, at + 1)) {
+    inserts++;
+    let depth = 0, end = at + insertCall.length - 1;
+    for (; end < src.length; end++) { if (src[end] === '(') depth++; else if (src[end] === ')' && --depth === 0) break; }
+    const args = src.slice(at, end);
+    if (!/from_state|MovementStates::reverse|\$states/.test(args) || !/to_state|MovementStates::reverse|\$states/.test(args)) {
+      stateless.push(f + ':' + src.slice(0, at).split('\n').length);
+    }
+  }
+}
+stateless.length === 0 ? ok(inserts + ' inventory_movements inserts, all with from_state and to_state') : bad('inventory_movements inserts without from_state/to_state', stateless.join(', '));
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -321,17 +321,19 @@ class StockTransferService
 
     private function writeMovements(array $unit, string $unitStatus, float $gasKg, int $locationId, string $direction, string $sourceType, int $transferId, int $userId, string $at, string $notes): void
     {
+        // BL-033: out of this branch into transit, or out of transit into this branch's stock.
         $base = [
             'location_id' => $locationId, 'movement_at' => $at, 'direction' => $direction,
             'source_type' => $sourceType, 'source_id' => $transferId, 'cylinder_unit_id' => (int) $unit['id'],
             'created_by' => $userId, 'notes' => mb_substr($notes, 0, 255),
         ];
-        $this->db->table('inventory_movements')->insert($base + [
+        $states = $direction === 'out' ? ['from_state' => $unitStatus, 'to_state' => 'in_transit'] : ['from_state' => 'in_transit', 'to_state' => $unitStatus];
+        $this->db->table('inventory_movements')->insert($base + $states + [
             'inventory_type' => $unitStatus === 'filled' ? 'filled_cylinder' : 'empty_cylinder',
             'cylinder_type_id' => (int) $unit['cylinder_type_id'], 'quantity' => 1,
         ]);
         if ($unitStatus === 'filled' && $gasKg > 0) {
-            $this->db->table('inventory_movements')->insert($base + [
+            $this->db->table('inventory_movements')->insert($base + $states + [
                 'inventory_type' => 'gas_kg', 'cylinder_type_id' => null, 'quantity' => $gasKg,
             ]);
         }

@@ -8,6 +8,7 @@ use App\Services\AuditService;
 use App\Services\PermissionService;
 use App\Services\CylinderUnitService;
 use App\Services\ExcelInventoryService;
+use App\Services\MovementStates;
 use Config\Database;
 use CodeIgniter\Controller;
 
@@ -156,6 +157,7 @@ class InventoryOpening extends Controller
                     'source_type' => 'opening',
                     'source_id' => (int) $existing['id'],
                 ])
+                ->whereIn('status', ['filled', 'empty'])
                 ->get()->getResultArray();
 
             $existingUnitIds = array_values(array_map(
@@ -246,24 +248,15 @@ class InventoryOpening extends Controller
 
             // Every new opening save creates the requested number of new
             // physical cylinder units. On edit, the existing opening is rebuilt
-            // only after the downstream-history guard above confirms it is safe.
+            // only after the downstream-history guard above confirms it is safe:
+            // its old cylinders are reversed and retired (BL-033: no deletes).
             if ($existing) {
-                $db->table('inventory_movements')
-                    ->where(['source_type' => 'opening_cylinder', 'source_id' => $openingId])
-                    ->delete();
-
-                $db->table('cylinder_units')
-                    ->where([
-                        'location_id' => $locationId,
-                        'source_type' => 'opening',
-                        'source_id' => $openingId,
-                    ])
-                    ->delete();
+                $this->retireOpeningUnits($db, $locationId, $openingId, $userId, 'Opening entry edited');
             }
 
             $unitStatus = $actual <= 0.00001 ? 'empty' : 'filled';
 
-            $this->cylinders->createUnits(
+            $unitIds = $this->cylinders->createUnits(
                 $locationId,
                 $typeId,
                 (int) $qty,
@@ -274,27 +267,35 @@ class InventoryOpening extends Controller
                 $openingId
             );
 
-            if ($unitStatus === 'filled') {
-                $current = $db->table('cylinder_units')
-                    ->where([
-                        'location_id' => $locationId,
-                        'source_type' => 'opening',
-                        'source_id' => $openingId,
-                        'status' => 'filled',
-                    ])
-                    ->get()->getResultArray();
-
-                foreach ($current as $unit) {
+            foreach ($unitIds as $unitId) {
+                $db->table('inventory_movements')->insert([
+                    'location_id' => $locationId,
+                    'inventory_type' => $kind,
+                    'cylinder_type_id' => $typeId,
+                    'quantity' => 1,
+                    'direction' => 'in',
+                    'from_state' => MovementStates::NONE,
+                    'to_state' => $unitStatus,
+                    'movement_at' => $date . ' 00:00:00',
+                    'source_type' => 'opening_cylinder',
+                    'source_id' => $openingId,
+                    'cylinder_unit_id' => $unitId,
+                    'created_by' => $userId,
+                    'notes' => 'Physical cylinder from opening inventory',
+                ]);
+                if ($unitStatus === 'filled') {
                     $db->table('inventory_movements')->insert([
                         'location_id' => $locationId,
                         'inventory_type' => 'gas_kg',
                         'cylinder_type_id' => null,
                         'quantity' => $actual,
                         'direction' => 'in',
+                        'from_state' => MovementStates::NONE,
+                        'to_state' => 'filled',
                         'movement_at' => $date . ' 00:00:00',
                         'source_type' => 'opening_cylinder',
                         'source_id' => $openingId,
-                        'cylinder_unit_id' => $unit['id'],
+                        'cylinder_unit_id' => $unitId,
                         'created_by' => $userId,
                         'notes' => 'Gas contained in opening filled cylinder',
                     ]);
@@ -576,6 +577,8 @@ class InventoryOpening extends Controller
                             'cylinder_type_id' => $typeId,
                             'quantity' => 1,
                             'direction' => 'in',
+                            'from_state' => MovementStates::NONE,
+                            'to_state' => $unitStatus,
                             'movement_at' => $movementAt,
                             'source_type' => 'opening_excel',
                             'source_id' => $openingId,
@@ -591,6 +594,8 @@ class InventoryOpening extends Controller
                                 'cylinder_type_id' => null,
                                 'quantity' => $row['gas'],
                                 'direction' => 'in',
+                                'from_state' => MovementStates::NONE,
+                                'to_state' => 'filled',
                                 'movement_at' => $movementAt,
                                 'source_type' => 'opening_excel',
                                 'source_id' => $openingId,
@@ -677,6 +682,7 @@ class InventoryOpening extends Controller
                 'source_type' => 'opening',
                 'source_id' => $id,
             ])
+            ->whereIn('status', ['filled', 'empty'])
             ->get()->getResultArray();
 
         $unitIds = array_values(array_map(
@@ -713,12 +719,7 @@ class InventoryOpening extends Controller
         $db->transBegin();
 
         try {
-            $db->table('inventory_movements')
-                ->where(['source_type' => 'opening_cylinder', 'source_id' => $id])
-                ->delete();
-            $db->table('cylinder_units')
-                ->where(['location_id' => $locationId, 'source_type' => 'opening', 'source_id' => $id])
-                ->delete();
+            $this->retireOpeningUnits($db, $locationId, $id, $userId, 'Opening entry deleted');
             $this->model->delete($id);
 
             AuditService::log(
@@ -741,6 +742,44 @@ class InventoryOpening extends Controller
         } catch (\Throwable $e) {
             $db->transRollback();
             return redirect()->back()->with('error', user_error_message($e));
+        }
+    }
+
+    /**
+     * BL-033: withdraws an opening entry's cylinders without deleting history. Every movement
+     * of each live cylinder gets a reversal (source opening_reversal) and the unit is retired:
+     * kept for audit, out of stock. Callers have checked that no later transaction used them.
+     */
+    private function retireOpeningUnits($db, int $locationId, int $openingId, int $userId, string $reason): void
+    {
+        $units = $db->table('cylinder_units')
+            ->where(['location_id' => $locationId, 'source_type' => 'opening', 'source_id' => $openingId])
+            ->whereIn('status', ['filled', 'empty'])
+            ->get()->getResultArray();
+        $now = date('Y-m-d H:i:s');
+        foreach ($units as $unit) {
+            $movements = $db->table('inventory_movements')
+                ->where('cylinder_unit_id', (int) $unit['id'])
+                ->orderBy('id')
+                ->get()->getResultArray();
+            foreach ($movements as $m) {
+                $db->table('inventory_movements')->insert([
+                    'location_id' => $m['location_id'],
+                    'inventory_type' => $m['inventory_type'],
+                    'cylinder_type_id' => $m['cylinder_type_id'],
+                    'quantity' => $m['quantity'],
+                    'direction' => $m['direction'] === 'in' ? 'out' : 'in',
+                    'from_state' => $unit['status'],
+                    'to_state' => 'retired',
+                    'movement_at' => $now,
+                    'source_type' => 'opening_reversal',
+                    'source_id' => $openingId,
+                    'cylinder_unit_id' => (int) $unit['id'],
+                    'created_by' => $userId,
+                    'notes' => $reason,
+                ]);
+            }
+            $db->table('cylinder_units')->where('id', (int) $unit['id'])->update(['status' => 'retired', 'gas_weight_kg' => 0]);
         }
     }
 }

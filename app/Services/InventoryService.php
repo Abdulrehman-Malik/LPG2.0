@@ -45,7 +45,7 @@ class InventoryService{
    if($typeId!==null) throw new RuntimeException('Gas purchase does not use a cylinder type.');
    $this->db->table('inventory_movements')->insert([
     'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,
-    'quantity'=>$qty,'direction'=>'in','movement_at'=>$at ?? date('Y-m-d H:i:s'),
+    'quantity'=>$qty,'direction'=>'in','from_state'=>'none','to_state'=>'filled','movement_at'=>$at ?? date('Y-m-d H:i:s'),
     'source_type'=>'purchase','source_id'=>$purchaseId,'source_line_id'=>$purchaseLineId,'created_by'=>$userId,
     'notes'=>'Stock received through purchase'
    ]);
@@ -74,7 +74,7 @@ class InventoryService{
   foreach($unitIds as $unitId){
    $this->db->table('inventory_movements')->insert([
     'location_id'=>$locationId,'inventory_type'=>$type,'cylinder_type_id'=>$typeId,
-    'quantity'=>1,'direction'=>'in','movement_at'=>date('Y-m-d H:i:s'),
+    'quantity'=>1,'direction'=>'in','from_state'=>'none','to_state'=>$status,'movement_at'=>date('Y-m-d H:i:s'),
     'source_type'=>'purchase','source_id'=>$purchaseId,'source_line_id'=>$purchaseLineId,'cylinder_unit_id'=>$unitId,
     'created_by'=>$userId,'notes'=>'Physical cylinder received through purchase'
    ]);
@@ -82,7 +82,7 @@ class InventoryService{
    if($type==='filled_cylinder'){
     $this->db->table('inventory_movements')->insert([
      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,
-     'quantity'=>$gasPerUnit,'direction'=>'in','movement_at'=>date('Y-m-d H:i:s'),
+     'quantity'=>$gasPerUnit,'direction'=>'in','from_state'=>'none','to_state'=>'filled','movement_at'=>date('Y-m-d H:i:s'),
      'source_type'=>'purchase','source_id'=>$purchaseId,'source_line_id'=>$purchaseLineId,'cylinder_unit_id'=>$unitId,
      'created_by'=>$userId,'notes'=>'Gas contained in purchased filled cylinder'
     ]);
@@ -136,13 +136,13 @@ class InventoryService{
      $unitIds=$this->cylinders->createUnits($locationId,$typeId,$qtyInt,$type==='filled_cylinder'?'filled':'empty',$gasPerUnit,$userId,'adjustment',$adjustmentId);
      foreach($unitIds as $unitId){
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>$type,'cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in',
+       'location_id'=>$locationId,'inventory_type'=>$type,'cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','from_state'=>'none','to_state'=>$type==='filled_cylinder'?'filled':'empty',
        'movement_at'=>date('Y-m-d H:i:s'),'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$unitId,
        'created_by'=>$userId,'notes'=>$notes?:'Manual cylinder stock adjustment'
       ]);
       if($type==='filled_cylinder'){
        $this->db->table('inventory_movements')->insert([
-        'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gasPerUnit,'direction'=>'in',
+        'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gasPerUnit,'direction'=>'in','from_state'=>'none','to_state'=>'filled',
         'movement_at'=>date('Y-m-d H:i:s'),'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$unitId,
         'created_by'=>$userId,'notes'=>'Gas contained in adjusted filled cylinder'.($notes?' — '.$notes:'')
        ]);
@@ -154,14 +154,14 @@ class InventoryService{
      foreach(array_slice($units,0,$qtyInt) as $unit){
       $unitId=(int)$unit['id'];
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>$type,'cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+       'location_id'=>$locationId,'inventory_type'=>$type,'cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>$type==='filled_cylinder'?'filled':'empty','to_state'=>'sold',
        'movement_at'=>date('Y-m-d H:i:s'),'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$unitId,
        'created_by'=>$userId,'notes'=>$notes?:'Manual cylinder stock adjustment'
       ]);
       if($type==='filled_cylinder'){
        $gas=(float)$unit['gas_weight_kg'];
        if($gas>0) $this->db->table('inventory_movements')->insert([
-        'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'out',
+        'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'out','from_state'=>'filled','to_state'=>'sold',
         'movement_at'=>date('Y-m-d H:i:s'),'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$unitId,
         'created_by'=>$userId,'notes'=>'Gas removed with adjusted filled cylinder'.($notes?' — '.$notes:'')
        ]);
@@ -205,18 +205,18 @@ class InventoryService{
      if($qty>$current+0.00001) throw new RuntimeException('Gas quantity cannot exceed the selected cylinder current gas weight ('.number_format($current, 2).' KG).');
      $remaining=$current-$qty;
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$qty,'direction'=>'out',
+      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$qty,'direction'=>'out','from_state'=>'filled','to_state'=>$remaining<=0.00001?'empty':'filled',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>$note
      ]);
      if($remaining<=0.00001){
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+       'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>'filled','to_state'=>'empty',
        'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
        'created_by'=>$userId,'notes'=>'Selected cylinder became empty after gas adjustment: '.$note
       ]);
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in',
+       'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','from_state'=>'filled','to_state'=>'empty',
        'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
        'created_by'=>$userId,'notes'=>'Selected cylinder moved to empty after gas adjustment: '.$note
       ]);
@@ -229,18 +229,18 @@ class InventoryService{
      $current=(float)$unit['gas_weight_kg'];$capacity=(float)$unit['capacity_kg'];$after=$current+$qty;
      if($after>$capacity+0.00001) throw new RuntimeException('Gas quantity exceeds the selected cylinder capacity. Available capacity: '.number_format(max(0,$capacity-$current), 2).' KG.');
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$qty,'direction'=>'in',
+      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$qty,'direction'=>'in','from_state'=>$unit['status'],'to_state'=>'filled',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>$note
      ]);
      if($unit['status']==='empty'){
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+       'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>'empty','to_state'=>'filled',
        'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
        'created_by'=>$userId,'notes'=>'Selected empty cylinder filled by gas adjustment: '.$note
       ]);
       $this->db->table('inventory_movements')->insert([
-       'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in',
+       'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','from_state'=>'empty','to_state'=>'filled',
        'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
        'created_by'=>$userId,'notes'=>'Selected cylinder became filled after gas adjustment: '.$note
       ]);
@@ -254,17 +254,17 @@ class InventoryService{
      if($unit['status']!=='empty') throw new RuntimeException('Filled-cylinder increase can only use an empty physical cylinder.');
      if($actualGasWeight<=0 || $actualGasWeight>(float)$unit['capacity_kg']) throw new RuntimeException('Actual gas weight must be greater than zero and cannot exceed cylinder capacity.');
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+      'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>'empty','to_state'=>'filled',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>'Selected empty cylinder refilled: '.$note
      ]);
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in',
+      'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','from_state'=>'empty','to_state'=>'filled',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>'Selected cylinder became filled after refill adjustment: '.$note
      ]);
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$actualGasWeight,'direction'=>'in',
+      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$actualGasWeight,'direction'=>'in','from_state'=>'empty','to_state'=>'filled',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>'Gas added to selected filled cylinder: '.$note
      ]);
@@ -273,12 +273,12 @@ class InventoryService{
      if($unit['status']!=='filled') throw new RuntimeException('Filled-cylinder decrease requires a filled source cylinder.');
      $gas=(float)$unit['gas_weight_kg'];
      $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+      'location_id'=>$locationId,'inventory_type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>'filled','to_state'=>'sold',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>$note
      ]);
      if($gas>0) $this->db->table('inventory_movements')->insert([
-      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'out',
+      'location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'out','from_state'=>'filled','to_state'=>'sold',
       'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
       'created_by'=>$userId,'notes'=>'Gas removed with selected filled cylinder: '.$note
      ]);
@@ -288,7 +288,7 @@ class InventoryService{
     if($direction==='in') throw new RuntimeException('A specific empty-cylinder increase cannot use an existing source cylinder. Use Bulk / Cylinder Type adjustment to add new empty stock.');
     if($unit['status']!=='empty') throw new RuntimeException('Empty-cylinder decrease requires an empty source cylinder.');
     $this->db->table('inventory_movements')->insert([
-     'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out',
+     'location_id'=>$locationId,'inventory_type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','from_state'=>'empty','to_state'=>'sold',
      'movement_at'=>$now,'source_type'=>'adjustment','source_id'=>$adjustmentId,'cylinder_unit_id'=>$sourceCylinderUnitId,
      'created_by'=>$userId,'notes'=>$note
     ]);

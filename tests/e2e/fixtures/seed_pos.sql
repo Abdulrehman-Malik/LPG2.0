@@ -33,18 +33,18 @@ WHERE l.code='MAIN'
 ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
   gas_weight_kg=6.000,source_type='qa_seed',created_by=VALUES(created_by);
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','none','filled','qa_seed',cu.id,cu.id,u.id,
   'Disposable Playwright QA opening cylinder'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-E2E-C6-001'
   AND NOT EXISTS (SELECT 1 FROM inventory_movements im
     WHERE im.source_type='qa_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'gas_kg',NULL,6.000,'in','qa_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'gas_kg',NULL,6.000,'in','none','filled','qa_seed',cu.id,cu.id,u.id,
   'Disposable Playwright QA opening gas weight'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-E2E-C6-001'
@@ -60,18 +60,18 @@ WHERE l.code='MAIN'
 ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
   gas_weight_kg=6.000,source_type='qa_order_seed',created_by=VALUES(created_by);
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_order_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','none','filled','qa_order_seed',cu.id,cu.id,u.id,
   'Disposable customer-order POS fulfillment cylinder'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-ORDER-C6-001'
   AND NOT EXISTS (SELECT 1 FROM inventory_movements im
     WHERE im.source_type='qa_order_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'gas_kg',NULL,6.000,'in','qa_order_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'gas_kg',NULL,6.000,'in','none','filled','qa_order_seed',cu.id,cu.id,u.id,
   'Disposable customer-order POS fulfillment opening gas'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-ORDER-C6-001'
@@ -85,18 +85,18 @@ WHERE l.code='MAIN'
 ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='filled',
   gas_weight_kg=5.500,source_type='qa_order_filled_seed',created_by=VALUES(created_by);
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'filled_cylinder',cu.cylinder_type_id,1,'in','none','filled','qa_order_filled_seed',cu.id,cu.id,u.id,
   'Disposable filled-cylinder order QA fixture'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
   AND NOT EXISTS (SELECT 1 FROM inventory_movements im
     WHERE im.source_type='qa_order_filled_seed' AND im.source_id=cu.id AND im.inventory_type='filled_cylinder');
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'gas_kg',NULL,5.500,'in','qa_order_filled_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'gas_kg',NULL,5.500,'in','none','filled','qa_order_filled_seed',cu.id,cu.id,u.id,
   'Disposable filled-cylinder order QA gas fixture'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-ORDER-FILLED-C6-001'
@@ -110,9 +110,9 @@ WHERE l.code='MAIN'
 ON DUPLICATE KEY UPDATE cylinder_type_id=VALUES(cylinder_type_id),status='empty',
   gas_weight_kg=0.000,source_type='qa_order_empty_seed',created_by=VALUES(created_by);
 
-INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,
+INSERT INTO inventory_movements(location_id,business_id,inventory_type,cylinder_type_id,quantity,direction,from_state,to_state,
   source_type,source_id,cylinder_unit_id,created_by,notes)
-SELECT cu.location_id,cu.business_id,'empty_cylinder',cu.cylinder_type_id,1,'in','qa_order_empty_seed',cu.id,cu.id,u.id,
+SELECT cu.location_id,cu.business_id,'empty_cylinder',cu.cylinder_type_id,1,'in','none','empty','qa_order_empty_seed',cu.id,cu.id,u.id,
   'Disposable empty-cylinder order QA fixture'
 FROM cylinder_units cu JOIN users u ON u.username='admin'
 WHERE cu.unit_code='QA-ORDER-EMPTY-C6-001'

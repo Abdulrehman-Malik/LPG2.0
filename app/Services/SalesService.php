@@ -471,12 +471,12 @@ class SalesService
                     $after=$before-$used;
                     if($after<=0.00001){
                         $this->db->table('cylinder_units')->where('id',$sourceId)->update(['status'=>'empty','gas_weight_kg'=>0]);
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','unit_id'=>$sourceId];
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>$sourceId,'transition'=>'to_empty'];
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','unit_id'=>$sourceId,'transition'=>'from_filled'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','unit_id'=>$sourceId,'from'=>'filled','to'=>'empty'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>$sourceId,'transition'=>'to_empty','from'=>'filled','to'=>'empty'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'in','unit_id'=>$sourceId,'transition'=>'from_filled','from'=>'filled','to'=>'empty'];
                     }else{
                         $this->db->table('cylinder_units')->where('id',$sourceId)->update(['gas_weight_kg'=>$after,'status'=>'filled']);
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','unit_id'=>$sourceId];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$used,'direction'=>'out','unit_id'=>$sourceId,'from'=>'filled','to'=>'filled'];
                     }
                 }elseif(in_array($mode,['replace_same','sell_filled','replace_different'],true)){
                     $units=$this->cylinders->available($locationId,$typeId,'filled');
@@ -491,8 +491,8 @@ class SalesService
                     foreach($selected as $unit){
                         $reservedFilledIds[(int)$unit['id']]=true;
                         $actualGas+=(float)$unit['gas_weight_kg'];
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>(float)$unit['gas_weight_kg'],'direction'=>'out','unit_id'=>(int)$unit['id']];
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>(float)$unit['gas_weight_kg'],'direction'=>'out','unit_id'=>(int)$unit['id'],'from'=>'filled','to'=>'sold'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'filled_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold','from'=>'filled','to'=>'sold'];
                     }
                     if(abs($actualGas-(float)$row['gas_weight_kg'])>0.00001) {
                         throw new RuntimeException($this->currentOrderId
@@ -500,7 +500,7 @@ class SalesService
                             : 'Filled-cylinder gas weight changed while posting. Please retry the sale.');
                     }
                     if($row['received_cylinder_type_id']){
-                        for($n=0;$n<(int)$qty;$n++) $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>(int)$row['received_cylinder_type_id'],'quantity'=>1,'direction'=>'in','unit_id'=>null,'transition'=>'new_empty'];
+                        for($n=0;$n<(int)$qty;$n++) $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>(int)$row['received_cylinder_type_id'],'quantity'=>1,'direction'=>'in','unit_id'=>null,'transition'=>'new_empty','from'=>MovementStates::NONE,'to'=>'empty'];
                     }
                 }elseif($mode==='sell_empty'){
                     $units=$this->cylinders->available($locationId,$typeId,'empty');
@@ -513,7 +513,7 @@ class SalesService
                     if(count($units)<(int)$qty) throw new RuntimeException('One or more selected empty cylinders changed while posting. Please retry the sale.');
                     foreach(array_slice($units,0,(int)$qty) as $unit){
                         $reservedEmptyIds[(int)$unit['id']]=true;
-                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold'];
+                        $inventory[]=['line_no'=>$row['line_no'],'type'=>'empty_cylinder','cylinder_type_id'=>$typeId,'quantity'=>1,'direction'=>'out','unit_id'=>(int)$unit['id'],'transition'=>'sold','from'=>'empty','to'=>'sold'];
                     }
                 }
             }
@@ -586,21 +586,17 @@ class SalesService
             }
             $lineIds=[];foreach($this->db->table('sale_items')->select('id,line_no')->where('sale_id',$saleId)->get()->getResultArray() as $row)$lineIds[(int)$row['line_no']]=(int)$row['id'];
 
-            foreach($inventory as $idx=>$m){
+            foreach($inventory as $m){
+                $unitId=$m['unit_id']??null;
+                if($m['type']==='empty_cylinder' && $m['direction']==='in' && empty($unitId)){
+                    $unitId=$this->cylinders->createUnits($locationId,(int)$m['cylinder_type_id'],1,'empty',0,$userId,'sale',$saleId)[0];
+                }
                 $this->db->table('inventory_movements')->insert([
                     'location_id'=>$locationId,'inventory_type'=>$m['type'],'cylinder_type_id'=>$m['cylinder_type_id'],
-                    'quantity'=>$m['quantity'],'direction'=>$m['direction'],'movement_at'=>$transactionAt,'source_type'=>'sale',
-                    'source_id'=>$saleId,'source_line_id'=>$lineIds[(int)$m['line_no']]??null,'cylinder_unit_id'=>$m['unit_id']??null,
+                    'quantity'=>$m['quantity'],'direction'=>$m['direction'],'from_state'=>$m['from'],'to_state'=>$m['to'],'movement_at'=>$transactionAt,'source_type'=>'sale',
+                    'source_id'=>$saleId,'source_line_id'=>$lineIds[(int)$m['line_no']]??null,'cylinder_unit_id'=>$unitId,
                     'created_by'=>$userId,'notes'=>($m['transition']??null)
                 ]);
-                $inventory[$idx]['movement_id']=(int)$this->db->insertID();
-            }
-
-            foreach($inventory as $m){
-                if($m['type']==='empty_cylinder' && $m['direction']==='in' && empty($m['unit_id'])){
-                    $ids=$this->cylinders->createUnits($locationId,(int)$m['cylinder_type_id'],1,'empty',0,$userId,'sale',$saleId);
-                    $this->db->table('inventory_movements')->where('id',$m['movement_id'])->update(['cylinder_unit_id'=>$ids[0]]);
-                }
             }
 
             foreach($inventory as $m){
@@ -864,6 +860,7 @@ class SalesService
                 $this->db->table('inventory_movements')->insert([
                     'location_id'=>$m['location_id'],'inventory_type'=>$m['inventory_type'],'cylinder_type_id'=>$m['cylinder_type_id'],
                     'quantity'=>$m['quantity'],'direction'=>$reverse,'movement_at'=>date('Y-m-d H:i:s'),
+                    ...MovementStates::reverse($m),
                     'source_type'=>'sale_void','source_id'=>$saleId,'source_line_id'=>$m['source_line_id']??null,
                     'cylinder_unit_id'=>$m['cylinder_unit_id']??null,'created_by'=>$userId,
                     'notes'=>'Reversal of sale '.$sale['sale_no']

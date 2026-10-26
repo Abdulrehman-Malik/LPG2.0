@@ -32,6 +32,26 @@ F0=$(filled)
 post inventory/opening/save -d "inventory_date=$TODAY" -d "cylinder_type_id=$C6" -d quantity=2 -d actual_gas_weight_kg=6 -d "comments=QA flow opening" >/dev/null
 [ "$(filled)" = "$((F0+2))" ] && ok "opening adds 2 filled C6 cylinders ($F0 -> $(filled))" || bad "opening" "$F0 -> $(filled) :: $(flash inventory/opening)"
 
+echo "--- BL-033 opening edit / delete keep the ledger"
+C15=$(q "SELECT id FROM cylinder_types WHERE code='C15' AND business_id=(SELECT business_id FROM locations WHERE id=$LOC)")
+YDAY=$(date -d yesterday +%Y-%m-%d)
+post inventory/opening/save -d "inventory_date=$YDAY" -d "cylinder_type_id=$C15" -d quantity=2 -d actual_gas_weight_kg=10 -d "comments=QA ledger opening" >/dev/null
+OP=$(q "SELECT id FROM inventory_opening_balances WHERE comments='QA ledger opening'")
+om(){ q "SELECT COUNT(*) FROM inventory_movements WHERE source_type IN ('opening_cylinder','opening_reversal') AND source_id=$OP AND ${1:-1=1}"; }
+ogas(){ q "SELECT COALESCE(SUM(CASE direction WHEN 'in' THEN quantity ELSE -quantity END),0) FROM inventory_movements WHERE inventory_type='gas_kg' AND source_type IN ('opening_cylinder','opening_reversal') AND source_id=$OP"; }
+ounits(){ q "SELECT COUNT(*) FROM cylinder_units WHERE source_type='opening' AND source_id=$OP AND status='$1'"; }
+[ -n "$OP" ] && [ "$(om)" = 4 ] && [ "$(om "inventory_type='filled_cylinder' AND from_state='none' AND to_state='filled'")" = 2 ] \
+  && ok "opening writes a cylinder IN (none -> filled) and a gas IN per cylinder" || bad "opening movements" "op=$OP movements=$(om)"
+post inventory/opening/save -d "opening_id=$OP" -d "inventory_date=$YDAY" -d "cylinder_type_id=$C15" -d quantity=1 -d actual_gas_weight_kg=12 -d "comments=QA ledger opening" >/dev/null
+[ "$(om "source_type='opening_cylinder'")" = 6 ] && [ "$(om "source_type='opening_reversal' AND to_state='retired'")" = 4 ] \
+  && [ "$(ounits retired)" = 2 ] && [ "$(ounits filled)" = 1 ] && eqn "edited opening: net opening gas" "$(ogas)" 12 \
+  || bad "opening edit" "movements=$(om) reversals=$(om "source_type='opening_reversal'") retired=$(ounits retired) filled=$(ounits filled) :: $(flash inventory/opening)"
+post "inventory/opening/delete/$OP" >/dev/null
+[ "$(q "SELECT COUNT(*) FROM inventory_opening_balances WHERE id=$OP")" = 0 ] && [ "$(om "source_type='opening_cylinder'")" = 6 ] \
+  && [ "$(om "source_type='opening_reversal'")" = 6 ] && [ "$(ounits retired)" = 3 ] && eqn "deleted opening: net opening gas" "$(ogas)" 0 \
+  && ok "deleting an opening keeps its movements and adds reversals; its cylinders are retired" \
+  || bad "opening delete" "row=$(q "SELECT COUNT(*) FROM inventory_opening_balances WHERE id=$OP") movements=$(om) retired=$(ounits retired) :: $(flash inventory/opening)"
+
 echo "--- Purchases and supplier payable"
 post suppliers/save -d "name=QA Flow Supplier" -d code=QFLOW -d opening_balance=0 -d credit_limit=10000 -d is_active=1 >/dev/null
 SUP=$(q "SELECT id FROM suppliers WHERE code='QFLOW'")
@@ -178,5 +198,9 @@ X=$(q "SELECT COUNT(*) FROM (SELECT customer_order_id FROM sales WHERE customer_
 [ "$X" = "0" ] && ok "at most one sale per customer order" || bad "order sales" "$X"
 X=$(q "SELECT COUNT(*) FROM (SELECT location_id,sale_no FROM sales GROUP BY location_id,sale_no HAVING COUNT(*)>1) x")
 [ "$X" = "0" ] && ok "sale numbers unique per branch" || bad "sale numbers" "$X duplicates"
+X=$($M -e "SELECT COUNT(*) FROM ($QA_UNIT_MISMATCH_SQL) x" | tr -d '\r')
+[ "$X" = "0" ] && ok "every cylinder's status equals the to_state of its latest movement" || bad "unit reconciliation" "$X unit(s): $(qa_unit_mismatches | head -5 | tr '\n' ';')"
+X=$($M -e "SELECT COUNT(*) FROM inventory_movements WHERE from_state IS NULL OR to_state IS NULL" | tr -d '\r')
+[ "$X" = "0" ] && ok "every movement records from_state and to_state" || bad "movement states" "$X row(s) without states"
 
 echo; echo "RESULT: $PASS passed, $FAIL failed"

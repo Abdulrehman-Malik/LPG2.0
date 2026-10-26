@@ -178,7 +178,7 @@ trait PostsCylinderSales
             foreach($inventory as $m){
                 $this->db->table('inventory_movements')->insert([
                     'location_id'=>$locationId,'inventory_type'=>$m['type'],'cylinder_type_id'=>$m['cylinder_type_id'],
-                    'quantity'=>$m['quantity'],'direction'=>$m['direction'],'movement_at'=>$transactionAt,'source_type'=>'sale',
+                    'quantity'=>$m['quantity'],'direction'=>$m['direction'],'from_state'=>MovementStates::of($m['type']),'to_state'=>'sold','movement_at'=>$transactionAt,'source_type'=>'sale',
                     'source_id'=>$saleId,'source_line_id'=>$lineIds[(int)$m['line_no']]??null,'cylinder_unit_id'=>$m['unit_id'],
                     'created_by'=>$userId,'notes'=>$m['notes']
                 ]);

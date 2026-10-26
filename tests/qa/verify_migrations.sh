@@ -162,5 +162,19 @@ rollback_from CylinderTypeDeposit
 qa_spark migrations:run >/dev/null 2>&1
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 
+# --- 9. BL-033 movement states; rollback; back-fill of existing rows
+n=$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='inventory_movements' AND COLUMN_NAME IN ('from_state','to_state')")
+[ "$n" = 2 ] && ok "inventory_movements has from_state and to_state" || bad "state columns" "$n of 2"
+q "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='cylinder_units' AND COLUMN_NAME='status'" | grep -q retired && ok "cylinder_units.status allows retired" || bad "retired status" "missing"
+rollback_from InventoryMovementStates
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='inventory_movements' AND COLUMN_NAME IN ('from_state','to_state')")" = 0 ] \
+  && ! q "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='cylinder_units' AND COLUMN_NAME='status'" | grep -q retired \
+  && ok "InventoryMovementStates rollback removes the columns and the retired status" || bad "states rollback" "columns or status remain"
+qa_spark migrations:run >/dev/null 2>&1
+[ "$(q "SELECT COUNT(*) FROM inventory_movements WHERE to_state IS NULL OR from_state IS NULL")" = 0 ] && [ "$(q "SELECT COUNT(*) FROM inventory_movements")" -gt 0 ] \
+  && ok "existing movements are back-filled with states" || bad "back-fill" "$(q "SELECT COUNT(*) FROM inventory_movements WHERE to_state IS NULL") rows without states"
+[ "$(q "SELECT COUNT(*) FROM ($QA_UNIT_MISMATCH_SQL) x")" = 0 ] && ok "back-filled ledger reconciles with unit statuses" || bad "back-fill reconciliation" "$(qa_unit_mismatches | head -3 | tr '\n' ';')"
+bash "$DIR/reset_db.sh" >/dev/null 2>&1
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

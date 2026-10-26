@@ -206,6 +206,7 @@ class PurchaseService{
      'location_id'=>$m['location_id'],'inventory_type'=>$m['inventory_type'],
      'cylinder_type_id'=>$m['cylinder_type_id'],'quantity'=>$m['quantity'],
      'direction'=>$reverse,'movement_at'=>date('Y-m-d H:i:s'),
+     ...MovementStates::reverse($m),
      'source_type'=>'purchase_void','source_id'=>$purchaseId,
      'source_line_id'=>$m['source_line_id']??null,
      'cylinder_unit_id'=>$unitId>0?$unitId:null,'created_by'=>$userId,'notes'=>$note

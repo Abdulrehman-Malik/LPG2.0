@@ -17,14 +17,18 @@ reset(){ local out; out=$(bash "$DIR/reset_db.sh" 2>&1) || { echo "reset_db.sh f
 # GitHub shows at most 10 annotations per step, so each suite's failures go into one annotation.
 gh_annotate(){ [ -n "${GITHUB_ACTIONS:-}" ] || return 0; local line msg=""; while IFS= read -r line; do [ -n "$line" ] && msg+="${line//%/%25}%0A"; done; [ -n "$msg" ] && echo "::error title=$1::$msg"; return 0; }
 record(){ RESULTS+=("$(printf '%-24s %s' "$1" "$2")"); echo "== $1: $2"; if [[ "$2" =~ [1-9][0-9]*\ failed ]]; then FAILED=1; fi; }
-shell_suite(){ reset; for pre in "${@:2}"; do bash "$DIR/$pre.sh" >/dev/null 2>&1; done; local out; out=$(bash "$DIR/$1.sh" 2>&1); echo "$out" | grep '^FAIL' | tee >(gh_annotate "$1"); [ "$(echo "$out" | grep -c '^PASS')" = 0 ] && echo "$out" | tail -5 | gh_annotate "$1 (no PASS lines)"; record "$1" "$(echo "$out" | grep -c '^PASS') passed, $(echo "$out" | grep -c '^FAIL') failed"; }
-node_check(){ local name=$1; shift; reset; "$@"; local out; out=$(cd "$DIR/checks" && node "$name.mjs" 2>&1); echo "$out" | grep '^FAIL'; record "$name" "$(echo "$out" | tail -1)"; }
+# BL-033: after every suite each unit's status must equal the to_state of its latest movement.
+RECON_PASS=0; RECON_FAIL=0
+reconcile(){ local bad; bad=$(qa_unit_mismatches 2>&1 | grep -v "Using a password" | head -5); if [ -z "$bad" ]; then RECON_PASS=$((RECON_PASS+1)); else RECON_FAIL=$((RECON_FAIL+1)); echo "FAIL  unit reconciliation after $1: $(echo $bad)"; fi; }
+shell_suite(){ reset; for pre in "${@:2}"; do bash "$DIR/$pre.sh" >/dev/null 2>&1; done; local out; out=$(bash "$DIR/$1.sh" 2>&1); echo "$out" | grep '^FAIL' | tee >(gh_annotate "$1"); [ "$(echo "$out" | grep -c '^PASS')" = 0 ] && echo "$out" | tail -5 | gh_annotate "$1 (no PASS lines)"; record "$1" "$(echo "$out" | grep -c '^PASS') passed, $(echo "$out" | grep -c '^FAIL') failed"; reconcile "$1"; }
+node_check(){ local name=$1; shift; reset; "$@"; local out; out=$(cd "$DIR/checks" && node "$name.mjs" 2>&1); echo "$out" | grep '^FAIL'; record "$name" "$(echo "$out" | tail -1)"; reconcile "$name"; }
 
 SUITES_ONLY=0; [[ " $* " == *" --suites-only "* ]] && SUITES_ONLY=1
 if [[ " $* " != *" --no-e2e "* && $SUITES_ONLY = 0 ]]; then
   reset
   out=$(cd "$QA_ROOT/tests/e2e" && LPG_QA_BASE_URL="$B" npx playwright test lpg-runtime.spec.mjs --workers=1 --reporter=list 2>&1); echo "$out" > "$QA_TMP/playwright.txt"; echo "$out" | grep -E "^\s+(✘|x) "
   record "playwright e2e" "$(echo "$out" | grep -E '[0-9]+ (passed|failed)' | tr '\n' ' ')"
+  reconcile "playwright e2e"
 fi
 shell_suite verify_migrations
 shell_suite verify_tenancy_migrations
@@ -50,6 +54,7 @@ node_check rates_check bash "$DIR/verify_rates.sh"
 out=$(qa_spark routes > "$QA_TMP/routes.txt" 2>&1; node "$DIR/checks/openapi_check.mjs" "$QA_TMP/routes.txt" 2>&1); echo "$out" | grep "^FAIL"; record openapi_check "$(echo "$out" | tail -1)"
 out=$(node "$DIR/checks/ledger_check.mjs" 2>&1); echo "$out" | grep "^FAIL"; record ledger_check "$(echo "$out" | tail -1)"
 fi
+record "unit reconciliation" "$RECON_PASS passed, $RECON_FAIL failed"
 if [[ " $* " == *" --a11y "* ]]; then reset; (cd "$DIR/checks" && node a11y_check.mjs) | tee "$QA_TMP/a11y-report.txt" | head -1; fi
 echo; echo "SUMMARY"; printf '%s\n' "${RESULTS[@]}"
 exit $FAILED

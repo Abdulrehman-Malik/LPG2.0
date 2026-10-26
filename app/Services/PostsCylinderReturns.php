@@ -114,8 +114,8 @@ trait PostsCylinderReturns
                     'notes'=>'Cylinder returned: '.$row['unit_code'].' | Issued '.$row['issued_gas_weight_kg'].' KG | Returned '.$gas.' KG | Consumed '.$consumed.' KG'
                 ]);
                 $lineId=(int)$this->db->insertID();
-                $this->db->table('inventory_movements')->insert(['location_id'=>$locationId,'inventory_type'=>$gas>0?'filled_cylinder':'empty_cylinder','cylinder_type_id'=>$row['cylinder_type_id'],'quantity'=>1,'direction'=>'in','movement_at'=>$transactionAt,'source_type'=>'cylinder_return','source_id'=>$saleId,'source_line_id'=>$lineId,'cylinder_unit_id'=>$id,'created_by'=>$userId,'notes'=>$gas>0?'Partially filled cylinder returned':'Empty cylinder returned']);
-                if($gas>0)$this->db->table('inventory_movements')->insert(['location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'in','movement_at'=>$transactionAt,'source_type'=>'cylinder_return','source_id'=>$saleId,'source_line_id'=>$lineId,'cylinder_unit_id'=>$id,'created_by'=>$userId,'notes'=>'Returned gas added to shop stock']);
+                $this->db->table('inventory_movements')->insert(['location_id'=>$locationId,'inventory_type'=>$gas>0?'filled_cylinder':'empty_cylinder','cylinder_type_id'=>$row['cylinder_type_id'],'quantity'=>1,'direction'=>'in','from_state'=>'custody','to_state'=>$gas>0?'filled':'empty','movement_at'=>$transactionAt,'source_type'=>'cylinder_return','source_id'=>$saleId,'source_line_id'=>$lineId,'cylinder_unit_id'=>$id,'created_by'=>$userId,'notes'=>$gas>0?'Partially filled cylinder returned':'Empty cylinder returned']);
+                if($gas>0)$this->db->table('inventory_movements')->insert(['location_id'=>$locationId,'inventory_type'=>'gas_kg','cylinder_type_id'=>null,'quantity'=>$gas,'direction'=>'in','from_state'=>'custody','to_state'=>'filled','movement_at'=>$transactionAt,'source_type'=>'cylinder_return','source_id'=>$saleId,'source_line_id'=>$lineId,'cylinder_unit_id'=>$id,'created_by'=>$userId,'notes'=>'Returned gas added to shop stock']);
             }
 
             if($refund>0){
