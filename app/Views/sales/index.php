@@ -842,6 +842,7 @@ function resetTransactionFormState(){
   lineHead.innerHTML='';
   issueLines=[];
   returnLines=[];
+  depositEdited=false;
 
   const resetValue=(id,value)=>{
     const el=document.getElementById(id);
@@ -916,7 +917,7 @@ function refreshForm(){
  document.getElementById('securityTransaction').style.display=t==='security_deposit'?'block':'none';
  document.getElementById('returnTransaction').style.display=t==='cylinder_return'?'block':'none';
  document.getElementById('securityDeposit').disabled=t!=='security_deposit'; document.getElementById('securityDepositSummary').style.display=t==='security_deposit'?'grid':'none'; document.getElementById('discount').disabled=!standard; if(!standard)document.getElementById('discount').value='0';
- if(t!=='security_deposit')document.getElementById('securityDeposit').value='0';
+ if(t!=='security_deposit'){document.getElementById('securityDeposit').value='0';depositEdited=false;}
  document.getElementById('refundBox').style.display=t==='cylinder_return'?'block':'none';
  document.getElementById('paymentSection').style.display=t==='cylinder_return'?(Number(document.getElementById('refundAmount').value||0)>0?'block':'none'):'block';document.getElementById('combinedPaymentSection').style.display=t==='security_deposit'?'block':'none';document.getElementById('paymentPurposeLabel').textContent=t==='security_deposit'?'Payment Collection':(t==='cylinder_return'?'Security Deposit Refund Payment':'Sale Payment');
  document.getElementById('saveBtn').textContent=t==='cylinder_return'?'Return Cylinder / Refund Deposit':t==='security_deposit'?'Receive Deposit / Issue Cylinder':'Post Transaction';
@@ -945,6 +946,9 @@ function handleTransactionTypeChange(){
 let issueLines=[],returnLines=[];
 window.depositBalances=<?=json_encode($depositBalances??[],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
 
+// BL-032: the deposit follows the selected cylinders (type deposit x count) until the cashier types an amount.
+let depositEdited=false;
+function syncIssueDeposit(){if(depositEdited)return;const el=document.getElementById('securityDeposit');if(!el)return;el.value=issueLines.reduce((s,l)=>s+Number(cylinderTypeById(l.type_id)?.deposit_amount||0)*(l.selected_cylinder_unit_ids||[]).length,0).toFixed(2);}
 function issueSelectedIds(){return issueLines.flatMap(x=>x.selected_cylinder_unit_ids||[]).map(Number);}
 function returnSelectedIds(){return returnLines.map(x=>Number(x.unit_id));}
 // Issue Cylinder sells the gas only, at the filled cylinder rate; the cylinder is on deposit (charged only if the business says so).
@@ -984,6 +988,7 @@ function renderIssueLines(){
      +'</tr>';
  }).join('');
  empty.style.display=issueLines.length?'none':'block';
+ syncIssueDeposit();
  body.querySelectorAll('.issueGasRateInput').forEach(el=>el.oninput=()=>{
    const i=Number(el.dataset.index);
    if(!issueLines[i])return;
@@ -1092,7 +1097,7 @@ document.getElementById('customer_id').onchange=()=>{
   recalc();
 };
 document.getElementById('addLine').onclick=()=>{if(transactionType()==='gas_sale')addGasLine();else if(transactionType()==='cylinder_sale')addCylinderSaleLine();};
-document.getElementById('discount').oninput=recalc;document.getElementById('securityDeposit').oninput=recalc;const returnUnitsEl=document.getElementById('returnUnits');if(returnUnitsEl)returnUnitsEl.onchange=updateRefund;document.getElementById('addPayment').onclick=()=>addPayment();document.getElementById('amountToCollectHelp').onclick=()=>document.getElementById('amountToCollectHelpMessage').classList.toggle('d-none');
+document.getElementById('discount').oninput=recalc;document.getElementById('securityDeposit').oninput=()=>{depositEdited=true;recalc();};const returnUnitsEl=document.getElementById('returnUnits');if(returnUnitsEl)returnUnitsEl.onchange=updateRefund;document.getElementById('addPayment').onclick=()=>addPayment();document.getElementById('amountToCollectHelp').onclick=()=>document.getElementById('amountToCollectHelpMessage').classList.toggle('d-none');
 
 window.lastPostedReceiptUrl='';
 const receiptOverlay=document.getElementById('receiptPreviewOverlay');

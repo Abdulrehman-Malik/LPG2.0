@@ -8,7 +8,7 @@ class CylinderTypeModel extends TenantModel
     protected $useTimestamps=true; protected $createdField='created_at'; protected $updatedField='updated_at';
     // BL-030: a deleted master keeps its row (history and sync); lists and finds skip it.
     protected $useSoftDeletes=true; protected $deletedField='deleted_at';
-    protected $allowedFields=['business_id','code','name','capacity_kg','tare_weight_kg','empty_cylinder_price','is_active','sort_order'];
+    protected $allowedFields=['business_id','code','name','capacity_kg','tare_weight_kg','empty_cylinder_price','deposit_amount','is_active','sort_order'];
     /** Active types of a business (default: the business of the current branch). */
     public function activeOrdered(?int $businessId=null): array { return $this->where('business_id',$businessId ?? \App\Services\BusinessContext::currentBusinessId())->where('is_active',1)->orderBy('sort_order')->findAll(); }
     /** All types of a business (default: the business of the current branch), for management screens. */

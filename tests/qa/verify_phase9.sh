@@ -52,7 +52,9 @@ post "$A" expenses/save -d "category_id=$CAT" -d amount=5 -d payment_mode=cash -
 echo "--- 9.5.3 business-owned master data"
 post "$A" business-management/business/save -d code=QA2 -d "name=QA Second Business" -d city=Lahore >/dev/null
 BIZ2=$(q "SELECT id FROM businesses WHERE code='QA2'")
-[ -n "$BIZ2" ] && [ "$(q "SELECT COUNT(*) FROM cylinder_types WHERE business_id=$BIZ2")" = 6 ] && [ "$(q "SELECT COUNT(*) FROM expense_categories WHERE business_id=$BIZ2")" = 5 ] && ok "new business provisioned with 6 cylinder types and 5 expense categories" || bad "provisioning" "biz2=$BIZ2"
+[ -n "$BIZ2" ] && [ "$(q "SELECT COUNT(*) FROM cylinder_types WHERE business_id=$BIZ2")" = 4 ] && [ "$(q "SELECT COUNT(*) FROM expense_categories WHERE business_id=$BIZ2")" = 5 ] && ok "new business provisioned with 4 cylinder types and 5 expense categories" || bad "provisioning" "biz2=$BIZ2"
+# BL-032 / Q-14: the commercial sizes 11.8 and 45.4 kg; the old 45 / 45.2 kg are not seeded for new businesses.
+[ "$(q "SELECT GROUP_CONCAT(CAST(capacity_kg AS DECIMAL(8,1)) ORDER BY capacity_kg) FROM cylinder_types WHERE business_id=$BIZ2")" = "6.0,11.8,15.0,45.4" ] && ok "new business gets 6, 11.8, 15 and 45.4 kg types" || bad "default sizes" "$(q "SELECT GROUP_CONCAT(capacity_kg) FROM cylinder_types WHERE business_id=$BIZ2")"
 C6B=$(q "SELECT id FROM cylinder_types WHERE code='C6' AND business_id=$BIZ2")
 R=$(sale "$A" gas_sale "" "$(gasline 0.1 "$C6B")" "$CASH" "$(d now)"); echo "$R" | grep -qi "invalid or inactive cylinder type" && ok "POS rejects another business's cylinder type" || bad "foreign type POS" "$R"
 post "$A" rates/save -d rate_type=cylinder_package -d "cylinder_type_id=$C6B" -d rate_value=1 -d "effective_from=$(d now)" >/dev/null

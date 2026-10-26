@@ -29,7 +29,7 @@ class CylinderTypes extends Controller
         if($r=$this->guard()) return $r;
         $id=(int)$this->request->getPost('id');
         $businessId=BusinessContext::currentBusinessId();
-        $data=['code'=>trim((string)$this->request->getPost('code')),'name'=>trim((string)$this->request->getPost('name')),'capacity_kg'=>(float)$this->request->getPost('capacity_kg'),'tare_weight_kg'=>$this->request->getPost('tare_weight_kg')===''?null:(float)$this->request->getPost('tare_weight_kg'),'empty_cylinder_price'=>max(0,(float)$this->request->getPost('empty_cylinder_price')),'sort_order'=>(int)$this->request->getPost('sort_order'),'is_active'=>$this->request->getPost('is_active')?1:0];
+        $data=['code'=>trim((string)$this->request->getPost('code')),'name'=>trim((string)$this->request->getPost('name')),'capacity_kg'=>(float)$this->request->getPost('capacity_kg'),'tare_weight_kg'=>$this->request->getPost('tare_weight_kg')===''?null:(float)$this->request->getPost('tare_weight_kg'),'empty_cylinder_price'=>max(0,(float)$this->request->getPost('empty_cylinder_price')),'deposit_amount'=>max(0,round((float)$this->request->getPost('deposit_amount'),2)),'sort_order'=>(int)$this->request->getPost('sort_order'),'is_active'=>$this->request->getPost('is_active')?1:0];
         if($data['code']===''||$data['name']===''||$data['capacity_kg']<=0) return redirect()->back()->withInput()->with('error','Code, name and positive capacity are required.');
         try {
             $duplicate=$this->model->where('business_id',$businessId)

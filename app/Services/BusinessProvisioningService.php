@@ -12,14 +12,16 @@ use Config\Database;
  */
 class BusinessProvisioningService
 {
-    /** Same defaults as the fresh-install seed in database/schema.sql. */
+    /**
+     * The commercial sizes (Q-14): domestic 11.8 kg and commercial 45.4 kg, plus 6 and 15 kg.
+     * The fresh-install seed in database/schema.sql keeps its older list (35, 45, 45.2 kg);
+     * those existing rows are left untouched.
+     */
     public const DEFAULT_CYLINDER_TYPES = [
         ['C6', '6 kg', 6, 1],
         ['C11_8', '11.8 kg', 11.8, 2],
         ['C15', '15 kg', 15, 3],
-        ['C35', '35 kg', 35, 4],
-        ['C45', '45 kg', 45, 5],
-        ['C45_2', '45.2 kg', 45.2, 6],
+        ['C45_4', '45.4 kg', 45.4, 4],
     ];
 
     public const DEFAULT_EXPENSE_CATEGORIES = [

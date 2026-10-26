@@ -154,5 +154,13 @@ rollback_from CustomerProfileFields
 qa_spark migrations:run >/dev/null 2>&1
 bash "$DIR/reset_db.sh" >/dev/null 2>&1
 
+# --- 8. BL-032 cylinder type deposit; rollback
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='cylinder_types' AND COLUMN_NAME='deposit_amount'")" = 1 ] && ok "cylinder_types has deposit_amount" || bad "deposit column" "missing"
+[ "$(q "SELECT COUNT(*) FROM cylinder_types WHERE deposit_amount<>0")" = 0 ] && ok "existing cylinder types default to a zero deposit" || bad "deposit default" ""
+rollback_from CylinderTypeDeposit
+[ "$(q "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='cylinder_types' AND COLUMN_NAME='deposit_amount'")" = 0 ] && ok "CylinderTypeDeposit rollback removes the column" || bad "deposit rollback" "column remains"
+qa_spark migrations:run >/dev/null 2>&1
+bash "$DIR/reset_db.sh" >/dev/null 2>&1
+
 echo; echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

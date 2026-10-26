@@ -1661,3 +1661,33 @@ test('E2E-037 Blocked customers cannot buy; customer type filters the list', asy
   const api = await (await request.get('/api/v1/staff/customers?customer_type=commercial&q=' + unique, { headers })).json();
   expect(api.meta.total).toBe(1);
 });
+test('E2E-038 Cylinder type deposit pre-fills Security Deposit; gross weight shown', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await login(page);
+  await page.goto('/cylinder-types', { waitUntil: 'networkidle' });
+  const row = page.locator('table tbody tr').filter({ has: page.locator('td', { hasText: /^C6$/ }) });
+  await row.getByRole('button', { name: 'Edit' }).click();
+  await page.locator('#type_tare_weight_kg').fill('8');
+  await page.locator('#type_deposit_amount').fill('1500');
+  await page.getByRole('button', { name: 'Save Type' }).click();
+  await expect(page.locator('body')).toContainText('Cylinder type updated.');
+  // 6 kg net + 8 kg tare = 14 kg gross.
+  await expect(row).toContainText('14.000');
+  await expect(row).toContainText('1,500.00');
+
+  await page.goto('/sales', { waitUntil: 'networkidle' });
+  await page.locator('#transactionType').selectOption('security_deposit');
+  await page.locator('#customer_id').selectOption({ label: 'QA-E2E-CUST — QA E2E Customer' });
+  await page.locator('#openIssuePicker').click();
+  await selectOptionByTextPrefix(page.locator('#issuePickerType'), 'C6 —');
+  await page.locator('label.cylinder-option').filter({ hasText: 'QA-E2E-C6-001' }).click();
+  await page.locator('#confirmIssuePicker').click();
+  await expect(page.locator('#securityDeposit')).toHaveValue('1500.00');
+
+  // A typed amount is kept when the selection changes.
+  await page.locator('#securityDeposit').fill('900');
+  await page.locator('.issue-line-remove').first().click();
+  await expect(page.locator('#securityDeposit')).toHaveValue('900');
+  expect(pageErrors).toEqual([]);
+});
